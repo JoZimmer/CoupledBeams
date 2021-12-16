@@ -46,7 +46,6 @@ parameters = {'A':
                 'params_m_ya': [0.0,0.0,0.0],#[1.0, 1.0, 1.0] # omega: stiffness coupling, psi1, psi2: mass y-a, psi3: mass g-a
                 'eigen_freqs_tar':[0.231,0.429,0.536],
                 'eigen_freqs_orig':[0.231,0.429,0.536],
-                
              },
 
             'B':{  
