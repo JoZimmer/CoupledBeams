@@ -1,0 +1,13 @@
+
+*.pyc
+*.idea
+*.vscode
+*.avi
+*.mp4
+*.csv
+*.pdf
+*.png
+*.cpython-38.pyc
+*.svg
+*.eps
+*.pgf
