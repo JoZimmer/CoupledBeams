@@ -127,7 +127,7 @@ class Postprocess(object):
         
             ax = [ax]
         else:
-            fig, ax = plt.subplots(nrows = steps,ncols = number_of_modes, sharey=True,  num='eigenmode results')#figsize=(5,4),
+            fig, ax = plt.subplots(nrows = steps,ncols = number_of_modes, sharey=True,  num='eigenmode results',figsize=(cm2inch(20),cm2inch(18)))#,
 
         norm, norm2, norm3 = 1, 1, 1
         if max_normed:
