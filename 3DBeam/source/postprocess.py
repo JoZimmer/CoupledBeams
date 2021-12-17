@@ -11,18 +11,7 @@ from source.utilities import utilities as utils
 from source.utilities import global_definitions as GD
 from source.utilities import CAARC_utilities as caarc_utils
 
-'''
-Legenden Außerhalb
-unten 
-axes[0,d_i].legend(bbox_to_anchor = (0.5, -0.2), loc ='upper center', ncol = 4)
-rechts
-axes[0,-1].legend(bbox_to_anchor = (1.04, 1), loc ='upper left')
-'''
-
 greek = {'y':'y','z':'z', 'x':'x','a':r'\alpha', 'b':r'\beta', 'g':r'\gamma'}
-
-# custom rectangle size for figure layout
-cust_rect = [0.05, 0.05, 0.95, 0.95]
 
 COLORS = ['tab:blue', 'tab:orange', 'tab:green', 'tab:red']
 
@@ -61,8 +50,6 @@ class Postprocess(object):
         self.nodal_coordinates = structure_model.nodal_coordinates
         self.rad_scale = np.sqrt(structure_model.parameters['cross_section_area'])
 
-        #self.intermediate_results = intermediate_results
-
         dest_mode_results = os_join('plots',caarc_model,'eigenmode_results')
         dest_objective_func = os_join('plots',caarc_model,'objective_function')
         dest_1D_opt = os_join('plots',caarc_model,'ya_yg')
@@ -81,14 +68,11 @@ class Postprocess(object):
             if result == 'dynamic_analysis':
                 options = self.parameters[result]
                 if options['time_hist']:
-                    # w7 h10 (time and freq übereinander) w8 h14.8 für quer format
                     self.plot_dynamic_results(intermediate_results[result][1], dof_label = options['response'], node_id = 10, 
                                                         result_variable = options['response_type'], init_res = intermediate_results[result][0].solver,
                                                         include_fft=True, log=True, add_fft=False, unit=options['unit'])
 
                 if options['comp_stats']:
-                    # w4.8 h3.5
-                    # analyses: list[uncoupled, coupled]
                     self.compare_stats(results = intermediate_results[result], node_id=options['node_id'], response_label = options['response'], result_type = options['response_type'], 
                                             stats = options['stats'], unit=options['unit'], uncoupled_normed=options['normed'])
 
@@ -247,11 +231,9 @@ class Postprocess(object):
         # if self.savefig:
         #     plt.savefig(dest_mode_results)
 
-        # if self.show_plots:
-        #     plt.show()
+        if self.show_plots:
+            plt.show()
         
-        plt.close()
-
     def plot_objective_function_3D(self,optimization_object, evaluation_space_x = [-4,4,0.1], evaluation_space_y = None,
                                     include_opt_history = False, fig_label = '', filename_for_save ='0_no_name', add_3D_surf_plot = False, save_evaluation = True):
         '''
@@ -321,8 +303,6 @@ class Postprocess(object):
             ax1.scatter(k_ya_hist[0],k_ga_hist[0], marker='o',c='lime',edgecolors='k', s = 20,label='start',zorder=5)
             ax1.scatter(k_ya_hist[-1],k_ga_hist[-1], marker='o',c='red',edgecolors='k', s= 20, label='end',zorder=5)
 
-        
-        
         if add_3D_surf_plot:
             surf = ax2.plot_surface(x,y,z,
                                 cmap= 'hsv',
@@ -355,13 +335,12 @@ class Postprocess(object):
         ax1.grid( linestyle='--')
         ax1.legend()
 
-        if self.savefig:
-            plt.savefig(dest_objective_func + filename_for_save)
-            print ('\nsaved:',dest_objective_func + filename_for_save)
+        # if self.savefig:
+        #     plt.savefig(dest_objective_func + filename_for_save)
+        #     print ('\nsaved:',dest_objective_func + filename_for_save)
 
         if self.show_plots:
             plt.show()
-        plt.close()
         
         del optimization_obj_eval
 
@@ -388,8 +367,8 @@ class Postprocess(object):
         #plt.legend()
         plt.legend(bbox_to_anchor = (1.04, 1), loc ='upper left')
 
-        if self.savefig:
-            plt.savefig(dest_mass + 'mass_inc_iter')
+        # if self.savefig:
+        #     plt.savefig(dest_mass + 'mass_inc_iter')
 
         if self.show_plots:
             plt.show()
@@ -740,7 +719,6 @@ class Postprocess(object):
         
         ax[0].grid()
         
-
         save_title =  dof_label + '_time_dyn_res_comp'
         if include_fft:
             save_title = dof_label + '_time_freq_dyn_res_comp'
@@ -754,7 +732,6 @@ class Postprocess(object):
 
         if add_fft:
             self.plot_fft(dof_label=dof_for_fft, dynamic_analysis=dynamic_analysis, init_dyn_res = init_res)    
-
 
     def plot_fft(self, dof_label, dynamic_analysis = None, given_series = None, sampling_freq = None, init_dyn_res = None):
         ''' 
@@ -832,10 +809,8 @@ class Postprocess(object):
                     rad_scale = directions[response_label]['rad']
                 else:
                     rad_scale = 1.0
-                result_data += (results[1].solver.acceleration[dof_id, :]*rad_scale)#**2
-                result_data_un += (results[0].solver.acceleration[dof_id, :]*rad_scale)#**2
-            # result_data = np.sqrt(result_data)
-            # result_data_un = np.sqrt(result_data_un)
+                result_data += (results[1].solver.acceleration[dof_id, :]*rad_scale)
+                result_data_un += (results[0].solver.acceleration[dof_id, :]*rad_scale)
             response_label = directions[response_label]['label']
         elif result_type == 'action':
             result_data = results[1].force[dof_id, :]
@@ -847,11 +822,7 @@ class Postprocess(object):
 
 
             stats = ['mean', 'std', 'max_est']
-            # if dof_id in results[1].structure_model.dofs_of_bc:# or dof in results[1].structure_model.elastic_bc_dofs:
-            #     result_data = results[1].solver.dynamic_reaction[dof_id, :] * unit_scale
-            # else:
             print ('\nReplacing the selected node by the ground node for reaction results')
-            #dof_id = 0
             dof_id = GD.DOF_LABELS['3D'].index(dof_label)
             result_data = results[1].solver.dynamic_reaction[dof_id, :]  * unit_scale
             
@@ -896,15 +867,7 @@ class Postprocess(object):
                         width, color = colors[0], label='coupled')
         dx = (x[1] - x[0])/2
 
-        # ax.axvline(x[1]+dx, linestyle = '--', color = 'grey')
-        # ax.axvline(x[3]+dx, linestyle = '--', color = 'grey')
-        # ax.axhline(1,linestyle = '--', color = 'k',label= convert_for_latex('glob_max'))
-
-        # for r_i, r in enumerate(['Mz','My','Mx']):
-        #     ax.text(x[result_dict['labels'].index(r)],1.9, directions_naming[r])
-        
-        #ax.legend(bbox_to_anchor = (0.5, -0.4), loc ='upper center', ncol = 2)
-        ax.legend()#loc= 'upper center', bbox_to_anchor=(0.5, -0.15), ncol= 3)
+        ax.legend()
         if not uncoupled_normed:
             ax.set_ylabel(convert_for_latex(response_label) + r' ${}$'.format(unit_label))
         else:
@@ -922,7 +885,6 @@ class Postprocess(object):
         else:
             ax.locator_params(axis='y', nbins=4)
 
-        
         save_title = response_label + '_stats'
 
         if self.savefig:
@@ -956,14 +918,3 @@ class Postprocess(object):
             print ('\nsaved:', dest + os_sep + save_tlt)
         if self.show_plots:
             plt.show()
-
-    def set_ax_size(self, w,h, ax=None):
-        """ w, h: width, height in inches """
-        #if not ax: ax=plt.gca()
-        l = ax.figure.subplotpars.left
-        r = ax.figure.subplotpars.right
-        t = ax.figure.subplotpars.top
-        b = ax.figure.subplotpars.bottom
-        figw = float(w)/(r-l)
-        figh = float(h)/(t-b)
-        ax.figure.set_size_inches(figw, figh)
