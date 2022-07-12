@@ -1,10 +1,11 @@
 import numpy as np
 import json
-import os.path
+import os
 import matplotlib.pyplot as plt 
 from os.path import join as os_join
 from os.path import sep as os_sep
 from source.utilities import statistics_utilities as stats_utils
+from source.utilities import global_definitions as GD
 
 
 caarc_freqs = [0.231, 0.429, 0.536]
@@ -212,6 +213,68 @@ def prepare_string_for_latex(string):
     
 def join_whitespaced_string(string):
     return string.replace(' ','_')
+
+def parse_load_signal_backwards(signal):
+    '''
+    signal kommt als dictionary mit den Richtungen als keys (müssen nicht alle 6 Richtugne sein)
+    output soll row vector sein mit dofs * n_nodes einträgen
+    '''
+    shape = GD.DOFS_PER_NODE['3D'] * len(list(signal.values())[0])
+    signal_raw = np.zeros(shape)
+    for label in signal:
+        dof_label_id = GD.DOF_LABELS['3D'].index(label)
+        for i, val in enumerate(signal[label]):
+            sort_id = i * GD.DOFS_PER_NODE['3D'] + dof_label_id
+            signal_raw[sort_id] = val
+
+    #TODO: must this be transposed?!
+    return signal_raw
+
+def generate_static_load_vector_file(load_vector):
+    '''
+    return a npy file and saves it for a given load.
+
+    If load is given as dictionary with directions as keys it parses it to a 1D array that is needed in the ParOptBeam
+    '''
+    if isinstance(load_vector, dict):
+        load = parse_load_signal_backwards(load_vector)
+    else:
+        load = load_vector
+
+    src_path = os_join('input','loads','static')
+    if not os.path.isdir(src_path):
+        os.makedirs(src_path)
+
+    file_name = src_path + 'eswl_' + str(int(len(load)/GD.DOFS_PER_NODE['3D'])) + '_nodes.npy'
+
+    np.save(file_name, load)
+
+    return file_name
+
+def generate_nodal_force_file(number_of_nodes, node_of_load_application, force_direction:str, magnitude, file_base_name = 'static_load_'):
+    '''
+    creating a force .npy file with a nodal force at given node, direction and magnitude
+    number_of_nodes: anzahl knoten des models 
+    node_of_load_application: Knoten an dem die Last aufgebracht werden soll
+    force_direction: string der richtung
+    '''
+    src_path = os_join(*['input','loads','static'])
+    if not os.path.isdir(src_path):
+        os.makedirs(src_path)
+    domain_size = '3D'
+
+    # -1 ist notwendig da sozusagen vom knoten unter dem von interesse angefangen wird die dof nodes dazu zu addieren
+    loaded_dof = (node_of_load_application-1)*GD.DOFS_PER_NODE[domain_size] + GD.DOF_LABELS[domain_size].index(force_direction)
+
+    force_data = np.zeros(GD.DOFS_PER_NODE[domain_size]*number_of_nodes)
+    force_data[loaded_dof] += magnitude
+    force_data = force_data.reshape(GD.DOFS_PER_NODE[domain_size]*number_of_nodes,1)
+
+    force_file_name = os_join(src_path, file_base_name + str(number_of_nodes) + '_nodes_at_' + str(node_of_load_application) + \
+                        '_in_' + force_direction+'.npy')
+    np.save(force_file_name, force_data)
+
+    return force_file_name
 
 # # DYNAMIC ANALYSIS
 def get_fft(given_series, sampling_freq):

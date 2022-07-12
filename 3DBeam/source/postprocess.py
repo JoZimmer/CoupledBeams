@@ -6,6 +6,7 @@ import copy
 from os.path import join as os_join
 from os.path import sep as os_sep
 from matplotlib.ticker import MultipleLocator, AutoMinorLocator
+from source.model import BeamModel
 
 from source.utilities import utilities as utils
 from source.utilities import global_definitions as GD
@@ -918,3 +919,39 @@ class Postprocess(object):
             print ('\nsaved:', dest + os_sep + save_tlt)
         if self.show_plots:
             plt.show()
+
+def plot_static_result(beam_model:BeamModel, dofs_to_plot:list, rad_scale = True):
+    '''
+    statische deformation ploten entlang der höhe 
+    '''
+    static_deformation = beam_model.static_deformation
+
+    title = 'static results '
+
+    fig, ax = plt.subplots(num=title )
+
+    ax.plot(beam_model.nodal_coordinates['y0'],
+            beam_model.nodal_coordinates['x0'],
+            label = 'structure',
+            marker = 'o',
+            color = 'grey',
+            linestyle = '--')
+
+    dof_colors = {'y':'tab:blue','a':'tab:orange','z':'tab:green'}
+    for d_i, dof in enumerate(dofs_to_plot):
+        scale=1.0
+        if rad_scale:
+            if dof in ['a','b','g']:
+                scale = rad_scale
+        label = r'${}$'.format(greek[dof]) + r'$_{max} =$'+ '{0:.2e}'.format(static_deformation[dof][-1][0]*scale)
+
+        ax.plot(static_deformation[dof] * scale,
+                beam_model.nodal_coordinates['x0'],
+                label = label,
+                color = dof_colors[dof])
+    ax.legend()
+    ax.grid()
+    ax.set_xlabel(r'defl. $[m]$')
+    ax.set_ylabel(r'height $[m]$')
+    ax.set_ylim(bottom=0)
+    plt.show()

@@ -5,6 +5,8 @@ n_dofs_node = {'2D':2, '3D':6}
 dofs_of_bc = {'2D': [0,1], '3D':[0,1,2,3,4,5] }
 tip_load = {'2D': -2, '3D':-5}
 
+DOFS_PER_NODE = {'2D':2, '3D':6}
+
 RESPONSE_DIRECTION_MAP = {'Qx':'x', 'Qy':'y', 'Qz':'z', 'Mx':'a', 'My':'b', 'Mz':'g'}
 
 DIRECTION_LOAD_MAP = {'x':'Fx', 'y':'Fy', 'z':'Fz', 'a':'Mx', 'b':'My', 'g':'Mz'}

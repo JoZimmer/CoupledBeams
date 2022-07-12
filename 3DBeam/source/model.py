@@ -7,7 +7,6 @@ from functools import partial
 from source.bernoulli_element import BernoulliElement
 from source.utilities import utilities as utils
 from source.utilities import global_definitions as GD
-from source.postprocess import Postprocess
 
 num_zero = 1e-15
 
@@ -236,25 +235,28 @@ class BeamModel(object):
 
         self.eig_freqs_sorted_indices = np.argsort(self.eigenfrequencies)
         
-    def static_analysis_solve(self, apply_mean_dynamic = True, directions = 'y'):
+    def static_analysis_solve(self, load_vector_file = None, apply_mean_dynamic = True, directions = 'y'):
         ''' 
         static load so far defaults as tip load in y direction
         TODO: include passing a load vector
         if apply_mean_dynamic: the dynamic load file is taken and at each point the mean magnitude
         direction: if 'all' all load directions are applied
         ''' 
-        load_vector = np.zeros(self.n_nodes*self.n_dofs_node)
-        if apply_mean_dynamic:
-            dyn_load = np.load(self.parameters['dynamic_load_file'])
-            if directions == 'all':
-                load_vector = np.apply_along_axis(np.mean, 1, dyn_load)
-            else:
-                for direction in directions:
-                    dir_id = GD.DOF_LABELS['3D'].index(direction)
-                    mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node['3D']]
-                    load_vector[dir_id::GD.n_dofs_node['3D']] = mean_load
+        if load_vector_file != None:
+            load_vector = np.load(load_vector_file)
         else:
-            load_vector[self.load_id] = self.parameters['static_load_magnitude']
+            load_vector = np.zeros(self.n_nodes*self.n_dofs_node)
+            if apply_mean_dynamic:
+                dyn_load = np.load(self.parameters['dynamic_load_file'])
+                if directions == 'all':
+                    load_vector = np.apply_along_axis(np.mean, 1, dyn_load)
+                else:
+                    for direction in directions:
+                        dir_id = GD.DOF_LABELS['3D'].index(direction)
+                        mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node['3D']]
+                        load_vector[dir_id::GD.n_dofs_node['3D']] = mean_load
+            else:
+                load_vector[self.load_id] = self.parameters['static_load_magnitude']
 
         self.static_deformation = {}
 

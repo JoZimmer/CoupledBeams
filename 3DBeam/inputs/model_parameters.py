@@ -72,7 +72,34 @@ parameters = {'A':
                 'params_m_ya': [0.0,0.0,0.0],#omega: stiffness coupling, psi1, psi2: mass y-a, psi3: mass g-a
                 'eigen_freqs_orig':[0.20,0.23,0.4], 
                 'eigen_freqs_tar':[0.2591, 0.3249, 1.3555],
-             }}
+             },
+            'holzturm':{
+               'dimension': '3D',
+                'n_elements': 10,
+                'lx_total_beam': 160,
+                'material_density': 160, #NOTE diminished from 160 to 100, this makes the inital frequency tunig in the correct direction BUT sense is questionable
+                'E_Modul': 2861000.0,#
+                'nu': 0.1, 
+                'damping_coeff': 0.025,
+                'nodes_per_elem': 2,
+                'cross_section_area': 12*12,
+                'B':12,
+                'D':12,
+                'Iy': 127812.5,
+                'Iz': 51250.0,
+                'I_param':10000.0, # 3 elems: 120000.0
+                'It': 50000.0,#2#NOTE often set to Iy + Iz here diminsihed it by 100 000 such that the torsion optimization worked. 200 000 makes the coupling not working 
+                'modes_to_consider': 15,
+                'static_load_magnitude': 1,
+                'dynamic_load_file': os_join(*["inputs","forces","dynamic_force_11_nodes.npy"]),
+                'inital_params_yg': [1.0,1.0,1.0],
+                'params_k_ya': [0,0],#omega: stiffness coupling y - a omega1: y -g
+                'params_m_ya': [0.0,0.0,0.0],#omega: stiffness coupling, psi1, psi2: mass y-a, psi3: mass g-a
+                'eigen_freqs_orig':[0.20,0.23,0.4], 
+                'eigen_freqs_tar':[0.21, 0.3249, 1.3555],
+
+            }
+             }
 
 optimization_parameters = {'A':{
                             'eigen_freqs_tar': [0.231,0.429,0.536],# 'caarc_freqs_A'
