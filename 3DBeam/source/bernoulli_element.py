@@ -111,8 +111,12 @@ class BernoulliElement(object):
         '''
         return the correct stiffness matrix with parameter alpha = 1.0
         '''
-        return get_stiffness_matrix_var(alpha=1.0, omega=0.0)
+        return self.get_stiffness_matrix_var(alpha=1.0, omega=0.0)
 
+    def get_stiffness_matrix_geometry():
+        '''
+        siehe UHFFB Turm PDF seite 162
+        '''
 
     def get_mass_matrix_var(self, beta1 = 1.0, beta2 = 1.0, psi1 = 0.0, psi2 = 0.0, psi3 = 0.0):
         ''' 
@@ -323,7 +327,7 @@ class BernoulliElement(object):
             return m_el
       
     def get_mass_matrix_tar(self):
-        return get_mass_matrix_var(beta1=1.0,beta2=1.0,psi1=0.0, psi2=0.0)
+        return self.get_mass_matrix_var(beta1=1.0,beta2=1.0,psi1=0.0, psi2=0.0)
 
 
     def evaluate_relative_importance_of_shear(self):

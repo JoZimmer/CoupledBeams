@@ -12,7 +12,7 @@ num_zero = 1e-15
 
 class BeamModel(object):
 
-    def __init__(self, parameters, coupled = True, optimization_parameters = None, optimize_frequencies_init = True, use_translate_matrix=False):
+    def __init__(self, parameters, coupled = True, optimization_parameters = None, optimize_frequencies_init = True):
 
  
         # MATERIAL; GEOMETRIC AND ELEMENT INFORMATION
@@ -28,7 +28,7 @@ class BeamModel(object):
         self.n_nodes = self.n_elems + 1
         self.nodes_per_elem = self.parameters['nodes_per_elem']
 
-        self.translate_matrix = use_translate_matrix
+        self.translate_matrix = False
 
         self.initialize_elements() 
 
