@@ -12,16 +12,17 @@ num_zero = 1e-15
 
 class BeamModel(object):
 
-    def __init__(self, parameters, coupled = True, optimization_parameters = None, optimize_frequencies_init = True):
+    def __init__(self, parameters, optimize_frequencies_init = True, apply_k_geo = False):
 
  
         # MATERIAL; GEOMETRIC AND ELEMENT INFORMATION
         self.parameters = parameters
-        self.coupled = coupled
         self.dim = self.parameters['dimension']
-        self.n_dofs_node = GD.n_dofs_node[self.dim]
+        self.n_dofs_node = GD.DOFS_PER_NODE[self.dim]
         self.dof_labels = GD.DOF_LABELS[self.dim]
         self.dofs_of_bc = GD.dofs_of_bc[self.dim]
+        if self.parameters['type_of_bc'] == 'spring':
+            self.dofs_of_bc = [0] # nur in längsrichtung einspannen 
         self.load_id = GD.tip_load[self.dim]
         
         self.n_elems = parameters['n_elements']
@@ -32,42 +33,39 @@ class BeamModel(object):
 
         self.initialize_elements() 
 
-        self.build_system_matricies(parameters['inital_params_yg'], 
-                                    parameters['params_k_ya'], 
-                                    parameters['params_m_ya'])
+        self.apply_k_geo = apply_k_geo
+        self.build_system_matricies(params_yg = parameters['inital_params_yg'], EIz_param=parameters['EIz_param'])
         
         self.eigenvalue_solve()
-
-        self.optimize_frequencies_init = optimize_frequencies_init
         
-        if self.optimize_frequencies_init:
+        if optimize_frequencies_init:
             from source.optimizations import Optimizations
 
             self.init_opt = Optimizations(self)
 
-            if self.coupled:
-                target_freqs = self.parameters['eigen_freqs_tar']
-            if not self.coupled:
-                target_freqs = self.parameters['eigen_freqs_orig']
+            target_freqs = self.parameters['eigen_freqs_target']
 
             self.init_opt.adjust_sway_z_stiffness_for_target_eigenfreq(target_freqs[0], 
                                                                         target_mode = 0,
                                                                         print_to_console=False)
 
-            self.init_opt.adjust_sway_y_stiffness_for_target_eigenfreq(target_freqs[1], 
-                                                                    target_mode = 1,
-                                                                    print_to_console=False)
-
-
-            self.init_opt.adjust_torsional_stiffness_for_target_eigenfreq(target_freqs[2],
-                                                                        target_mode = 2,
+            if self.dim == '3D':
+                self.init_opt.adjust_sway_y_stiffness_for_target_eigenfreq(target_freqs[1], 
+                                                                        target_mode = 1,
                                                                         print_to_console=False)
+
+
+                self.init_opt.adjust_torsional_stiffness_for_target_eigenfreq(target_freqs[2],
+                                                                            target_mode = 2,
+                                                                            print_to_console=False)
 
 
 # # ELEMENT INITIALIZATION AND GLOBAL MATRIX ASSAMBLAGE
 
     def initialize_elements(self):
-
+        '''
+        eine Listen von Bernoulli elementen erstellen -> Steifigkeitsmatrizen werden in seperater Funktion erstellt
+        '''
         self.nodal_coordinates = {}
         self.elements = []
 
@@ -82,7 +80,7 @@ class BeamModel(object):
         for i in range(self.n_nodes):
             self.nodal_coordinates['x0'][i] = i * lx_i
 
-    def build_system_matricies(self, params_yg = [1.0,1.0,1.0], params_k_ya = [0.0,0.0], params_m_ya = [0.0,0.0,0.0]):
+    def build_system_matricies(self, params_yg = [1.0,1.0,1.0], EIz_param = 1.0, params_k_ya = [0.0,0.0], params_m_ya = [0.0,0.0,0.0]):
         ''' 
         assigns K_el and M_el to the object. BC is applied already
         The coupling prameters are introduced
@@ -90,6 +88,8 @@ class BeamModel(object):
             0: alpha - stiffness coupling yg
             1: beta1 - mass coupling yg1
             2: beta2 - mass coupling yg2
+        EIz_param:
+            Faktor für EIz 
         params_k_ya:
             0: omega - stiffness coupling ya
             1: omega1 - stiffness coupling gamma - a
@@ -106,17 +106,20 @@ class BeamModel(object):
         
         for element in self.elements:
 
-            k_el = element.get_stiffness_matrix_var(alpha = params_yg[0], omega = params_k_ya[0], omega1 = params_k_ya[1])
+            k_el = element.get_stiffness_matrix_var(alpha = params_yg[0], EIz_param = EIz_param, omega = params_k_ya[0], omega1 = params_k_ya[1])
             m_el = element.get_mass_matrix_var(beta1 = params_yg[1], beta2 = params_yg[2], 
                                                 psi1 = params_m_ya[0], psi2 = params_m_ya[0],
                                                 psi3 = params_m_ya[2])
-            if self.translate_matrix:
-                T = self.get_transformation_matrix(0, 100.0)
-                k_el = np.matmul(np.matmul(np.transpose(T), k_el), T)
+            
+            if self.apply_k_geo:
+                k_el_geo = element.get_stiffness_matrix_geometry()
+
+                k_el += k_el_geo
 
             start = self.n_dofs_node * element.index
             end = start + self.n_dofs_node * self.nodes_per_elem
 
+            # assemble to global 
             self.k[start: end, start: end] += k_el
             self.m[start: end, start: end] += m_el
 
@@ -124,9 +127,19 @@ class BeamModel(object):
 
         self.comp_k = self.apply_bc_by_reduction(self.k)
         self.comp_m = self.apply_bc_by_reduction(self.m)
+
+        # Muss nach der reduction der restlichen BCs gemacht werden
+        if self.parameters['type_of_bc'] == 'spring':
+            self.comp_k = self.apply_spring_bc(self.comp_k)
+        
+        if self.parameters['nacelle_mass']:
+            # Aus Beton Turm Strukturoptimierung
+            self.comp_m[-2,-2] += self.parameters['nacelle_mass']
+            self.comp_m[-3,-3] += self.parameters['nacelle_mass']
         
         self.b = self.get_damping()
         self.comp_b = self.apply_bc_by_reduction(self.b)
+        
 
 # # BOUNDARY CONDITIONS
 
@@ -184,6 +197,19 @@ class BeamModel(object):
 
         return extended_matrix
 
+    def apply_spring_bc(self, k):
+        '''
+        den einträgen werden die in den parameters['spring_stiffness'] gegebenen Steifigkeiten zugeordnet
+        bisher nur 2D u und gamma als spring
+        '''
+        if self.dim == '3D':
+            raise Exception('Spring stiffness Boundary condition not impelemnted for 3D')
+         
+        k[0,0] = self.parameters['spring_stiffness'][0]
+        k[1,1] = self.parameters['spring_stiffness'][1]
+
+        return k
+
 # # SOLVES
 
     def eigenvalue_solve(self):
@@ -204,6 +230,7 @@ class BeamModel(object):
         self.eigenfrequencies = self.eig_values / 2. / np.pi #rad/s
         self.eig_periods = 1 / self.eigenfrequencies
 
+        # generalized mass stuff -> nicht so wichtig 
         gen_mass = np.matmul(np.matmul(np.transpose(self.eigen_modes_raw), self.comp_m), self.eigen_modes_raw)
 
         is_identiy = np.allclose(gen_mass, np.eye(gen_mass.shape[0]), rtol=1e-05)
@@ -220,6 +247,7 @@ class BeamModel(object):
         if not is_identiy:
             return 0
 
+        # eigenmodes nach Richtung sortieren
         self.eigenmodes = {}
         for dof in self.dof_labels:
             self.eigenmodes[dof] = []
@@ -229,7 +257,8 @@ class BeamModel(object):
             for j, dof in enumerate(self.dof_labels):
                 self.eigenmodes[dof].append(np.zeros(self.n_nodes))
                 dof_and_mode_specific = self.eigen_modes_raw[j:,i][::len(self.dof_labels)]
-                self.eigenmodes[dof][i][1:] = self.eigen_modes_raw[j:,i][::len(self.dof_labels)]
+                start = self.n_nodes - dof_and_mode_specific.shape[0]
+                self.eigenmodes[dof][i][start:] = self.eigen_modes_raw[j:,i][::len(self.dof_labels)]
 
         self.eigenmodes = utils.check_and_flip_sign_dict(self.eigenmodes)
 
@@ -324,11 +353,10 @@ class BeamModel(object):
                                     
         return T
 
-
     def get_damping(self):
         """
         Calculate damping b based upon the Rayleigh assumption
-        using the first 2 eigemodes - here generically i and i
+        using the first 2 eigemodes - here generically i and j
         """
 
         mode_i = 0

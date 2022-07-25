@@ -37,6 +37,7 @@ class Optimizations(object):
     def adjust_sway_y_stiffness_for_target_eigenfreq(self, target_freq, target_mode, print_to_console=False):
         '''
         displacement in z direction -> sway_y = schwingung um y - Achse
+        nur 3D
         '''
         
         initial_iy = list(e.Iy for e in self.model.elements)
@@ -98,6 +99,7 @@ class Optimizations(object):
     def adjust_sway_z_stiffness_for_target_eigenfreq(self, target_freq, target_mode, print_to_console=False):
         '''
         sway_z = schwingung in y richtung, um z Achse,
+        2D Verformung
         '''
         initial_iz = list(e.Iz for e in self.model.elements)
 
@@ -146,9 +148,7 @@ class Optimizations(object):
             e.evaluate_torsional_inertia()
 
         # re-evaluate
-        self.model.build_system_matricies(self.model.parameters['inital_params_yg'], 
-                                          self.model.parameters['params_k_ya'], 
-                                          self.model.parameters['params_m_ya'])
+        self.model.build_system_matricies(self.model.parameters['inital_params_yg'])
 
         self.model.eigenvalue_solve()
 
@@ -368,7 +368,7 @@ class Optimizations(object):
                 modi_fitted = utils.get_eigenform_polyfit(modi[self.consider_mode], z_coords, self.model.nodal_coordinates['x0'], plot_compare=False)
                 eigenmodes_target_y = modi_fitted['eigenmodes']['y']
                 eigenmodes_target_a = -1*modi_fitted['eigenmodes']['a']
-            eigenfreq_target = self.opt_params['eigen_freqs_tar'] #self.model.eigenfrequencies[self.consider_mode]
+            eigenfreq_target = self.opt_params['eigen_freqs_target'] #self.model.eigenfrequencies[self.consider_mode]
 
         elif target_to_use == 'semi_realistic':
             ''' 
@@ -383,7 +383,7 @@ class Optimizations(object):
             a_factor = ratio_a_y * max(eigenmodes_target_y)/max(self.model.eigenmodes['a'][self.consider_mode])
             eigenmodes_target_a = self.model.eigenmodes['a'][self.consider_mode] * a_factor
 
-            eigenfreq_target = self.opt_params['eigen_freqs_tar'] #self.model.eigenfrequencies[self.consider_mode]
+            eigenfreq_target = self.opt_params['eigen_freqs_target'] #self.model.eigenfrequencies[self.consider_mode]
 
 
 

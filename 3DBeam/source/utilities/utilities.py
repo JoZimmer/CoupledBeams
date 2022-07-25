@@ -1,3 +1,4 @@
+import string
 import numpy as np
 import json
 import os
@@ -251,7 +252,7 @@ def generate_static_load_vector_file(load_vector):
 
     return file_name
 
-def generate_nodal_force_file(number_of_nodes, node_of_load_application, force_direction:str, magnitude, file_base_name = 'static_load_'):
+def generate_nodal_force_file(number_of_nodes, node_of_load_application, force_direction:str, magnitude, domain_size = '3D', file_base_name = 'static_load_'):
     '''
     creating a force .npy file with a nodal force at given node, direction and magnitude
     number_of_nodes: anzahl knoten des models 
@@ -261,7 +262,6 @@ def generate_nodal_force_file(number_of_nodes, node_of_load_application, force_d
     src_path = os_join(*['input','loads','static'])
     if not os.path.isdir(src_path):
         os.makedirs(src_path)
-    domain_size = '3D'
 
     # -1 ist notwendig da sozusagen vom knoten unter dem von interesse angefangen wird die dof nodes dazu zu addieren
     loaded_dof = (node_of_load_application-1)*GD.DOFS_PER_NODE[domain_size] + GD.DOF_LABELS[domain_size].index(force_direction)
@@ -329,4 +329,40 @@ def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of
     glob_max = max(abs(given_series))
 
     return abs_max_qnt, abs_max_est
+
+# SONSTIGES
+
+def read_xl_column(xl_worksheet, start_cell:str = None, start_row:int = None, start_col:int = None, end_row:int=None, end_cell:str = None):
+    '''
+    reading excel colum startin from start_row, start_col ODER start_cell als Excel Zellen name
+    start_row = Excel Zeilen Zahl (wird intern dann angepasst auf das 0 zählsystem von xlwings)
+    start_col = A entspricht 0 
+    end_row_optional: wenn nicht gegebn wird spalte bis zur nächsten leeren Zeile gelesen NOTE klappt nicht immer 
+    '''
+    def excel_cell_name_to_row_col(cell_name):
+
+        row = int(cell_name[1:]) - 1 
+        col = string.ascii_uppercase.index(cell_name[0])
+        return row, col
+
+    if start_cell:
+        if start_col or start_row:
+            raise Exception('entweder Start Zelle als String oder Zeile und Spalte als nummern geben')
+
+        start_row, start_col = excel_cell_name_to_row_col(start_cell)
+
+    else:
+        start_row -=1
+         
+    if not end_row and not end_cell:
+        end_row = xl_worksheet.range(start_row, start_col).end('down').row
+
+    if end_cell:
+        if end_row:
+            raise Exception('End Zelle als String oder Zeilen nummer angeben')
+
+        end_row, end_col = excel_cell_name_to_row_col(end_cell)
+    
+    column_values = xl_worksheet[start_row:end_row, start_col].value
+    return column_values
 

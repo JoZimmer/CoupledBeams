@@ -920,11 +920,17 @@ class Postprocess(object):
         if self.show_plots:
             plt.show()
 
-def plot_static_result(beam_model:BeamModel, dofs_to_plot:list, rad_scale = True):
+
+# ohne Klasse mit weniger formatierung 
+
+def plot_static_result(beam_model:BeamModel, dofs_to_plot:list, rad_scale = True, unit = 'm', rfem_result = None):
     '''
     statische deformation ploten entlang der höhe 
+    rfem_result: als dict mit dof als key so wie auch bem_model verformung, muss auch ein key: knoten haben 
     '''
     static_deformation = beam_model.static_deformation
+
+    rad_scale = np.sqrt(beam_model.parameters['cross_section_area'])
 
     title = 'static results '
 
@@ -937,9 +943,10 @@ def plot_static_result(beam_model:BeamModel, dofs_to_plot:list, rad_scale = True
             color = 'grey',
             linestyle = '--')
 
-    dof_colors = {'y':'tab:blue','a':'tab:orange','z':'tab:green'}
+    dof_colors = {'y':'tab:blue','g':'tab:orange','z':'tab:green'}
+    dof_colors_rfem = {'z':'tab:blue','y':'tab:orange','z':'tab:green'}
     for d_i, dof in enumerate(dofs_to_plot):
-        scale=1.0
+        scale= GD.UNIT_SCALE[unit]
         if rad_scale:
             if dof in ['a','b','g']:
                 scale = rad_scale
@@ -949,9 +956,109 @@ def plot_static_result(beam_model:BeamModel, dofs_to_plot:list, rad_scale = True
                 beam_model.nodal_coordinates['x0'],
                 label = label,
                 color = dof_colors[dof])
+    
+        if rfem_result:
+            scale = 1.0
+            if rad_scale:
+                if dof in ['a','b','g']:
+                    scale = rad_scale
+            label = r'RFEM ${}$'.format(greek[dof]) + r'$_{max} =$'+ '{0:.2e}'.format(rfem_result[dof][-1]*scale)
+
+            ax.plot(rfem_result[dof] * scale,
+                    rfem_result['knoten'],
+                    label = label,
+                    color = dof_colors_rfem[dof])
+
     ax.legend()
     ax.grid()
-    ax.set_xlabel(r'defl. $[m]$')
-    ax.set_ylabel(r'height $[m]$')
+    ax.set_xlabel(r'defl. [${}$]'.format(unit))
+    ax.set_ylabel(r'height [$m$]')
     ax.set_ylim(bottom=0)
     plt.show()
+
+def plot_eigenmodes_3D(beam_model:BeamModel, eigenfrequencies, eigenmodes, number_of_modes = 3, dofs_to_plot = ['y','z','a'],
+                        max_normed = False, do_rad_scale = True):
+
+    ''' 
+    Plotting eigendmodes of a 3D model.
+        beam_model: a beam model object optimized or not 
+        model: 'A' or 'B' for setting some plot style options
+        opt_targets: the eigenmode target deformations dictionary with dofs or None
+        initial: initial eigenmode deformations dictionary with dofs or None
+        number_of_modes: ...to show 
+        dofs_to_plot: ...
+        max_normed: boolean -> if deformation should be normed with theri respective maximum
+        rad_scale: scale for the rotational deformations (with dimensons from the model)
+    ''' 
+
+    if number_of_modes == 1:
+        fig, ax = plt.subplots(ncols = number_of_modes,  num='eigenmode results')#figsize=(2,3.5),
+    
+        ax = [ax]
+    else:
+        fig, ax = plt.subplots(ncols = number_of_modes, sharey=True,  num='eigenmode results',figsize=(cm2inch(20),cm2inch(18)))#,
+
+    norm = 1.
+    if max_normed:
+        rad_scale = False
+    for i in range(number_of_modes):
+        ax[i].plot( np.zeros(len(beam_model.nodal_coordinates['x0'])),
+                    beam_model.nodal_coordinates['x0'],
+                    #label = r'$structure$',
+                    color = 'grey',
+                    marker = 'o', 
+                    linestyle = '--')
+        ax[i].set_title(r'$mode$ ' + r'${}$'.format(str(i+1)) + '\n' +r'$f=$ ' + r'${}$'.format(str(round(eigenfrequencies[i],3))) +r' $Hz$')
+        
+        for d_i, dof in enumerate(dofs_to_plot):
+            scale=1.0
+            if do_rad_scale:
+                if dof in ['a','b','g']:
+                    rad_scale = np.sqrt(beam_model.parameters['cross_section_area'])
+                    scale = rad_scale
+                
+            y = utils.check_and_flip_sign_array(eigenmodes[dof][i])
+
+            # ACTUAL MODE SHAPES
+            if max_normed:
+                norm = 1/max(y)
+            label = r'${}$'.format(greek[dof])
+            
+            ax[i].plot(y*norm*scale,
+                        beam_model.nodal_coordinates['x0'],
+                        label = label,
+                        linestyle = '-',
+                        color = COLORS[d_i])
+        
+        ax[i].legend(loc = 'lower right')
+        ax[i].grid()
+        ax[i].set_ylim(bottom=0,top=beam_model.nodal_coordinates['x0'][-1])
+        ax[i].set_xlabel(r'$defl. \, [m] $')
+        #ax[i].xaxis.set_label_coords(0.15, -0.1)
+        ax[0].set_ylabel(r'height $[m]$') 
+
+        # Sachen zu Torsions Kopplung
+        # ratio = max(utils.check_and_flip_sign_array(eigenmodes['a'][0])) / max(utils.check_and_flip_sign_array(eigenmodes[step]['y'][0]))
+        # ratio_label = r'$\alpha_{max}/y_{max} = $' + str(round(ratio,3))
+
+        # props = dict(boxstyle='round', facecolor='white', edgecolor = 'lightgrey', alpha=0.8)
+
+        # place a text box in upper left in axes coords
+        # ax[step][0].text(0.1, 0.97, ratio_label, transform=ax[step][0].transAxes, verticalalignment='top', bbox=props)
+
+    # opt_steps = ['step{}'.format(s_i) for s_i in range(1,steps+1)]
+    # pad = 5
+    # for ax_i, row in zip(ax[:,0], opt_steps):
+    #     ax_i.annotate(row, xy=(0, 0.5), xytext=(-ax_i.yaxis.labelpad - pad, 0),
+    #                 xycoords=ax_i.yaxis.label, textcoords='offset points',
+    #                 size='large', ha='right', va='center')
+            
+    # if self.savefig:
+    #     plt.savefig(dest_mode_results + filename_for_save)
+    #     print ('\nsaved: ', dest_mode_results + filename_for_save)
+    # if self.show_plots:
+    plt.show()
+
+
+
+

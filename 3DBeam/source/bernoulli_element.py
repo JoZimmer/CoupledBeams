@@ -25,15 +25,21 @@ class BernoulliElement(object):
         self.evaluate_torsional_inertia() # -> gives Ip
         self.evaluate_relative_importance_of_shear() # gives G, Py, Pz = 0 if Bernoulli here 
 
-    def get_stiffness_matrix_var(self, alpha = 1.0, omega = 0.0, omega1 = 0.0):
+    def get_stiffness_matrix_var(self, alpha = 1.0, EIz_param = 1.0, omega = 0.0, omega1 = 0.0):
         ''' 
         alpha: parameter for the coupling entry of y - g
         omega: parameter for the coupling entry of y - a (torsion)
         omega1: coupling parameter g - a 
         ''' 
+        # axial stiffness along x-axia
         EA = self.E * self.A
+        k_xx_11 = 1.0
+        k_xx_12 = -1.0
+        k_el_x = EA/self.L * np.array([[k_xx_11, k_xx_12],
+                                    [k_xx_12, k_xx_11]])
+
         EIy = self.E * self.Iy
-        EIz = self.E * self.Iz
+        EIz = self.E * self.Iz * EIz_param
 
         # bending around z - displacement in y roation gamma around z
 
@@ -44,21 +50,14 @@ class BernoulliElement(object):
         k_gg_12 = 2.0 * EIz / self.L
 
         k_yg = 6.0 * EIz / self.L**2
-        akyg = alpha * k_yg
+        akyg = alpha * k_yg # parametrisches element
 
         k_el_yg = np.array([[ k_yy_11, -akyg,    k_yy_12, -akyg],
                             [-akyg,     k_gg_11, akyg,     k_gg_12],
                             [ k_yy_12,  akyg,    k_yy_11,  akyg],
                             [-akyg,     k_gg_12, akyg,     k_gg_11]])
 
-        if self.dim == '3D':
-            
-            # axial stiffness - along axis x - here marked as x
-        
-            k_xx_11 = 1.0
-            k_xx_12 = -1.0
-            k_el_x = EA/self.L * np.array([[k_xx_11, k_xx_12],
-                                        [k_xx_12, k_xx_11]])
+        if self.dim == '3D':          
 
             # bending around y - displacement in z roation beta around y
             k_zz_11 = 12.0 * EIy / self.L**3
@@ -86,11 +85,7 @@ class BernoulliElement(object):
 
             k_ga = omega1 * 6.0 * self.E * self.I_param  / self.L**2 
 
-        if self.dim == '2D':
-            # NOTE this is without axial stuff
-            k_el = k_el_yg
-        
-        elif self.dim == '3D':
+        if self.dim == '3D':
             k_el = np.array([[k_el_x[0][0], 0., 0., 0., 0., 0., k_el_x[0][1], 0., 0., 0., 0., 0.],
                              [0., k_el_yg[0][0], 0., k_ya, 0., k_el_yg[0][1], 0., k_el_yg[0][2], 0., -k_ya, 0., k_el_yg[0][3]],
                              [0., 0., k_el_zb[0][0], 0., k_el_zb[0][1], 0., 0., 0., k_el_zb[0][2], 0., k_el_zb[0][3],0.],
@@ -105,6 +100,15 @@ class BernoulliElement(object):
                              [0., 0., k_el_zb[0][3], 0., k_el_zb[1][3], 0., 0., 0., k_el_zb[2][3], 0., k_el_zb[3][3],0.],
                              [0., k_el_yg[0][3], 0., k_ga, 0., k_el_yg[1][3], 0., k_el_yg[2][3], 0., -k_ga, 0.,k_el_yg[3][3]]])
 
+        elif self.dim == '2D':
+            k_el = np.array([[k_el_x[0][0], 0., 0., k_el_x[0][1], 0., 0.],
+                             [0., k_el_yg[0][0], k_el_yg[0][1], 0., k_el_yg[0][2], k_el_yg[0][3]],
+                             [0., k_el_yg[0][1], k_el_yg[1][1], 0., k_el_yg[1][2], k_el_yg[1][3]],
+
+                             [k_el_x[1][0], 0., 0., k_el_x[1][1], 0., 0.],
+                             [0., k_el_yg[0][2], k_el_yg[1][2], 0., k_el_yg[2][2], k_el_yg[2][3]],
+                             [0., k_el_yg[0][3], k_el_yg[1][3], 0., k_el_yg[2][3], k_el_yg[3][3]]])
+
         return k_el
 
     def get_stiffness_matrix_tar(self):
@@ -113,10 +117,37 @@ class BernoulliElement(object):
         '''
         return self.get_stiffness_matrix_var(alpha=1.0, omega=0.0)
 
-    def get_stiffness_matrix_geometry():
+    def get_stiffness_matrix_geometry(self):
         '''
         siehe UHFFB Turm PDF seite 162
         '''
+        # bending around z - displacement in y roation gamma around z
+
+        Nl = 1000/self.L # Normalkraft/ element länge --> Vorspannkraft im element?!
+
+        k_yy_11 = 6/5
+        k_yy_12 = -k_yy_11
+
+        k_gg_11 = 2/15 * self.L**2
+        k_gg_12 = -self.L**2 / 30
+
+        k_yg = self.L / 10
+
+        k_el_yg = np.array([[ k_yy_11, -k_yg,    k_yy_12, -k_yg],
+                            [-k_yg,     k_gg_11, k_yg,     k_gg_12],
+                            [ k_yy_12,  k_yg,    k_yy_11,  k_yg],
+                            [-k_yg,     k_gg_12, k_yg,     k_gg_11]])
+
+        k_el = np.array([[0, 0., 0., 0, 0., 0.],
+                             [0., k_el_yg[0][0], k_el_yg[0][1], 0., k_el_yg[0][2], k_el_yg[0][3]],
+                             [0., k_el_yg[0][1], k_el_yg[1][1], 0., k_el_yg[1][2], k_el_yg[1][3]],
+
+                             [0, 0., 0., 0, 0., 0.],
+                             [0., k_el_yg[0][2], k_el_yg[1][2], 0., k_el_yg[2][2], k_el_yg[2][3]],
+                             [0., k_el_yg[0][3], k_el_yg[1][3], 0., k_el_yg[2][3], k_el_yg[3][3]]])
+
+        return k_el
+
 
     def get_mass_matrix_var(self, beta1 = 1.0, beta2 = 1.0, psi1 = 0.0, psi2 = 0.0, psi3 = 0.0):
         ''' 
@@ -133,7 +164,8 @@ class BernoulliElement(object):
             psi3:  coupling parameter g - a 
         '''
 
-        if self.dim == '2D':
+        # Parametrische Maße mit anderen DOFS -> not used 
+        if self.dim == 'parametric_2D':
             m_yy_11 = self.rho * self.A * self.L* 13./35.
             m_yy_12 = self.rho * self.A * self.L* 9./70.
 
@@ -152,67 +184,67 @@ class BernoulliElement(object):
                              [ b2myg,   -m_gg_12,  b1myg,    m_gg_11 ]])
             return m_el
 
-        elif self.dim == '3D':
-            m_const = self.rho * self.A * self.L
+        #elif self.dim == '3D':
+        m_const = self.rho * self.A * self.L
 
-            # axial inertia - along axis x - here marked as x
-            m_x = m_const / 6.0
-            m_x_11 = 2.
-            m_x_12 = 1.
-            m_el_x = m_x * np.array([[m_x_11, m_x_12],
-                                    [m_x_12, m_x_11]])
+        # axial inertia - along axis x - here marked as x
+        m_x = m_const / 6.0
+        m_x_11 = 2.
+        m_x_12 = 1.
+        m_el_x = m_x * np.array([[m_x_11, m_x_12],
+                                [m_x_12, m_x_11]])
 
-            # bending - inertia along axis y, rotations around axis z - here marked as gamma - g
-            # translation
-            Py = self.Py
-            m_yg = m_const / 210 / (1 + Py) ** 2
-            #
-            m_yg_11 = 70 * Py ** 2 + 147 * Py + 78
-            m_yg_12 = (35 * Py ** 2 + 77 * Py + 44) * self.L / 4
-            m_yg_13 = 35 * Py ** 2 + 63 * Py + 27
-            m_yg_14 = -(35 * Py ** 2 + 63 * Py + 26) * self.L / 4
-            #
-            m_yg_22 = (7 * Py ** 2 + 14 * Py + 8) * self.L ** 2 / 4
-            m_yg_23 = - m_yg_14
-            m_yg_24 = -(7 * Py ** 2 + 14 * Py + 6) * self.L ** 2 / 4
-            #
-            m_yg_33 = m_yg_11
-            m_yg_34 = -m_yg_12
-            #
-            m_yg_44 = m_yg_22
-            #
-            m_el_yg_trans = m_yg * np.array([[m_yg_11, m_yg_12, m_yg_13, m_yg_14],
-                                            [m_yg_12, m_yg_22, m_yg_23, m_yg_24],
-                                            [m_yg_13, m_yg_23, m_yg_33, m_yg_34],
-                                            [m_yg_14, m_yg_24, m_yg_34, m_yg_44]])
-
-            # rotation
-            m_yg = self.rho * self.Iz / 30 / (1 + Py) ** 2 / self.L
-            #
-            m_yg_11 = 36
-            m_yg_12 = -(15 * Py - 3) * self.L
-            m_yg_13 = -m_yg_11
-            m_yg_14 = m_yg_12
-            #
-            m_yg_22 = (10 * Py ** 2 + 5 * Py + 4) * self.L ** 2
-            m_yg_23 = - m_yg_12
-            m_yg_24 = (5 * Py ** 2 - 5 * Py - 1) * self.L ** 2
-            #
-            m_yg_33 = m_yg_11
-            m_yg_34 = - m_yg_12
-            #
-            m_yg_44 = m_yg_22
-            #
-            m_el_yg_rot = m_yg * np.array([[m_yg_11, m_yg_12, m_yg_13, m_yg_14],
+        # bending - inertia along axis y, rotations around axis z - here marked as gamma - g
+        # translation
+        Py = self.Py
+        m_yg = m_const / 210 / (1 + Py) ** 2
+        #
+        m_yg_11 = 70 * Py ** 2 + 147 * Py + 78
+        m_yg_12 = (35 * Py ** 2 + 77 * Py + 44) * self.L / 4
+        m_yg_13 = 35 * Py ** 2 + 63 * Py + 27
+        m_yg_14 = -(35 * Py ** 2 + 63 * Py + 26) * self.L / 4
+        #
+        m_yg_22 = (7 * Py ** 2 + 14 * Py + 8) * self.L ** 2 / 4
+        m_yg_23 = - m_yg_14
+        m_yg_24 = -(7 * Py ** 2 + 14 * Py + 6) * self.L ** 2 / 4
+        #
+        m_yg_33 = m_yg_11
+        m_yg_34 = -m_yg_12
+        #
+        m_yg_44 = m_yg_22
+        #
+        m_el_yg_trans = m_yg * np.array([[m_yg_11, m_yg_12, m_yg_13, m_yg_14],
                                         [m_yg_12, m_yg_22, m_yg_23, m_yg_24],
                                         [m_yg_13, m_yg_23, m_yg_33, m_yg_34],
                                         [m_yg_14, m_yg_24, m_yg_34, m_yg_44]])
 
-            # sum up translation and rotation
-            #m_el_yg = m_el_yg_trans + m_el_yg_rot
-            m_el_yg = m_el_yg_trans
+        # rotation
+        m_yg = self.rho * self.Iz / 30 / (1 + Py) ** 2 / self.L
+        #
+        m_yg_11 = 36
+        m_yg_12 = -(15 * Py - 3) * self.L
+        m_yg_13 = -m_yg_11
+        m_yg_14 = m_yg_12
+        #
+        m_yg_22 = (10 * Py ** 2 + 5 * Py + 4) * self.L ** 2
+        m_yg_23 = - m_yg_12
+        m_yg_24 = (5 * Py ** 2 - 5 * Py - 1) * self.L ** 2
+        #
+        m_yg_33 = m_yg_11
+        m_yg_34 = - m_yg_12
+        #
+        m_yg_44 = m_yg_22
+        #
+        m_el_yg_rot = m_yg * np.array([[m_yg_11, m_yg_12, m_yg_13, m_yg_14],
+                                    [m_yg_12, m_yg_22, m_yg_23, m_yg_24],
+                                    [m_yg_13, m_yg_23, m_yg_33, m_yg_34],
+                                    [m_yg_14, m_yg_24, m_yg_34, m_yg_44]])
 
-            #if self.domain_size == '3D':
+        # sum up translation and rotation
+        m_el_yg = m_el_yg_trans + m_el_yg_rot
+        #m_el_yg = m_el_yg_trans
+
+        if self.dim == '3D':
             # bending - inertia along axis z, rotations around axis y - here marked as beta - b
             # translation
             Pz = self.Pz
@@ -259,15 +291,17 @@ class BernoulliElement(object):
                                             [m_zb_14, m_zb_24, m_zb_34, m_zb_44]])
 
             # sum up translation and rotation
-            # m_el_zb = m_el_zb_trans + m_el_zb_rot
-            m_el_zb = m_el_zb_trans
+            m_el_zb = m_el_zb_trans + m_el_zb_rot
+            #m_el_zb = m_el_zb_trans
 
+
+        if self.dim == '3D':
             # torsion inertia - around axis x - here marked as alpha - a
             m_a = m_const * self.Ip / self.A / 6.0
             m_a_11 = 2
             m_a_12 = 1
             m_el_a = m_a * np.array([[m_a_11, m_a_12],
-                                     [m_a_12, m_a_11]])
+                                        [m_a_12, m_a_11]])
 
             # ===================================================
             # TORSION COUPLING - BENDING AROUND Z (Y-DSIP; G-ROT)
@@ -279,7 +313,7 @@ class BernoulliElement(object):
             
             m_ya_11 = 7/20 * m_ya * psi1 # see reason for that choice taken form frias but basically to have a reaonable scale 
             m_ya_12 = 3/20 * m_ya * psi2 # seems to be smaler than m_ya_11 maybe this could be taken into accoutn
-           
+            
             # coupling gamma - alpha (also from Frias with ratio of m_ya - m_ga)
             m_ga = m_const * self.L 
             m_ga_11 = 1/20 * m_ga *  psi3
@@ -301,8 +335,9 @@ class BernoulliElement(object):
             m_ba_12 = 1/30 * m_ba * psi3
 
 
-            # assemble all components
-            
+        # assemble all components
+        
+        if self.dim == '3D':
             m_el = np.array([[m_el_x[0][0], 0., 0., 0., 0., 0., m_el_x[0][1], 0., 0., 0., 0., 0.],
                                 [0., m_el_yg[0][0], 0., m_ya_11, 0., m_el_yg[0][1], 0., m_el_yg[0][2], 0., m_ya_12, 0., m_el_yg[0][3]],
                                 [0., 0., m_el_zb[0][0], -m_za_11, m_el_zb[0][1], 0., 0., 0., m_el_zb[0][2], -m_za_12, m_el_zb[0][3],0.],
@@ -317,14 +352,15 @@ class BernoulliElement(object):
                                 [0., 0., m_el_zb[0][3], -m_ba_12, m_el_zb[1][3], 0., 0., 0., m_el_zb[2][3], -m_ba_11, m_el_zb[3][3], 0.],
                                 [0., m_el_yg[0][3], 0., -m_ga_12, 0., m_el_yg[1][3], 0., m_el_yg[2][3], 0., -m_ga_11, 0., m_el_yg[3][3]]])
 
-            if self.dim == '2D':
-                m_el_1 = np.array([
-                            [m_el_yg[0][0], m_el_yg[0][1], m_el_yg[0][2], m_el_yg[0][3]],
-                            [m_el_yg[0][1], m_el_yg[1][1], m_el_yg[1][2], m_el_yg[1][3]],
+        elif self.dim == '2D':
+            m_el = np.array([[m_el_x[0][0], 0., 0., m_el_x[0][1], 0., 0.],
+                             [0., m_el_yg[0][0], m_el_yg[0][1], 0., m_el_yg[0][2], m_el_yg[0][3]],
+                             [0., m_el_yg[0][1], m_el_yg[1][1], 0., m_el_yg[1][2], m_el_yg[1][3]],
 
-                            [m_el_yg[0][2], m_el_yg[1][2], m_el_yg[2][2], m_el_yg[2][3]],
-                            [m_el_yg[0][3], m_el_yg[1][3], m_el_yg[2][3], m_el_yg[3][3]]])
-            return m_el
+                             [m_el_x[1][0], 0., 0., m_el_x[1][1], 0., 0.],
+                             [0., m_el_yg[0][2], m_el_yg[1][2], 0., m_el_yg[2][2], m_el_yg[2][3]],
+                             [0., m_el_yg[0][3], m_el_yg[1][3], 0., m_el_yg[2][3], m_el_yg[3][3]]])
+        return m_el
       
     def get_mass_matrix_tar(self):
         return self.get_mass_matrix_var(beta1=1.0,beta2=1.0,psi1=0.0, psi2=0.0)
