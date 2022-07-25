@@ -83,7 +83,7 @@ parameters = {'A':
                 'lx_total_beam': 160,
                 'material_density': 42, #
                 'nacelle_mass': 0,#191000, # Gondel Masse in kg
-                'E_Modul': 11600E+06,# N/m²
+                'E_Modul': 12000E+06,# N/m²
                 'nu': 0.1, # querdehnung
                 'damping_coeff': 0.025,
                 'nodes_per_elem': 2,
@@ -91,7 +91,7 @@ parameters = {'A':
                 'B':12,
                 'D':12,
                 'Iy': 120, #m^4 3D
-                'Iz': 51.0,
+                'Iz': 51.0,#*0.33333,
                 'I_param':10000.0, # 3 elems: 120000.0
                 'It': 50000.0,#2#NOTE often set to Iy + Iz here diminsihed it by 100 000 such that the torsion optimization worked. 200 000 makes the coupling not working 
                 'type_of_bc':'spring',#'clamped',# or 'clamped'
@@ -102,7 +102,7 @@ parameters = {'A':
                 'dynamic_load_file': os_join(*["inputs","forces","dynamic_force_11_nodes.npy"]),
                 'inital_params_yg': [1.0,1.0,1.0],
                 'EIz_param':1.0,
-                'eigen_freqs_target':[0.133,0.9,3.0], 
+                'eigen_freqs_target':[0.133,0.79,3.0], 
             }
              }
 

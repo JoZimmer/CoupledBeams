@@ -47,7 +47,7 @@ class BeamModel(object):
 
             self.init_opt.adjust_sway_z_stiffness_for_target_eigenfreq(target_freqs[0], 
                                                                         target_mode = 0,
-                                                                        print_to_console=False)
+                                                                        print_to_console=True)
 
             if self.dim == '3D':
                 self.init_opt.adjust_sway_y_stiffness_for_target_eigenfreq(target_freqs[1], 

@@ -258,6 +258,7 @@ def generate_nodal_force_file(number_of_nodes, node_of_load_application, force_d
     number_of_nodes: anzahl knoten des models 
     node_of_load_application: Knoten an dem die Last aufgebracht werden soll
     force_direction: string der richtung
+    Einheit der Kraft = [N]
     '''
     src_path = os_join(*['input','loads','static'])
     if not os.path.isdir(src_path):

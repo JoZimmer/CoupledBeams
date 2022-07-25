@@ -20,7 +20,7 @@ print ('Frenquncies: ')
 for i in range (3):
     print (round(beam.eigenfrequencies[i],4))
 
-static_load_vector = utils.generate_nodal_force_file(beam.n_nodes, node_of_load_application=11, force_direction='y', magnitude=100, domain_size='2D')
+static_load_vector = utils.generate_nodal_force_file(beam.n_nodes, node_of_load_application=11, force_direction='y', magnitude=100000, domain_size='2D')
 
 beam.static_analysis_solve(load_vector_file=static_load_vector)
 #postprocess.plot_static_result(beam, ['y'], unit='mm')
