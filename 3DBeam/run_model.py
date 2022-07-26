@@ -17,9 +17,23 @@ parameters = model_parameters.parameters['holzturm']
 
 parameters = utils.load_model_data_from_pkl(section_properties_pkl, parameters)
 
-beam = BeamModel(parameters, optimize_frequencies_init=False, apply_k_geo=False)
+beam = BeamModel(parameters, adjust_mass_density = True, optimize_frequencies_init=False , apply_k_geo=False)
 
+beam_tuner = Optimizations(beam)
 
+target_freqs = parameters['eigen_freqs_target']
+
+# beam_tuner.adjust_sway_z_stiffness_for_target_eigenfreq(target_freqs[0], 
+#                                                         target_mode = 0,
+#                                                         print_to_console=True)
+
+# beam_tuner.adjust_mass_density_for_target_eigenfreq(target_freqs[0], 
+#                                                     target_mode = 0,
+#                                                     print_to_console=True)
+
+beam_tuner.adjust_nacelle_mass_for_target_eigenfreq(target_freqs[0], 
+                                                    target_mode = 0,
+                                                    print_to_console=True)
 print ('Frenquncies: ')
 for i in range (3):
     print (round(beam.eigenfrequencies[i],4))

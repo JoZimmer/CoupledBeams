@@ -82,28 +82,20 @@ parameters = {'A':
                 'n_elements': 10,
                 'lx_total_beam': 160,
                 'material_density': 500,#42, #absolute Rohdichte Holz 
-                'nacelle_mass': 0,#191000, # Gondel Masse in kg
+                'total_mass_tower': 668390,# aus RFEM
+                'nacelle_mass': 267910,# IEA37: 191000, # Gondel Masse in kg
                 'E_Modul': 12000E+06,# N/m²
                 'nu': 0.1, # querdehnung
                 'damping_coeff': 0.025,
                 'nodes_per_elem': 2,
                 'cross_section_area': 12*12, #Not used if intervals
-                'B':12,
-                'D':12,
-                'Iy': 120, #m^4 3D
                 'Iz': 51.0,#*0.33333,
-                'I_param':10000.0, # 3 elems: 120000.0
-                'It': 50000.0,#2#NOTE often set to Iy + Iz here diminsihed it by 100 000 such that the torsion optimization worked. 200 000 makes the coupling not working 
-                'type_of_bc':'spring',#'clamped',# or 'clamped'
+                'type_of_bc':'spring',#'clamped',# or 'spring'
                 'dofs_of_bc':[0,1,2], # Einspannung
                 'spring_stiffness':[1E+13,2E+13], # Federsteifigkeit am Boden in u und gamma richtung
-                'modes_to_consider': 15,
-                'static_load_magnitude': 100,
                 'dynamic_load_file': os_join(*["inputs","forces","dynamic_force_11_nodes.npy"]),
-                'inital_params_yg': [1.0,1.0,1.0],
-                'EIz_param':1.0,
                 'eigen_freqs_target':[0.133,0.79,3.0], 
-                'defined_on_intervals':[]
+                'defined_on_intervals':[] # kann gefüllt werden mit einer pickle datei 
             }
              }
 

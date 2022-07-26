@@ -28,11 +28,50 @@ class Optimizations(object):
         else:
             self.opt_params = False
 
-
 # FOR EIGENFREQUENCIES
     ''' 
     These are functions taken from ParOptBeam
     ''' 
+    def adjust_density_for_target_total_mass(self, target_total_mass, print_to_console=False):
+
+        # calculate to be sure to have most current
+        self.model.calculate_total_mass(True)
+        
+        initial_rho = self.model.parameters['material_density']
+
+        # using partial to fix some parameters for the
+        optimizable_function = partial(self.generic_material_density_objective_function,
+                                       target_total_mass,
+                                       initial_rho)
+
+        minimization_result = minimize_scalar(optimizable_function,
+                                              method='Bounded',
+                                              bounds=(1/5, 5))
+                                              # TODO avoid hardcoding
+                                            #   bounds=(1/OptimizableStraightBeam.OPT_FCTR, OptimizableStraightBeam.OPT_FCTR))
+
+        # returning only one value!
+        opt_rho_fctr = minimization_result.x
+        self.model.parameters['material_density'] = initial_rho * opt_rho_fctr
+
+        if print_to_console:
+            print('INITIAL material_density:', initial_rho)
+            print('OPTIMIZED material_density: ', opt_rho_fctr * initial_rho)
+            print()
+
+        # re-calculate and print to console
+        self.model.calculate_total_mass(True)
+        print()
+
+    def generic_material_density_objective_function(self, target_total_mass, initial_rho, multiplier_fctr):
+
+        for e in self.model.elements:
+            e.rho = multiplier_fctr * initial_rho
+
+        # NOTE: do not forget to update G and further dependencies
+        self.model.calculate_total_mass(True)
+
+        return ((self.model.parameters['m_tot']-target_total_mass)**2)
 
     def adjust_sway_y_stiffness_for_target_eigenfreq(self, target_freq, target_mode, print_to_console=False):
         '''
@@ -223,6 +262,118 @@ class Optimizations(object):
         eig_freq_cur = self.model.eigenfrequencies[target_mode]
 
         return (eig_freq_cur - target_freq)**2 *100# / target_freq**2
+
+# EIGENE   
+    def adjust_mass_density_for_target_eigenfreq(self, target_freq, target_mode, print_to_console=False):
+        '''
+        sway_z = schwingung in y richtung, um z Achse,
+        2D Verformung
+        '''
+        initial_rho= list(e.rho for e in self.model.elements)
+
+        # using partial to fix some parameters for the
+        self.optimizable_function = partial(self.mass_density_objective_function,
+                                            target_freq,
+                                            target_mode,
+                                            initial_rho)
+        initi_guess = 1.0
+
+        # NOTE this is correct only for homogenous cross section along length
+
+        upper_bnd = 10
+
+        bnds_rho= (0.001, upper_bnd)#(0.001, 100)  # (1/8,8)
+
+        # minimization_result = minimize(self.optimizable_function,
+        #                                initi_guess,
+        #                                method ='L-BFGS-B',
+        #                                bounds = bnds_iz)
+
+        min_res = minimize_scalar(self.optimizable_function, method='Bounded', tol=1e-06, bounds=bnds_rho)#, options={'disp':True})
+
+        # returning only one value!
+        #opt_iz_fctr = minimization_result.x
+        opt_rho_fctr = min_res.x
+
+        self.opt_geometric_props['rho'] = [min_res.x * rho_i for rho_i in initial_rho]
+        if print_to_console:
+            print('  INITIAL rho:', ', '.join([str(val) for val in initial_rho]))
+            print()
+            print('  OPTIMIZED rho: ', ', '.join(
+                [str(opt_rho_fctr * val) for val in initial_rho]))
+            print()
+            print('  FACTOR: ', opt_rho_fctr)
+            print ('  Final Func:', min_res.fun)
+            print()
+
+    def mass_density_objective_function(self, target_freq, target_mode, initial_rho, multiplier_fctr):
+        
+        for e in self.model.elements:
+            e.rho= multiplier_fctr * initial_rho[e.index]
+
+            # NOTE: do not forget to update further dependencies
+            e.evaluate_relative_importance_of_shear()
+            e.evaluate_torsional_inertia()
+
+        # re-evaluate
+        self.model.build_system_matricies()
+
+        self.model.eigenvalue_solve()
+
+        eig_freq_cur = self.model.eigenfrequencies[target_mode]        # mode_type_results is an ordered list
+
+        result = (eig_freq_cur - target_freq)**2 / target_freq**2
+
+        return result
+
+    def adjust_nacelle_mass_for_target_eigenfreq(self, target_freq, target_mode, print_to_console=False):
+        '''
+        sway_z = schwingung in y richtung, um z Achse,
+        2D Verformung
+        '''
+        initial_nacelle_mass = self.model.nacelle_mass
+
+        # using partial to fix some parameters for the
+        self.optimizable_function = partial(self.nacelle_mass_objective_function,
+                                            target_freq,
+                                            target_mode,
+                                            initial_nacelle_mass)
+        initi_guess = 1.0
+
+        upper_bnd = 10
+
+        bnds_mass= (0.001, upper_bnd)#(0.001, 100)  # (1/8,8)
+
+
+        min_res = minimize_scalar(self.optimizable_function, method='Bounded', tol=1e-06, bounds=bnds_mass)#, options={'disp':True})
+
+        # returning only one value!
+        opt_mass_fctr = min_res.x
+
+        if print_to_console:
+            print('  INITIAL nacelle mass:', initial_nacelle_mass)
+            print()
+            print('  OPTIMIZED nacelle mass: ', opt_mass_fctr * initial_nacelle_mass)
+            print()
+            print('  FACTOR: ', opt_mass_fctr)
+            print ('  Final Func:', min_res.fun)
+            print()
+
+    def nacelle_mass_objective_function(self, target_freq, target_mode, initial_nacelle_mass, multiplier_fctr):
+        
+        
+        self.model.nacelle_mass = multiplier_fctr * initial_nacelle_mass
+
+        # re-evaluate
+        self.model.build_system_matricies()
+
+        self.model.eigenvalue_solve()
+
+        eig_freq_cur = self.model.eigenfrequencies[target_mode]        # mode_type_results is an ordered list
+
+        result = (eig_freq_cur - target_freq)**2 / target_freq**2
+
+        return result
 
 # TORSION COUPLING OPTIMIZATIONS
     ''' 

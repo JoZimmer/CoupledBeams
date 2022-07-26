@@ -7,21 +7,24 @@ class BernoulliElement(object):
         self.parameters = parameters
         self.index = elem_id
 
+        self.dim = parameters['dimension']
+
         self.E = parameters['E_Modul']
         self.A = parameters['A']
         self.rho = parameters['material_density']
         self.nu = parameters['nu']
         self.L = elem_length
 
-        self.Iy = parameters['Iy']
         self.Iz = parameters['Iz']
-        self.I_param = parameters['I_param']
-        self.It = parameters['It']
+
+        if self.dim == '3D':
+            self.Iy = parameters['Iy']
+            self.I_param = parameters['I_param']
+            self.It = parameters['It']
+            self.evaluate_torsional_inertia() # -> gives Ip
+
         self.number_of_nodes = parameters['nodes_per_elem']
-
-        self.dim = parameters['dimension']
-
-        self.evaluate_torsional_inertia() # -> gives Ip
+    
         self.evaluate_relative_importance_of_shear() # gives G, Py, Pz = 0 if Bernoulli here 
 
     def get_stiffness_matrix_var(self, alpha = 1.0, EIz_param = 1.0, omega = 0.0, omega1 = 0.0):
@@ -37,8 +40,7 @@ class BernoulliElement(object):
         k_el_x = EA/self.L * np.array([[k_xx_11, k_xx_12],
                                     [k_xx_12, k_xx_11]])
 
-        EIy = self.E * self.Iy
-        EIz = self.E * self.Iz * EIz_param
+        EIz = self.E * self.Iz 
 
         # bending around z - displacement in y roation gamma around z
 
@@ -57,7 +59,7 @@ class BernoulliElement(object):
                             [-akyg,     k_gg_12, akyg,     k_gg_11]])
 
         if self.dim == '3D':          
-
+            EIy = self.E * self.Iy
             # bending around y - displacement in z roation beta around y
             k_zz_11 = 12.0 * EIy / self.L**3
             k_zz_12 = -k_zz_11

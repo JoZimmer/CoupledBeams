@@ -11,11 +11,12 @@ num_zero = 1e-15
 
 class BeamModel(object):
 
-    def __init__(self, parameters, optimize_frequencies_init = True, apply_k_geo = False):
+    def __init__(self, parameters, adjust_mass_density=False, optimize_frequencies_init = True, apply_k_geo = False):
 
  
         # MATERIAL; GEOMETRIC AND ELEMENT INFORMATION
         self.parameters = parameters
+        self.nacelle_mass = self.parameters['nacelle_mass']
         self.dim = self.parameters['dimension']
         self.n_dofs_node = GD.DOFS_PER_NODE[self.dim]
         self.dof_labels = GD.DOF_LABELS[self.dim]
@@ -43,10 +44,19 @@ class BeamModel(object):
         self.initialize_elements() 
 
         self.apply_k_geo = apply_k_geo
-        self.build_system_matricies(params_yg = parameters['inital_params_yg'], EIz_param=parameters['EIz_param'])
+        self.build_system_matricies()
+        self.calculate_total_mass()
         
         self.eigenvalue_solve()
-        
+
+        if adjust_mass_density:
+            from source.optimizations import Optimizations
+
+            mass_opt = Optimizations(self)
+
+            mass_opt.adjust_density_for_target_total_mass(target_total_mass=self.parameters['total_mass_tower'],
+                                                          print_to_console=True)
+
         if optimize_frequencies_init:
             from source.optimizations import Optimizations
 
@@ -57,6 +67,10 @@ class BeamModel(object):
             self.init_opt.adjust_sway_z_stiffness_for_target_eigenfreq(target_freqs[0], 
                                                                         target_mode = 0,
                                                                         print_to_console=True)
+
+            self.init_opt.adjust_mass_density_for_target_eigenfreq(target_freqs[0], 
+                                                                    target_mode = 0,
+                                                                    print_to_console=True)
 
             if self.dim == '3D':
                 self.init_opt.adjust_sway_y_stiffness_for_target_eigenfreq(target_freqs[1], 
@@ -109,7 +123,6 @@ class BeamModel(object):
                 e = BernoulliElement(self.parameters, elem_length = lx_i , elem_id = i)
                 self.elements.append(e)
 
-
     def build_system_matricies(self, params_yg = [1.0,1.0,1.0], EIz_param = 1.0, params_k_ya = [0.0,0.0], params_m_ya = [0.0,0.0,0.0]):
         ''' 
         assigns K_el and M_el to the object. BC is applied already
@@ -136,10 +149,8 @@ class BeamModel(object):
         
         for element in self.elements:
 
-            k_el = element.get_stiffness_matrix_var(alpha = params_yg[0], EIz_param = EIz_param, omega = params_k_ya[0], omega1 = params_k_ya[1])
-            m_el = element.get_mass_matrix_var(beta1 = params_yg[1], beta2 = params_yg[2], 
-                                                psi1 = params_m_ya[0], psi2 = params_m_ya[0],
-                                                psi3 = params_m_ya[2])
+            k_el = element.get_stiffness_matrix_var()
+            m_el = element.get_mass_matrix_var()
             
             if self.apply_k_geo:
                 k_el_geo = element.get_stiffness_matrix_geometry()
@@ -153,8 +164,6 @@ class BeamModel(object):
             self.k[start: end, start: end] += k_el
             self.m[start: end, start: end] += m_el
 
-        self.opt_params_mass_ya = params_m_ya
-
         self.comp_k = self.apply_bc_by_reduction(self.k)
         self.comp_m = self.apply_bc_by_reduction(self.m)
 
@@ -162,10 +171,10 @@ class BeamModel(object):
         if self.parameters['type_of_bc'] == 'spring':
             self.comp_k = self.apply_spring_bc(self.comp_k)
         
-        if self.parameters['nacelle_mass']:
-            # Aus Beton Turm Strukturoptimierung
-            self.comp_m[-2,-2] += self.parameters['nacelle_mass']
-            self.comp_m[-3,-3] += self.parameters['nacelle_mass']
+        
+        # Aus Paper: Beton Turm Strukturoptimierung - masse am letzen knoten hinzufügen
+        self.comp_m[-2,-2] += self.nacelle_mass
+        self.comp_m[-3,-3] += self.nacelle_mass
         
         self.b = self.get_damping()
         self.comp_b = self.apply_bc_by_reduction(self.b)
@@ -204,6 +213,29 @@ class BeamModel(object):
                 if val['bounds'][0] <= running_coord <= self.parameters['lx']:
                     polynom = Polynomial(val[characteristic_identifier])
                     return polynom(running_coord - val['bounds'][0])
+
+    def update_equivalent_nodal_mass(self):
+        '''
+        The mass matrix for the beam element can be
+        lumped or consistent
+
+        For the equivalent nodal mass a lumped distribution
+        is assumned
+
+        Here only element and NO point mass contribution
+        '''
+        self.parameters['m'] = [0 for val in self.parameters['x']]
+
+        for idx in range(len(self.elements)):
+            self.parameters['m'][idx] += 0.5 * self.elements[idx].A * self.elements[idx].rho * self.elements[idx].L
+            self.parameters['m'][idx+1] += 0.5 * self.elements[idx].A * self.elements[idx].rho * self.elements[idx].L
+
+    def calculate_total_mass(self, print_to_console=False):
+        # update influencing parameters
+        self.update_equivalent_nodal_mass()
+
+        self.parameters['m_tot'] = sum(self.parameters['m'])
+        
 
 # # BOUNDARY CONDITIONS
 
@@ -305,7 +337,6 @@ class BeamModel(object):
                     if gen_mass[i][j] < 1e-3:
                         gen_mass[i][j] = 0
             print (gen_mass)
-            print ('\n current m_ga param: ', self.opt_params_mass_ya, '\n')
             raise Exception('generalized mass is not identiy')
     
         if not is_identiy:
@@ -349,7 +380,7 @@ class BeamModel(object):
                         mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node['3D']]
                         load_vector[dir_id::GD.n_dofs_node['3D']] = mean_load
             else:
-                load_vector[self.load_id] = self.parameters['static_load_magnitude']
+                raise Exception('No load vector file provided')
 
         self.static_deformation = {}
 
