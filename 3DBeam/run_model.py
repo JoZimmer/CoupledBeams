@@ -11,9 +11,13 @@ import source.postprocess as postprocess
 import xlwings as xl
 import numpy as np
 
+section_properties_pkl = os_join(*['input', 'nEck_geometry', 'nEck_Lagen.pkl'])
+
 parameters = model_parameters.parameters['holzturm']
 
-beam = BeamModel(parameters, optimize_frequencies_init=True, apply_k_geo=False)
+parameters = utils.load_model_data_from_pkl(section_properties_pkl, parameters)
+
+beam = BeamModel(parameters, optimize_frequencies_init=False, apply_k_geo=False)
 
 
 print ('Frenquncies: ')

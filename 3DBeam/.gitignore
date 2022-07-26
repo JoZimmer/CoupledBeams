@@ -14,3 +14,4 @@
 *.npy
 !z_coords_gid_45.npy
 *.dat
+*.pkl

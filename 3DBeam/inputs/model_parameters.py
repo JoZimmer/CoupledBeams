@@ -81,13 +81,13 @@ parameters = {'A':
                'dimension': '2D',
                 'n_elements': 10,
                 'lx_total_beam': 160,
-                'material_density': 42, #
+                'material_density': 500,#42, #absolute Rohdichte Holz 
                 'nacelle_mass': 0,#191000, # Gondel Masse in kg
                 'E_Modul': 12000E+06,# N/m²
                 'nu': 0.1, # querdehnung
                 'damping_coeff': 0.025,
                 'nodes_per_elem': 2,
-                'cross_section_area': 12*12,
+                'cross_section_area': 12*12, #Not used if intervals
                 'B':12,
                 'D':12,
                 'Iy': 120, #m^4 3D
@@ -103,6 +103,7 @@ parameters = {'A':
                 'inital_params_yg': [1.0,1.0,1.0],
                 'EIz_param':1.0,
                 'eigen_freqs_target':[0.133,0.79,3.0], 
+                'defined_on_intervals':[]
             }
              }
 

@@ -1,5 +1,4 @@
 import numpy as np 
-from source.utilities import global_definitions as GD
 
 class BernoulliElement(object):
 
@@ -9,7 +8,7 @@ class BernoulliElement(object):
         self.index = elem_id
 
         self.E = parameters['E_Modul']
-        self.A = parameters['cross_section_area']
+        self.A = parameters['A']
         self.rho = parameters['material_density']
         self.nu = parameters['nu']
         self.L = elem_length
@@ -164,7 +163,7 @@ class BernoulliElement(object):
             psi3:  coupling parameter g - a 
         '''
 
-        # Parametrische Maße mit anderen DOFS -> not used 
+        # Parametrische Maße mit anderen DOFS -> not used in wind turbine branch
         if self.dim == 'parametric_2D':
             m_yy_11 = self.rho * self.A * self.L* 13./35.
             m_yy_12 = self.rho * self.A * self.L* 9./70.

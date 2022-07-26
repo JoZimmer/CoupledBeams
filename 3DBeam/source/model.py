@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 from scipy import linalg
 from scipy.optimize import minimize, minimize_scalar
 from functools import partial
-
 from source.bernoulli_element import BernoulliElement
 from source.utilities import utilities as utils
 from source.utilities import global_definitions as GD
@@ -28,6 +27,16 @@ class BeamModel(object):
         self.n_elems = parameters['n_elements']
         self.n_nodes = self.n_elems + 1
         self.nodes_per_elem = self.parameters['nodes_per_elem']
+
+        self.parameters['intervals'] = []
+        for idx, val in enumerate(parameters["defined_on_intervals"]):
+            self.parameters["intervals"].append({
+                'bounds': val['interval_bounds'],
+                # further quantities defined by polynomial coefficient as a function of running coord x
+                'c_a': val["area"],
+                'c_iz': val["Iz"],
+                'c_d':val["D"]
+            })
 
         self.translate_matrix = False
 
@@ -70,15 +79,36 @@ class BeamModel(object):
         self.elements = []
 
         lx_i = self.parameters['lx_total_beam'] / self.n_elems
-
-        for i in range(self.n_elems):
-            e = BernoulliElement(self.parameters, elem_length = lx_i , elem_id = i)
-            self.elements.append(e)
-
         self.nodal_coordinates['x0'] = np.zeros(self.n_nodes)
         self.nodal_coordinates['y0'] = np.zeros(self.n_nodes)
         for i in range(self.n_nodes):
             self.nodal_coordinates['x0'][i] = i * lx_i
+
+        if not self.parameters['intervals']:
+            for i in range(self.n_elems):
+                e = BernoulliElement(self.parameters, elem_length = lx_i , elem_id = i)
+                self.elements.append(e)
+        else:
+            # MIT INTERVAL WEISE DEFINIERTEN CROSS SECTION PARAMETERN
+            self.relative_length_ratios = [1.0] * self.n_elems
+            param_elem_length_sum = sum(self.relative_length_ratios)
+            param_elem_length_cumul = [0.0]
+            for idx, el_length in enumerate(self.relative_length_ratios):
+                param_elem_length_cumul.append(sum(self.relative_length_ratios[:idx+1]))
+            param_elem_length_cumul_norm = [
+                x/param_elem_length_sum for x in param_elem_length_cumul]
+
+            self.parameters['x'] = [x * self.parameters['lx_total_beam'] for x in param_elem_length_cumul_norm]
+            self.parameters['x_mid'] = [(a+b)/2 for a, b in zip(self.parameters['x'][:-1], self.parameters['x'][1:])]            
+
+            for i in range(self.n_elems):
+                element_params = self.initialize_element_geometric_parameters(i)
+                self.parameters.update(element_params)
+                coord = np.array([[self.parameters['x'][i], 0.0, 0.0],
+                                [self.parameters['x'][i + 1], 0.0, 0.0]])
+                e = BernoulliElement(self.parameters, elem_length = lx_i , elem_id = i)
+                self.elements.append(e)
+
 
     def build_system_matricies(self, params_yg = [1.0,1.0,1.0], EIz_param = 1.0, params_k_ya = [0.0,0.0], params_m_ya = [0.0,0.0,0.0]):
         ''' 
@@ -140,6 +170,40 @@ class BeamModel(object):
         self.b = self.get_damping()
         self.comp_b = self.apply_bc_by_reduction(self.b)
         
+    def initialize_element_geometric_parameters(self, i):
+        element_params = {}
+        # element properties
+        x = self.parameters['x_mid'][i]
+        # area
+        element_params['A'] = self.evaluate_characteristic_on_interval(x, 'c_a')
+
+        # second moment of inertia
+        element_params['Iz'] = self.evaluate_characteristic_on_interval(x, 'c_iz')
+
+        # Durchmesser
+        element_params['D'] = self.evaluate_characteristic_on_interval(x, 'c_d')
+       
+        return element_params
+
+    def evaluate_characteristic_on_interval(self, running_coord, characteristic_identifier):
+        '''
+        NOTE: continous polynomial defined within interval
+        starting from the local coordinate 0.0
+        so a shift is needed
+        see shifted coordinate defined as: running_coord-val['bounds'][0]
+
+        TODO: might not be robust enough with end-check -> add some tolerance
+        '''
+        from numpy.polynomial import Polynomial
+        for val in self.parameters['intervals']:
+            if "End" not in val['bounds']:
+                if val['bounds'][0] <= running_coord < val['bounds'][1]:
+                    polynom = Polynomial(val[characteristic_identifier])
+                    return polynom (running_coord - val['bounds'][0])
+            elif "End" in val['bounds']:
+                if val['bounds'][0] <= running_coord <= self.parameters['lx']:
+                    polynom = Polynomial(val[characteristic_identifier])
+                    return polynom(running_coord - val['bounds'][0])
 
 # # BOUNDARY CONDITIONS
 

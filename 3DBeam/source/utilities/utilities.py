@@ -1,3 +1,4 @@
+import pickle
 import string
 import numpy as np
 import json
@@ -264,18 +265,23 @@ def generate_nodal_force_file(number_of_nodes, node_of_load_application, force_d
     if not os.path.isdir(src_path):
         os.makedirs(src_path)
 
-    # -1 ist notwendig da sozusagen vom knoten unter dem von interesse angefangen wird die dof nodes dazu zu addieren
-    loaded_dof = (node_of_load_application-1)*GD.DOFS_PER_NODE[domain_size] + GD.DOF_LABELS[domain_size].index(force_direction)
-
-    force_data = np.zeros(GD.DOFS_PER_NODE[domain_size]*number_of_nodes)
-    force_data[loaded_dof] += magnitude
-    force_data = force_data.reshape(GD.DOFS_PER_NODE[domain_size]*number_of_nodes,1)
-
     force_file_name = os_join(src_path, file_base_name + str(number_of_nodes) + '_nodes_at_' + str(node_of_load_application) + \
                         '_in_' + force_direction+'.npy')
-    np.save(force_file_name, force_data)
 
-    return force_file_name
+    if os.path.isfile(force_file_name):
+        return force_file_name
+    
+    else:
+        # -1 ist notwendig da sozusagen vom knoten unter dem von interesse angefangen wird die dof nodes dazu zu addieren
+        loaded_dof = (node_of_load_application-1)*GD.DOFS_PER_NODE[domain_size] + GD.DOF_LABELS[domain_size].index(force_direction)
+
+        force_data = np.zeros(GD.DOFS_PER_NODE[domain_size]*number_of_nodes)
+        force_data[loaded_dof] += magnitude
+        force_data = force_data.reshape(GD.DOFS_PER_NODE[domain_size]*number_of_nodes,1)
+
+        np.save(force_file_name, force_data)
+
+        return force_file_name
 
 # # DYNAMIC ANALYSIS
 def get_fft(given_series, sampling_freq):
@@ -303,7 +309,6 @@ def get_fft(given_series, sampling_freq):
     series_fft = series_fft[:max_length-1]
     
     return freq_half, series_fft
-
 
 def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of_return = 'estimate', P1 = 0.98):
     ''' 
@@ -366,4 +371,30 @@ def read_xl_column(xl_worksheet, start_cell:str = None, start_row:int = None, st
     
     column_values = xl_worksheet[start_row:end_row, start_col].value
     return column_values
+
+def load_model_data_from_pkl(pkl_file, model_parameters):
+    '''
+    pickle datei mit geometrie daten von nEck laden und den parametes hinzufügen
+    Koordinaten definition wird hier an den Beam angepasst
+    '''
+    with open(pkl_file, 'rb') as handle:
+        data = pickle.load(handle)
+    model_parameters['defined_on_intervals'] = []
+    for section in range(data['n_sections']-1):
+        model_parameters['defined_on_intervals'].append(
+            {
+            'interval_bounds':[data['section_absolute_heights'][section], data['section_absolute_heights'][section+1]],
+            'area': [data['A'][section]],
+            'Iz':[data['Iy'][section]], # anpassen der Koordianten Richtung
+            'D':[data['d_achse'][section]]
+            }
+            )
+        if section == data['n_sections']-1:
+            model_parameters['defined_on_intervals']['interval_bounds'][-1] = 'End'
+
+    return model_parameters
+
+# PAROPTBEAM
+
+
 
