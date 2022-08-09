@@ -81,17 +81,18 @@ parameters = {'A':
                'dimension': '2D',
                 'n_elements': 10,
                 'lx_total_beam': 160,
-                'material_density': 500,#42, #absolute Rohdichte Holz 
+                'material_density': 904,# 500,#42, #absolute Rohdichte Holz 
                 'total_mass_tower': 668390,# aus RFEM
-                'nacelle_mass': 267910,# IEA37: 191000, # Gondel Masse in kg
+                'nacelle_mass': 287920.5,# RFEM: 267910,# IEA37: 191000, # Gondel Masse in kg
+                'vorspannkraft':12*2.5E+06, # N
                 'E_Modul': 12000E+06,# N/m²
                 'nu': 0.1, # querdehnung
                 'damping_coeff': 0.025,
                 'nodes_per_elem': 2,
                 'cross_section_area': 12*12, #Not used if intervals
                 'Iz': 51.0,#*0.33333,
-                'type_of_bc':'spring',#'clamped',# or 'spring'
                 'dofs_of_bc':[0,1,2], # Einspannung
+                'type_of_bc':'spring',#'clamped',# or 'spring'
                 'spring_stiffness':[1E+13,2E+13], # Federsteifigkeit am Boden in u und gamma richtung
                 'dynamic_load_file': os_join(*["inputs","forces","dynamic_force_11_nodes.npy"]),
                 'eigen_freqs_target':[0.133,0.79,3.0], 

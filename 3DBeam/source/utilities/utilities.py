@@ -6,8 +6,8 @@ import os
 import matplotlib.pyplot as plt 
 from os.path import join as os_join
 from os.path import sep as os_sep
-from source.utilities import statistics_utilities as stats_utils
-from source.utilities import global_definitions as GD
+# from source.utilities import statistics_utilities as stats_utils
+# from source.utilities import global_definitions as GD
 
 
 caarc_freqs = [0.231, 0.429, 0.536]
@@ -261,7 +261,7 @@ def generate_nodal_force_file(number_of_nodes, node_of_load_application, force_d
     force_direction: string der richtung
     Einheit der Kraft = [N]
     '''
-    src_path = os_join(*['input','loads','static'])
+    src_path = os_join(*['inputs','loads','static'])
     if not os.path.isdir(src_path):
         os.makedirs(src_path)
 
@@ -372,7 +372,7 @@ def read_xl_column(xl_worksheet, start_cell:str = None, start_row:int = None, st
     column_values = xl_worksheet[start_row:end_row, start_col].value
     return column_values
 
-def load_model_data_from_pkl(pkl_file, model_parameters):
+def add_model_data_from_pkl(pkl_file, model_parameters, set_I_eff=True):
     '''
     pickle datei mit geometrie daten von nEck laden und den parametes hinzufügen
     Koordinaten definition wird hier an den Beam angepasst
@@ -380,12 +380,18 @@ def load_model_data_from_pkl(pkl_file, model_parameters):
     with open(pkl_file, 'rb') as handle:
         data = pickle.load(handle)
     model_parameters['defined_on_intervals'] = []
+
+    if set_I_eff:
+        I = 'Iy_eff'
+    else:
+        I = 'Iy'
+
     for section in range(data['n_sections']-1):
         model_parameters['defined_on_intervals'].append(
             {
             'interval_bounds':[data['section_absolute_heights'][section], data['section_absolute_heights'][section+1]],
             'area': [data['A'][section]],
-            'Iz':[data['Iy'][section]], # anpassen der Koordianten Richtung
+            'Iz':[data[I][section]], # anpassen der Koordianten Richtung
             'D':[data['d_achse'][section]]
             }
             )

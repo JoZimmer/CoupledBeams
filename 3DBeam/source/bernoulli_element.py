@@ -27,7 +27,7 @@ class BernoulliElement(object):
     
         self.evaluate_relative_importance_of_shear() # gives G, Py, Pz = 0 if Bernoulli here 
 
-    def get_stiffness_matrix_var(self, alpha = 1.0, EIz_param = 1.0, omega = 0.0, omega1 = 0.0):
+    def get_stiffness_matrix_var(self, alpha = 1.0, omega = 0.0, omega1 = 0.0):
         ''' 
         alpha: parameter for the coupling entry of y - g
         omega: parameter for the coupling entry of y - a (torsion)
@@ -118,13 +118,13 @@ class BernoulliElement(object):
         '''
         return self.get_stiffness_matrix_var(alpha=1.0, omega=0.0)
 
-    def get_stiffness_matrix_geometry(self):
+    def get_stiffness_matrix_geometry(self, axial_force):
         '''
         siehe UHFFB Turm PDF seite 162
         '''
         # bending around z - displacement in y roation gamma around z
 
-        Nl = 1000/self.L # Normalkraft/ element länge --> Vorspannkraft im element?!
+        Nl = axial_force/self.L # Normalkraft/ element länge --> Vorspannkraft im element?!
 
         k_yy_11 = 6/5
         k_yy_12 = -k_yy_11
@@ -139,7 +139,7 @@ class BernoulliElement(object):
                             [ k_yy_12,  k_yg,    k_yy_11,  k_yg],
                             [-k_yg,     k_gg_12, k_yg,     k_gg_11]])
 
-        k_el = np.array([[0, 0., 0., 0, 0., 0.],
+        k_el = Nl * np.array([[0, 0., 0., 0, 0., 0.],
                              [0., k_el_yg[0][0], k_el_yg[0][1], 0., k_el_yg[0][2], k_el_yg[0][3]],
                              [0., k_el_yg[0][1], k_el_yg[1][1], 0., k_el_yg[1][2], k_el_yg[1][3]],
 

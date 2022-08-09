@@ -11,7 +11,7 @@ num_zero = 1e-15
 
 class BeamModel(object):
 
-    def __init__(self, parameters, adjust_mass_density=False, optimize_frequencies_init = True, apply_k_geo = False):
+    def __init__(self, parameters, adjust_mass_density_for_total=False, optimize_frequencies_init = True, apply_k_geo = False):
 
  
         # MATERIAL; GEOMETRIC AND ELEMENT INFORMATION
@@ -49,7 +49,7 @@ class BeamModel(object):
         
         self.eigenvalue_solve()
 
-        if adjust_mass_density:
+        if adjust_mass_density_for_total:
             from source.optimizations import Optimizations
 
             mass_opt = Optimizations(self)
@@ -153,7 +153,9 @@ class BeamModel(object):
             m_el = element.get_mass_matrix_var()
             
             if self.apply_k_geo:
-                k_el_geo = element.get_stiffness_matrix_geometry()
+                # TODO pretension sollte auch als Vektor über die Höhe gegeben werdne können -> Staffelung
+                pretension = self.parameters['vorspannkraft']
+                k_el_geo = element.get_stiffness_matrix_geometry(axial_force = pretension)
 
                 k_el += k_el_geo
 
@@ -170,7 +172,6 @@ class BeamModel(object):
         # Muss nach der reduction der restlichen BCs gemacht werden
         if self.parameters['type_of_bc'] == 'spring':
             self.comp_k = self.apply_spring_bc(self.comp_k)
-        
         
         # Aus Paper: Beton Turm Strukturoptimierung - masse am letzen knoten hinzufügen
         self.comp_m[-2,-2] += self.nacelle_mass
