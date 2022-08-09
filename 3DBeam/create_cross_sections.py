@@ -4,7 +4,7 @@ import source.utilities.holz as holz
 from source.Querschnitte import KreisRing, nEck
 
 ecken = [8,10,12]
-höhen = [110,130,140,130,160]
+höhen = [110,130,140,150,160]
 d_oben = 3.4 # durchmesser am Kopf immer so
 d_unten = 12 
 n_ebenen = 14

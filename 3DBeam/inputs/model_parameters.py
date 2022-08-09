@@ -79,7 +79,7 @@ parameters = {'A':
             
             'holzturm':{
                'dimension': '2D',
-                'n_elements': 10,
+                'n_elements': 5,
                 'lx_total_beam': 160,
                 'material_density': 904,# 500,#42, #absolute Rohdichte Holz 
                 'total_mass_tower': 668390,# aus RFEM

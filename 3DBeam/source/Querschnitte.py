@@ -3,7 +3,44 @@ import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 from os.path import join  as os_join
-#import utilities.auxiliary as utils
+import source.utilities.utilities as utils
+
+#Nachweisführung 
+
+#   Plattenbeanspruchung 
+#       Spannungen und Nachweise für 
+#       - aus Biegung
+#           - in Haupttragrichtung 
+#           - in Nebentragrichtung  
+#       - aus Schub 
+#           - in Haupttragrichtung
+#               benötigt: 
+#               äquivalente Schubflächen für BSP
+#               statisches Moment des Brettsperrholzelements in Haupttragrichtung                 
+#               Rollschubfestigkeit in schwerpunktsnächsten Querlage maßgebend 
+#               Schubfestigkeit der Längslagen  
+#           - in Nebentragrichtung
+#               statisches Moment des Brettsperrholzelements in Nebntragrichtung
+#       - Torsion bei Plattenbeanspruchung 
+
+#  
+
+#   Scheibenbeanspruchung 
+#       Spannungen und Nachweise für
+#       - Schub 
+#           -Abscheren der Bretter entlang einer Fuge 
+#               - Haupttragrichtung/Nebntragrichtung 
+#                   benötigt: 
+#                   T/As(min{A0,net und A90net)
+#           - Schubversagen in der Klebefläche in den Kreuzungspunkten 
+#                   benötigt: 
+#                   polares Trägheitsmoment/Brettbreite/ Mt im Brettsperrholzelement 
+#                   Anzahl der Klebeflächen/Anzahl der Klebefugen/ Kreuzungsfelder
+#           - Schubversagen der gesamten Scheibe --> Überschreitung der Rollschubfestigkeit
+
+
+#       - Knicken? 
+#       - Beulen? 
 
 
 class Querschnitt(object):
@@ -12,7 +49,7 @@ class Querschnitt(object):
     Klasse geschlossener Querschnitte aus BSP definiert durch den durchmesser der Achse
     '''
 
-    def __init__(self, d_achse, wand_dicke, lagen_aufbau, holz_parameter = {}, hoehen_parameter = {}, einheiten = {}):
+    def __init__(self, d_achse, wand_dicke, lagen_aufbau, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter = {}, einheiten = {}):
         '''
         d_achse: Durchmesser des Turms in der Achse des Querschnitts
         holz_parameter: dict siehe global definitions von einer Bestimmten Holzklasse/Art
@@ -21,6 +58,8 @@ class Querschnitt(object):
         self.d_achse = d_achse
         self.wand_dicke = wand_dicke
         self.lagen_aufbau = lagen_aufbau
+        
+
         self.wichte = holz_parameter['rhok']
 
         self.d_außen = self.d_achse + self.wand_dicke/2
@@ -31,6 +70,7 @@ class Querschnitt(object):
         self.section_heights = np.diff(self.section_absolute_heights) # Höhe der einzelnen elemente (abstand zwischen höhen)
 
         self.holz_parameter = holz_parameter
+        self.nachweis_parameter= nachweis_parameter
         self.hoehen_parameter = hoehen_parameter
         self.einheiten = einheiten
         
@@ -48,27 +88,58 @@ class Querschnitt(object):
         '''
         pass
     
-
-
-
-
-    def compute_effektive_festigkeiten_charakteristisch(self):
-        
+    def compute_effektive_festigkeiten_charakteristisch_laengs(self):
+        #effektive festigkeiten laengs 
         t_querlagen = 0 
         for lage in self.lagen_aufbau:
             if lage['ortho'] == 'Y':
                 t_querlagen+= lage['ti']
 
-        self.ft0k_eff = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['ft0k']
-        self.fc0k_eff = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['fc0k']
-        self.fvk_eff = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['fvk']
+        self.fmk_eff_laengs = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['fmk']
+        self.ft0k_eff_laengs = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['ft0k']
+        self.fc0k_eff_laengs = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['fc0k']
+        self.fvk_eff_laengs = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['fvk']
 
-    def compute_effektive_festigkeiten_design(self):
 
-        self.compute_effektive_festigkeiten_charakteristisch()
+        print(self.holz_parameter['fmk'])
+        print(self.fmk_eff_laengs)
 
-        #TODO design parameter kmod, gamma_m etc. als parameter dict übergeben?
+    def compute_effektive_festigkeiten_charakteristisch_quer(self):
+        
 
+        #effektive Festigkeiten quer
+        t_laengslagen = 0 
+        for lage in self.lagen_aufbau:
+            if lage['ortho'] == 'X':
+                t_laengslagen+= lage['ti']
+
+        self.fmk_eff_quer = (self.wand_dicke - t_laengslagen)/self.wand_dicke * self.holz_parameter['fmk']
+        self.ft0k_eff_quer = (self.wand_dicke - t_laengslagen)/self.wand_dicke * self.holz_parameter['ft0k']
+        self.fc0k_eff_quer = (self.wand_dicke - t_laengslagen)/self.wand_dicke * self.holz_parameter['fc0k']
+        self.fvk_eff_quer = (self.wand_dicke - t_laengslagen)/self.wand_dicke * self.holz_parameter['fvk']
+
+
+    def compute_effektive_festigkeiten_design(self, einwirkungsdauer):
+
+
+        
+        self.compute_effektive_festigkeiten_charakteristisch_laengs()
+
+        #effektive Festigkeite laengs
+        self.fmd_eff_laengs = self.fmk_eff_laengs * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        self.ft0d_eff_laengs= self.ft0k_eff_laengs * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        self.fc0d_eff_laengs= self.fc0k_eff_laengs * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        self.fvd_eff_laengs= self.fvk_eff_laengs * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+    
+        self.compute_effektive_festigkeiten_charakteristisch_quer()
+        #effektive Festigkeiten Quer
+        self.fmd_eff_quer = self.fmk_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        self.ft0d_eff_quer= self.ft0k_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        self.fc0d_eff_quer= self.fc0k_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        self.fvd_eff_quer= self.fvk_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        
+        
+        print(self.fmd_eff_laengs)
     
     def calculate_normalspannung(self, lasten_design, e = 0):
         '''
@@ -84,52 +155,71 @@ class Querschnitt(object):
         self.sigma = (lasten_design['Md']+lasten_design['Mimp'])/self.Iy * e + lasten_design['Nd'] / self.A
         self.einheiten['Normalspannung'] = self.einheiten['Kraft'] + '/' + self.einheiten['Länge'] + '²'
 
-    def calculate_ausnutzung(self, lasten_design):
+    def calculate_ausnutzung_normalspannung(self, lasten_design):
         '''
         TODO Variable geben die definiert was ausgenutzt wird als Druck, Zug, ... bisher ist es druck fc0k
         '''
 
         self.calculate_normalspannung(lasten_design)
-        # self.calculate_schubspannung_querkraft()
-        # self.calculate_schubspannung_torsion()
 
         einwirkung = self.sigma
 
+        self.compute_effektive_festigkeiten_design('kurz')
 
-        fck = self.holz_parameter['fc0k'] * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
-        self.ausnutzung = 1.35 * einwirkung/fck
+        fd = self.ft0d_eff_laengs * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
+        self.ausnutzung = 1.35 * einwirkung/fd
 
+        print(self.ausnutzung)
 
-    def calculate_schubspannung_querkraft(self, Qz):
+    def calculate_schubspannung_querkraft(self, lasten_design):
 
         self.compute_effective_moment_of_inertia()
         self.compute_static_moment()
 
-        tau_Q = Qz * self.sy_max / (self.Iy * self.t)
+        
+
+        self.tau_Q = (lasten_design['Q'] * self.Sy_max) / (self.Iy * self.wand_dicke)
         self.einheiten['Schubspannung'] = self.einheiten['Kraft'] + '/' + self.einheiten['Länge'] + '²'
         
 
-    def calculate_schubspannung_torsion(self, Mt):
+    def calculate_schubspannung_torsion(self, lasten_design):
         self.Wt = 2* self.A_m * self.wand_dicke
-        tau_Mt = Mt /self.Wt
+        self.tau_Mt = lasten_design['Mt'] /self.Wt
+
+    def calculate_ausnutzung_schub(self, lasten_design):
+        '''
+        TODO Variable geben die definiert was ausgenutzt wird als Druck, Zug, ... bisher ist es druck fc0k
+        '''
+
+        self.calculate_schubspannung_querkraft(lasten_design)
+        self.calculate_schubspannung_torsion(lasten_design)
+        self.compute_effektive_festigkeiten_design('kurz')
+
+        einwirkung = self.tau_Q + self.tau_Mt 
+
+
+        fd = self.fvd_eff_laengs * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
+        self.ausnutzung = 1.35 * einwirkung/fd
+
+        print(self.ausnutzung)
 
 
     def calculate_ausnutzung_kombiniert(self, LF):
 
         self.get_forces(LF)
         sigma_d_normal = self.calculate_normalspannung(self.Md, self.Mimp, self.Nd)
+
+        self.compute_effektive_festigkeiten_design('kurz')
         tau_d_quer=0
         tau_d_torsion= 0
         
+        fd = self.fvd_eff_laengs * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
 
-        fck = self.holz_parameter['fc0k'] * utils.unit_conversion('N/mm²', 'N/m²')
-
-
-        nu = sigma_d_normal/fck
+        nu = sigma_d_normal/fd
         self.ausnutzung = nu
 
 
-    def plot_properties_along_height(self, properties:list, units:list=None, E_modul=12000, prop_to_compare=None, title=''):
+    def plot_properties_along_height(self, properties:list, units:list=None, E_modul=12000, prop_to_compare=None):
         '''
         werte entlang der Höhe plotten. 
         gewünschte parameter als strings in einer liste geben
@@ -140,10 +230,11 @@ class Querschnitt(object):
                         'M':self.masse_pro_meter}
         prop_units_default = {'Iy':'m^4', 'EIy':'Nm²', 'd_achse':'m', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
 
-        fig, ax = plt.subplots(ncols = len(properties))
+        fg, ax = plt.subplots(ncols = len(properties))
         if len(properties) == 1:
             ax = [ax]
 
+    
         for p_i, prop in enumerate(properties):
             ax[p_i].plot(prop_values[prop], self.hfract)
             if prop_to_compare != None:
@@ -151,7 +242,6 @@ class Querschnitt(object):
             ax[p_i].grid()
             ax[p_i].set_xlabel(prop + ' [' + prop_units_default[prop] +']')
         ax[0].set_ylabel('Hfract [-]')
-        fig.suptitle(title)
 
         plt.show()
 
@@ -178,29 +268,50 @@ class Querschnitt(object):
 
 
 
-#     def calculate_normalspannung_Plattenbeanspruchung(self, wind_max): 
-#         '''Längsspannungen bei Plattenbeanspruchung aus Windsog und -Druck'''
-#         width= 3
-#         M0_k= (width*wind_max**2)/8
-#         W0_net= 
-#         f_md= 1,35* 
-#         sigma_md= M
-#         ausnutzung= sigma_md/f_md
+    def calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max, width): 
+        '''Längsspannungen bei Plattenbeanspruchung aus Windsog und -Druck'''
+         
+        M0_k= (wind_max*width**2)/8
+        self.sigma_md_platte= M0_k/self.Iy_eff * self.wand_dicke/2
 
-#         return ausnutzung
+        return self.sigma_md_platte
+
+    def ausnutzung_Plattenbeanspruchung_Nebentragrichtung(self, einwirkungsdauer, wind_max, width):
+        
+        self.calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(wind_max, width)
+        self.compute_effektive_festigkeiten_design(einwirkungsdauer)
+
+
+        ausnutzung= self.sigma_md_platte/self.fmd_eff_quer
+        print(ausnutzung)
+        return  ausnutzung
+
+    def calculate_normalspannung_Plattenbeanspruchung_Haupttragrichtung():
+        return 0
 
     def calculate_schub_plattenbeanspruchung(self, wind_max):
         return 0
 
+    def calculate_schub_plattenbeanspruchung_rollschub(self):
+        '''Rollschubfestigkeit der schwerpunktnächsten Querlage maßgebend'''
+        A_t_net=0 
+        I0_net=0
+        S0R_net=0
+
+
+
     def compute_drillsteifigkeit(self):
         self.K_xy= np.sqrt(self.Iy_eff*self.holz_parameter['E0_mean']*self.Iz_eff*self.holz_parameter['E90_mean'])
-         
+
+
+   
+            
 
 class KreisRing(Querschnitt):
 
-    def __init__(self, d_achse, wand_dicke, lagen_aufbau = None, holz_parameter = {}, hoehen_parameter ={}, einheiten = {}) -> None:
+    def __init__(self, d_achse, wand_dicke, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}) -> None:
         
-        super().__init__(d_achse, wand_dicke, lagen_aufbau, holz_parameter, hoehen_parameter, einheiten)
+        super().__init__(d_achse, wand_dicke, lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten)
 
 
         self.masse_pro_meter = None
@@ -211,7 +322,7 @@ class KreisRing(Querschnitt):
         self.A_m= self.compute_area(self.d_achse/2)
 
         self.A = self.A_außen-self.A_innen
-
+        self.nachweis_parameter= nachweis_parameter
         self.masse_pro_meter = self.compute_sectional_mean(self.A) * self.wichte
         
         self.compute_flächenträgheitsmoment()
@@ -252,20 +363,22 @@ class KreisRing(Querschnitt):
 
         self.Sy_max= ((self.d_achse/2)**2)*self.wand_dicke 
         return self.Sy_max 
-      
+
+
+        
 
 class nEck(Querschnitt):
 
-    def __init__(self, n_ecken, d_achse, wand_dicke, lagen_aufbau = None, holz_parameter = {}, hoehen_parameter ={}, einheiten = {}):
+    def __init__(self, n_ecken, d_achse, wand_dicke, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):
         '''
         werte können für einzelne sections oder als arrays gegeben werden
         '''
 
-        super().__init__(d_achse, wand_dicke, lagen_aufbau, holz_parameter, hoehen_parameter, einheiten)
+        super().__init__(d_achse, wand_dicke, lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten)
 
         self.n_ecken = n_ecken
         self.alpha = 360/self.n_ecken
-
+        self.nachweis_parameter= nachweis_parameter
         self.a_außen = sin(radians(self.alpha/2)) * self.d_außen
         self.a_innen = sin(radians(self.alpha/2)) * self.d_innen
 
@@ -302,8 +415,8 @@ class nEck(Querschnitt):
 
     def compute_flächenträgheitsmoment_neck(self, a):
 
-        Iy = self.n_ecken/96 * a**4 * self.winkel_term
-        return Iy
+        self.Iy = self.n_ecken/96 * a**4 * self.winkel_term
+        return self.Iy
 
     def compute_sectional_properties(self):
 
@@ -339,7 +452,7 @@ class nEck(Querschnitt):
             z_e= (cos(alpha_i)*r) 
             Sy_max+= (z_e*length+((z_before-z_e)/2)*length)*self.wand_dicke
             z_before = z_e 
-        self.Sy=Sy_max   
+        self.Sy_max=Sy_max   
         return Sy_max
 
 
@@ -392,43 +505,3 @@ def plot_properties_along_height_list(geometric_objects:list, properties:list, u
     plt.grid()
     plt.legend()
     plt.show()
-
-if __name__ == '__main__':
-    import xlwings as xl
-    import utilities.holz as holz
-    import utilities.utilities as utils
-    excel_file = os_join (*['..','..','RFEM','0704_parametrisches_RFEM_model_12eck_save2.xlsx'])
-    wb = xl.Book(excel_file)
-    ws = wb.sheets['Formel-Parameter']
-
-    ebenen_radien = utils.read_xl_column(ws, start_cell = 'D90', end_row= 104)
-    # boden knoten dazu 
-    heights_list = utils.read_xl_column(ws, start_cell='D75', end_row=88)
-    heights_list.append(0)
-    heights_parameter = {}
-    # flip -> von unten nach oben
-    heights_parameter['absolute_höhen'] = np.flip(np.array(heights_list))
-    heights_parameter['hfract'] = np.flip(np.array(utils.read_xl_column(ws, start_cell='J90', end_row=104)))
-
-    # hier soll definiert werden in welchen Einheiten inputs an Querschnitt ÜBERGEBEN wird
-    # 
-    einheiten = {'Kraft':'N', 'Moment':'Nm', 'Festigkeit':'N/mm²', 'Länge':'m'}
-
-    n_ecken = 12
-    ecken_possible = [8,10,12]
-    d_achse = np.flip(np.array(ebenen_radien) *2)
-    t_wand = 0.4
-    
-    lagen_aufbau = [{'ortho':'X','ti':0.08, 'di':d_achse + 0.03 + 0.04 + 0.04},
-                    {'ortho':'Y','ti':0.04, 'di':d_achse + 0.03 +0.02},
-                    {'ortho':'X','ti':0.06, 'di':d_achse},
-                    {'ortho':'Y','ti':0.04, 'di':d_achse -  0.03 - 0.02},
-                    {'ortho':'X','ti':0.08, 'di':d_achse - 0.03 -  0.04 -  0.04}]
-
-    kreis_ring = KreisRing(d_achse, 0.4, lagen_aufbau=lagen_aufbau,
-                           holz_parameter = holz.charakteristische_werte['BSP_RFEM'], hoehen_parameter= heights_parameter, einheiten=einheiten)
-    nEck12_fuß = nEck(12, d_achse, t_wand, lagen_aufbau=lagen_aufbau, 
-                          holz_parameter = holz.charakteristische_werte['BSP_RFEM'], hoehen_parameter= heights_parameter, einheiten=einheiten)
-
-    print(kreis_ring.compute_static_moment())
-    print(nEck12_fuß.compute_static_moment())

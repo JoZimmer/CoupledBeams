@@ -109,7 +109,8 @@ class BernoulliElement(object):
                              [k_el_x[1][0], 0., 0., k_el_x[1][1], 0., 0.],
                              [0., k_el_yg[0][2], k_el_yg[1][2], 0., k_el_yg[2][2], k_el_yg[2][3]],
                              [0., k_el_yg[0][3], k_el_yg[1][3], 0., k_el_yg[2][3], k_el_yg[3][3]]])
-
+        
+        self.k_element = k_el
         return k_el
 
     def get_stiffness_matrix_tar(self):
@@ -147,6 +148,7 @@ class BernoulliElement(object):
                              [0., k_el_yg[0][2], k_el_yg[1][2], 0., k_el_yg[2][2], k_el_yg[2][3]],
                              [0., k_el_yg[0][3], k_el_yg[1][3], 0., k_el_yg[2][3], k_el_yg[3][3]]])
 
+        self.k_element_geo = k_el
         return k_el
 
 
@@ -361,6 +363,8 @@ class BernoulliElement(object):
                              [m_el_x[1][0], 0., 0., m_el_x[1][1], 0., 0.],
                              [0., m_el_yg[0][2], m_el_yg[1][2], 0., m_el_yg[2][2], m_el_yg[2][3]],
                              [0., m_el_yg[0][3], m_el_yg[1][3], 0., m_el_yg[2][3], m_el_yg[3][3]]])
+        
+        self.m_element = m_el
         return m_el
       
     def get_mass_matrix_tar(self):

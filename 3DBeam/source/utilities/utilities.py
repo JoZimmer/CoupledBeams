@@ -1,30 +1,16 @@
 import pickle
-import string
 import numpy as np
-import json
 import os
 import matplotlib.pyplot as plt 
 from os.path import join as os_join
 from os.path import sep as os_sep
+import string 
+import xlwings as xl
+import pandas as pd
+
 # from source.utilities import statistics_utilities as stats_utils
 # from source.utilities import global_definitions as GD
 
-
-caarc_freqs = [0.231, 0.429, 0.536]
-# VALUES COPIED WITH FULL MATRICIES CALCULATED
-eigenmodes_target_2D_3_elems = {'y':[np.array([0.        , 0.0040305 , 0.013317  , 0.02434817]),
-                                    np.array([ 0.        , -0.01444802, -0.01037197,  0.02449357]),
-                                    np.array([ 0.        , -0.01819986,  0.01604842, -0.02446053])],
-                                'g':[np.array([ 0.        , -0.0004894 , -0.00070823, -0.00074479]),
-                                    np.array([ 0.        ,  0.00095991, -0.00161083, -0.00260447]),
-                                    np.array([ 0.        , -0.0009034 , -0.00068957,  0.00432069])]}
-
-eigenmodes_target_2D_10_elems ={'y':[np.array([0.0, -0.000223647046255273, -0.0008516138734941783, -0.0018197756020471587, -0.0030651302400258222, -0.00452698257707041, -0.006148471228742031, -0.007878364112695452, -0.009673052432583382, -0.011498680245678633, -0.01333335614230312]),
-                                    np.array([ 0.        ,  0.00123514,  0.00401433,  0.00701557,  0.00911353, 0.00951618,  0.0078602 ,  0.00422764, -0.00093387, -0.00698381, -0.01333421]),
-                                    np.array([ 0.        ,  0.00304246,  0.00806418,  0.01008837,  0.007016  , 0.00026276, -0.00632   , -0.00877015, -0.00526778,  0.00304816, 0.01334002])],
-                                'g':[np.array([0.00000000e+00, 2.91028048e-05, 5.39127464e-05, 7.44741342e-05,9.08970510e-05, 1.03382795e-04, 1.12244221e-04, 1.17921246e-04,1.20991889e-04, 1.22179408e-04, 1.22356253e-04]),
-                                    np.array([ 0.00000000e+00, -1.49126242e-04, -2.06595585e-04, -1.80905410e-04,-8.99100753e-05,  4.02818206e-05,  1.79513859e-04,  2.99658399e-04,3.81148479e-04,  4.18652321e-04,  4.24986410e-04]),
-                                    np.array([ 0.00000000e+00, -3.34883542e-04, -2.77308592e-04,  3.15745412e-05,3.61060122e-04,  4.93762038e-04,  3.37172087e-04, -3.17237701e-05,-4.21134643e-04, -6.52640493e-04, -6.98021127e-04])]} 
 
 def evaluate_residual(a_cur, a_tar):
     residual = np.linalg.norm(np.subtract(a_cur, a_tar)) / np.amax(np.absolute(a_tar))
@@ -37,13 +23,6 @@ def evaluate_residual(a_cur, a_tar):
 
 def cm2inch(value):
     return value/2.54
-    
-def increasing_by(val_old, val_new):
-    ''' 
-    returns the increase in % from the origin = old
-    ''' 
-    increase = (val_new - val_old)/val_old * 100
-    return round(increase,2)
 
 def check_and_flip_sign_dict(eigenmodes_dict):
     '''
@@ -169,6 +148,7 @@ def get_eigenform_polyfit(modeshape_i, z_coords,  evaluate_at, degree = 5, plot_
     return eigenmodes_fitted
 
 def save_optimized_beam_parameters(opt_beam_model, fname):
+    import json
     new = 'optimized_parameters'+os_sep+fname+'.json'
     if os.path.isfile(new):
         print('WARNING', new, 'already exists!')
@@ -180,53 +160,19 @@ def save_optimized_beam_parameters(opt_beam_model, fname):
     f.close()
     print('\nsaved:', new)
 
-def get_targets(beam_model, target='semi_realistic', opt_params =None):
-    ''' 
-    just used to have them especially for the initial comparison
-    ''' 
-    if target == 'realistic':
-        modi = np.load(os_join(*['inputs', 'EigenvectorsGid.npy']))
-        z_coords = np.load(os_join(*['inputs', 'z_coords_gid_45.npy']))
-        
-        modi_fitted = get_eigenform_polyfit(modi[0], z_coords, beam_model.nodal_coordinates['x0'], plot_compare=False)
-        eigenmodes_target_y = modi_fitted['eigenmodes']['y']
-        eigenmodes_target_a = -1*modi_fitted['eigenmodes']['a']
-
-    elif target == 'semi_realistic':
-        ratio_a_y = opt_params['ratio_a_y_tar']
-        factor_y = opt_params['factor_y']
-        eigenmodes_target_y = beam_model.eigenmodes['y'][0]*factor_y
-
-        a_factor = ratio_a_y * max(eigenmodes_target_y)/max(beam_model.eigenmodes['a'][0])
-        eigenmodes_target_a = beam_model.eigenmodes['a'][0] * a_factor
-
-    return {'y':eigenmodes_target_y, 'a':eigenmodes_target_a}
-
-def prepare_string_for_latex(string):
-    greek = {'ya':'y'+r'\alpha','ga':r'\gamma' + r'\alpha'}
-    if '_' in string:
-        var, label = string.split('_')[0], string.split('_')[1]
-        latex = r'${}$'.format(var) + r'$_{{{}}}$'.format(greek[label])
-        #return string.replace('_','')
-        return latex
-    else:
-        return string
-
-    
-def join_whitespaced_string(string):
-    return string.replace(' ','_')
-
-def parse_load_signal_backwards(signal):
+def parse_load_signal_backwards(signal, domain_size):
     '''
     signal kommt als dictionary mit den Richtungen als keys (müssen nicht alle 6 Richtugne sein)
     output soll row vector sein mit dofs * n_nodes einträgen
     '''
-    shape = GD.DOFS_PER_NODE['3D'] * len(list(signal.values())[0])
+    from source.utilities import global_definitions as GD
+
+    shape = GD.DOFS_PER_NODE[domain_size] * len(list(signal.values())[0])
     signal_raw = np.zeros(shape)
     for label in signal:
-        dof_label_id = GD.DOF_LABELS['3D'].index(label)
+        dof_label_id = GD.DOF_LABELS[domain_size].index(label)
         for i, val in enumerate(signal[label]):
-            sort_id = i * GD.DOFS_PER_NODE['3D'] + dof_label_id
+            sort_id = i * GD.DOFS_PER_NODE[domain_size] + dof_label_id
             signal_raw[sort_id] = val
 
     #TODO: must this be transposed?!
@@ -261,6 +207,7 @@ def generate_nodal_force_file(number_of_nodes, node_of_load_application, force_d
     force_direction: string der richtung
     Einheit der Kraft = [N]
     '''
+    from source.utilities import global_definitions as GD
     src_path = os_join(*['inputs','loads','static'])
     if not os.path.isdir(src_path):
         os.makedirs(src_path)
@@ -282,6 +229,40 @@ def generate_nodal_force_file(number_of_nodes, node_of_load_application, force_d
         np.save(force_file_name, force_data)
 
         return force_file_name
+
+def generate_kopflasten_file(number_of_nodes, loads_dict, file_base_name = 'kopflasten_'):
+    '''
+    creating a force .npy file with a nodal force at given node, direction and magnitude
+    number_of_nodes: anzahl knoten des models 
+    node_of_load_application: Knoten an dem die Last aufgebracht werden soll
+    force_direction: string der richtung
+    Einheit der Kraft = [N]
+    '''
+    from source.utilities import global_definitions as GD
+    src_path = os_join(*['inputs','loads','static'])
+    if not os.path.isdir(src_path):
+        os.makedirs(src_path)
+
+    node_of_load_application = number_of_nodes
+    force_file_name = os_join(src_path, file_base_name + '.npy')
+
+    # if os.path.isfile(force_file_name):
+    #     return force_file_name
+    
+    #else:
+    # -1 ist notwendig da sozusagen vom knoten unter dem von interesse angefangen wird die dof nodes dazu zu addieren
+    force_data = np.zeros(GD.DOFS_PER_NODE['2D']*number_of_nodes)
+    for load_direction, magnitude in loads_dict.items():
+
+        force_direction = GD.LOAD_DOF_MAP[load_direction]
+        loaded_dof = (node_of_load_application-1)*GD.DOFS_PER_NODE['2D'] + GD.DOF_LABELS['2D'].index(force_direction)
+        force_data[loaded_dof] += magnitude
+
+    force_data = force_data.reshape(GD.DOFS_PER_NODE['2D']*number_of_nodes,1)
+
+    np.save(force_file_name, force_data)
+
+    return force_file_name
 
 # # DYNAMIC ANALYSIS
 def get_fft(given_series, sampling_freq):
@@ -338,6 +319,91 @@ def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of
 
 # SONSTIGES
 
+
+def add_model_data_from_pkl(pkl_file, model_parameters, set_I_eff=True):
+    '''
+    pickle datei mit geometrie daten von nEck laden und den parametes hinzufügen
+    Koordinaten definition wird hier an den Beam angepasst
+    '''
+    with open(pkl_file, 'rb') as handle:
+        data = pickle.load(handle)
+    model_parameters['defined_on_intervals'] = []
+
+    if set_I_eff:
+        I = 'Iy_eff'
+    else:
+        I = 'Iy'
+
+    model_parameters['lx_total_beam'] = data['section_absolute_heights'][-1]
+
+    for section in range(data['n_sections']-1):
+        model_parameters['defined_on_intervals'].append(
+            {
+            'interval_bounds':[data['section_absolute_heights'][section], data['section_absolute_heights'][section+1]],
+            'area': [data['A'][section]],
+            'Iz':[data[I][section]], # anpassen der Koordianten Richtung
+            'D':[data['d_achse'][section]]
+            }
+            )
+        if section == data['n_sections']-1:
+            model_parameters['defined_on_intervals']['interval_bounds'][-1] = 'End'
+
+    return model_parameters
+
+# OPENFAST / RFEM
+
+def convert_coordinate_system(loads, direction = 'fore-aft'):
+    '''
+    Lasten aus IEA, OpenFAST in die Richtung vom Balken konvertieren
+    '''
+    loads_beam = {'Fy':0, 'Fx':0, 'Mz':0}
+    if isinstance(loads, dict):
+        converter_fast_beam = {'Fx':'Fy','Fy':'Fz', 'Fz':'Fx', 'Mx':'My', 'My':'Mz', 'Mz':'Mx'}
+        converter_beam_fast = {'Fy':'Fx','Fx':'Fz', 'Mz':'My'}
+        sign_beam_fast = {'Fy':1,'Fx':1, 'Mz':-1}
+        for direction in loads_beam:
+            loads_beam[direction] = sign_beam_fast[direction] * loads[converter_beam_fast[direction]]
+
+    return loads_beam
+
+
+# # ALLGEMEINES
+
+EXCEL_COLUMNS = list(string.ascii_uppercase)
+
+def convert_for_latex(string):
+    l = list(string.split('_'))
+    label = r'${}$'.format(l[0])
+    for i in range(1,len(l)):
+        label += r'$_{{{}}}$'.format(l[i])
+
+    return label
+
+def unit_conversion(unit_in:str, unit_out:str) -> float:
+    '''
+    gibt faktor zurück um einen Wert der Einheit unit_in in einen der Einheit unit_out umzurechnen
+    '''
+    converter = {'N/mm²':{'N/cm²':1E+02, 'N/m²':1E+06, 'kN/mm²':1E-03,'kN/m²':1E+03,'MPa':1},
+                'N/m²':{'N/mm²':1E-06,'N/cm²':1E-04,'kN/mm²':1E-09,'kN/m²':1E-03,'Pa':1, 'MPa':1E-06},
+                'N/cm²':{'N/mm²':1E-02},
+                'kN/m²':{'N/mm²':1E-03,'N/cm²':1E-01,'kN/mm²':1E-06,'kN/m²':1,'MPa':1E-03},
+                'N':{'kN':1E-03, 'MN':1E-06},
+                'kN':{'N':1E+03, 'MN':1E-03},
+                'MN':{'N':1E+06, 'kN':1E+03}}
+
+    return converter[unit_in][unit_out]
+
+
+# # EXCEL STUFF
+
+def excel_cell_name_to_row_col(cell_name):
+
+    row = int(cell_name[1:]) - 1 
+    col = string.ascii_uppercase.index(cell_name[0])
+    return row, col
+
+
+
 def read_xl_column(xl_worksheet, start_cell:str = None, start_row:int = None, start_col:int = None, end_row:int=None, end_cell:str = None):
     '''
     reading excel colum startin from start_row, start_col ODER start_cell als Excel Zellen name
@@ -345,12 +411,6 @@ def read_xl_column(xl_worksheet, start_cell:str = None, start_row:int = None, st
     start_col = A entspricht 0 
     end_row_optional: wenn nicht gegebn wird spalte bis zur nächsten leeren Zeile gelesen NOTE klappt nicht immer 
     '''
-    def excel_cell_name_to_row_col(cell_name):
-
-        row = int(cell_name[1:]) - 1 
-        col = string.ascii_uppercase.index(cell_name[0])
-        return row, col
-
     if start_cell:
         if start_col or start_row:
             raise Exception('entweder Start Zelle als String oder Zeile und Spalte als nummern geben')
@@ -372,35 +432,159 @@ def read_xl_column(xl_worksheet, start_cell:str = None, start_row:int = None, st
     column_values = xl_worksheet[start_row:end_row, start_col].value
     return column_values
 
-def add_model_data_from_pkl(pkl_file, model_parameters, set_I_eff=True):
+def read_xl_row(xl_worksheet, start_row, start_col):
     '''
-    pickle datei mit geometrie daten von nEck laden und den parametes hinzufügen
-    Koordinaten definition wird hier an den Beam angepasst
+    reading excel row startin from start_row, start_col
     '''
-    with open(pkl_file, 'rb') as handle:
-        data = pickle.load(handle)
-    model_parameters['defined_on_intervals'] = []
+    #sheet["A1"].expand("right").last_cell.column
+    end_col = xl_worksheet[start_row, start_col].expand('right').last_cell.column
+    row_values = xl_worksheet[start_row, start_col:end_col].value
+    return row_values
 
-    if set_I_eff:
-        I = 'Iy_eff'
+def write_to_excel(worksheet, start_cell, values, header = ['Hallo'], is_row = False, is_column = True):
+    '''
+    Werte in excel blatt schreibenbeginnend ab start cell
+    worksheet: ein mit xlwings geöffnetes Excel Arbeitsblatt
+    start_cell kann als Excel notation ('A1') oder rwo und column liste kommen 
+    '''
+    ws = worksheet
+
+    for i in values:
+        if isinstance(i, list):
+            i = np.asarray(list)
+
+    if isinstance(values, list):
+        values = np.asarray(values)
+
+    # convert values to a pandas dataframe -> das kann sehr gut in Excel verwendet werden
+    if not isinstance(values, pd.DataFrame):
+        values = values.transpose()
+        df = pd.DataFrame(values, columns=header)
+
+    if isinstance(start_cell, str):
+        ws.range(start_cell).value = df
     else:
-        I = 'Iy'
+        ws.range(start_cell[0],start_cell[1]).value = df
 
-    for section in range(data['n_sections']-1):
-        model_parameters['defined_on_intervals'].append(
-            {
-            'interval_bounds':[data['section_absolute_heights'][section], data['section_absolute_heights'][section+1]],
-            'area': [data['A'][section]],
-            'Iz':[data[I][section]], # anpassen der Koordianten Richtung
-            'D':[data['d_achse'][section]]
-            }
-            )
-        if section == data['n_sections']-1:
-            model_parameters['defined_on_intervals']['interval_bounds'][-1] = 'End'
+    print ('saved', header, 'in', ws.name)
 
-    return model_parameters
+def get_simulation_history_id(case_name):
 
-# PAROPTBEAM
+    wb = xl.Book(os_join(*['..','1_Simulations','simulation_history.xlsx']))
+    ws = wb.sheets['parameter']
+    header = read_xl_row(ws, 1, 2)
+    col = header.index('outfile name')+2
+    all_cases = ws[0:300, col].value
+    row = all_cases.index(case_name)
+    case_id = int(ws[row,1].value)
 
+    return case_id
+
+def write_stats_to_excel(excel_file, worksheet, start_cell, statistics_to_write, stats_results, case_name):
+    '''
+    TODO variablen die noch nicht drinnen sind im Excel händsich hinzufügen oder hier automatisch
+    '''
+    wb = xl.Book(excel_file)
+    ws = wb.sheets[worksheet]
+    header = read_xl_row(ws, 4, 2)
+
+    if ws[start_cell[0], start_cell[1]].value != None:
+        weiter = input('start_cell ist schon voll ' + worksheet + ' ' +str(start_cell[0]) + ',' +str(start_cell[1]) + ' -> wenn y wirds überschrieben? [y]/[n] ')
+        if weiter == 'y':
+            pass
+        else:
+            raise Exception('start_cell neu wählen -> row = letzte beschriebene Reihe + 1')
+
+    ws[start_cell[0], 0].value = case_name 
+    
+    # id der simulation history hinzufügen
+    case_id = get_simulation_history_id(case_name)
+    ws[start_cell[0], 1].value = case_id
+
+    for var in header:
+        col = start_cell[1] + header.index(var)
+        value = stats_results[var][statistics_to_write]
+        ws[start_cell[0], col].value = value 
+    wb.save()
+
+
+# BERECHNUNGEN
+
+def twr_poly_eval(x, coeffs):
+    ''' beginnt erst am ^2 geht bis ^6 und c0 = 0'''
+    power = 2
+    y = np.zeros(x.shape)
+    for c_i, c in enumerate(coeffs):
+        y += c * x ** (power+c_i)
+
+    return y
+
+def collect_mode_shape_params(pyfast_file):
+
+    mode_shapes_poly_coeffs = {'fore-aft':[[],[]],'side-side':[[],[]]}
+    for label in pyfast_file.labels:
+        if 'TwFAM' in label:
+            if '1Sh' in label:
+                mode_shapes_poly_coeffs['fore-aft'][0].append(pyfast_file[label])
+            else:
+                mode_shapes_poly_coeffs['fore-aft'][1].append(pyfast_file[label])
+        if 'TwSSM' in label:
+            if '1Sh' in label:
+                mode_shapes_poly_coeffs['side-side'][0].append(pyfast_file[label])
+            else:
+                mode_shapes_poly_coeffs['side-side'][1].append(pyfast_file[label])
+    return mode_shapes_poly_coeffs
+
+def compute_sectional_mean(parameter):
+        
+    if not isinstance(parameter, list):
+        parameter = list(parameter)
+    sectional_sum = [j+i for i, j in zip(parameter[:-1], parameter[1:])]
+    return np.array(sectional_sum)/2
+
+
+# # DATEN MANGAMENT
+
+def save_specific_columns_from_fast_output(cols_to_keep:list, fast_output:pd.DataFrame, fname:str):
+    '''
+    cols_to_keep: liste an output variablen in der FAST out datei die gespeichert werden soll
+    fast_output: mit FAST_inputoutput Klasse gelesens und in dataframe konvertiertes out file von FAST
+    fname: name/pfad der datei die als pkl gespeichert weren soll
+    '''
+    cols_to_keep.append('Time_[s]')
+    fast_output.loc[:, cols_to_keep].to_pickle(fname)
+
+    print ('\nsaved', cols_to_keep, 'in', fname)
+    
+# # ZÜBLIN 
+
+def lgN_R(kfat, R, lgN_case = 1):
+    '''
+    lgN: erste guess dann wirds berechnet und ggf ne andere Formel genutzt
+    '''
+    def get_case(lgN):
+        if lgN > 0 and lgN <= 5:
+            return 1
+        elif lgN > 5 and lgN <= 6:
+            return 2
+        elif lgN > 6:
+            return 3
+
+    if lgN_case == 1:
+        result_lg_init = (kfat - 1) / (0.01395*R**2 + 0.004765*R - 0.06160)
+    
+    elif lgN_case == 2:
+        result_lg_init = (kfat - (0.05494* R**2 - 0.06043*R + 1.00549)) / (0.0029*R**2 + 0.05974*R -0.0627)
+
+    elif lgN_case == 3:
+        result_lg_init = (kfat - (-0.40735* R**2 + 0.03202*R + 1.37532)) / (0.08333*R**2 + 0.04367*R -0.127)
+
+    case = get_case(result_lg_init)
+    if case == lgN_case:
+        result_N = 10**result_lg_init
+        return result_lg_init, result_N
+
+    else:
+        return lgN_R(kfat, R, case)
 
 

@@ -5,4 +5,9 @@ import numpy as np
 h = 160
 h1 = 40
 
-print ((2*20*40)/8849)
+
+
+k = [[2,0] , [2,3]]
+u = [[0.5], [0.5]]
+f = np.dot(k, u)
+print (f)

@@ -384,14 +384,42 @@ class BeamModel(object):
                 raise Exception('No load vector file provided')
 
         self.static_deformation = {}
+        self.reaction = {}
 
         load = self.apply_bc_by_reduction(load_vector, axis='row_vector')
 
         #missing ground node -> get bc by extension
         static_result = np.linalg.solve(self.comp_k, load)
         static_result = self.recuperate_bc_by_extension(static_result, 'row_vector')
+        f = np.dot(self.k, static_result)
+        self.resisting_force = load_vector - f
+
         for i, label in enumerate(self.dof_labels):
-            self.static_deformation[label] = static_result[i::len(self.dof_labels)]
+            self.static_deformation[label] = static_result[i::self.n_dofs_node]
+            self.reaction[label] = self.resisting_force[i::self.n_dofs_node][:, 0]
+
+        # internal forces - Schnittgrößen müssen an jedem Element gemacht werden 
+        internal_forces_list = []
+        self.internal_forces = {}
+        for i, element in enumerate(self.elements):
+
+            start = i*self.n_dofs_node
+            stop = start + 2*self.n_dofs_node
+
+            u_i = static_result[start:stop]
+            f_i = np.dot(element.k_element, u_i)
+            
+            internal_forces_list.append(f_i[:self.n_dofs_node][:,0])
+            if i == self.n_elems-1:
+                internal_forces_list.append(f_i[self.n_dofs_node:self.n_dofs_node*2][:,0]*-1)
+        
+        internal_forces_arr = np.array(internal_forces_list)
+        for i, label in enumerate(self.dof_labels):
+            self.internal_forces[label] = internal_forces_arr[:,i]
+
+
+
+        
 
 # # RETURN OPTIMIZED PARAMETERS
 
