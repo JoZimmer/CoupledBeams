@@ -954,7 +954,7 @@ def plot_static_result(beam_model:BeamModel, result_type:str, dofs_to_plot:list,
             color = 'grey',
             linestyle = '--')
 
-    dof_colors = {'y':'tab:blue','g':'tab:orange','z':'tab:green'}
+    dof_colors = {'y':'tab:blue','g':'tab:orange','x':'tab:green'}
     dof_colors_rfem = {'z':'tab:blue','y':'tab:orange','z':'tab:green'}
     for d_i, dof in enumerate(dofs_to_plot):
         scale= GD.UNIT_SCALE[unit]
@@ -990,7 +990,7 @@ def plot_static_result(beam_model:BeamModel, result_type:str, dofs_to_plot:list,
     ax.set_ylim(bottom=0)
     plt.show()
 
-def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plot:list,  unit = 'm', rfem_result = None):
+def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plot:list,  unit = 'm', rfem_result = None, title_suffix = '', figsize_scale= 1.0):
     '''
     statische deformation ploten entlang der höhe 
     rfem_result: als dict mit dof als key so wie auch bem_model verformung, muss auch ein key: knoten haben 
@@ -1003,12 +1003,12 @@ def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plo
     elif result_type == 'internal_forces':
         result = beam_model.internal_forces
 
-    title = 'static results ' + result_type
+    title = 'static results ' + result_type + ' '+ title_suffix
 
-    fig, ax = plt.subplots(ncols=len(dofs_to_plot), num=title)
+    fig, ax = plt.subplots(ncols=len(dofs_to_plot), num=title, figsize=[6.4*figsize_scale, 4.8*figsize_scale])
     fig.suptitle(title)
 
-    dof_colors = {'y':'tab:blue','g':'tab:orange','z':'tab:green'}
+    dof_colors = {'y':'tab:blue','g':'tab:orange','x':'tab:green'}
     dof_colors_rfem = {'z':'tab:blue','y':'tab:orange','z':'tab:green'}
     for d_i, dof in enumerate(dofs_to_plot):
 
@@ -1022,7 +1022,7 @@ def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plo
         scale= GD.UNIT_SCALE[unit]
         
         if result_type == 'reaction' or result_type == 'internal_forces':
-            label = r'${}$'.format(GD.DOF_RESPONSE_MAP[dof]) + r'$_{max} =$'+ '{0:.2e}'.format(max(result[dof])*scale)
+            label = r'$|{}$'.format(GD.DOF_RESPONSE_MAP[dof]) + r'$_{max}| =$'+ '{0:.2e}'.format(max(abs(result[dof]))*scale)
 
         ax[d_i].plot(result[dof] * scale,
                 beam_model.nodal_coordinates['x0'],
@@ -1039,7 +1039,11 @@ def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plo
                     color = dof_colors_rfem[dof])
         
         xlabel = r'${}$'.format(GD.DOF_RESPONSE_MAP[dof])
-        unit_label = GD.UNITS_POINT_LOAD_DIRECTION[dof]
+        if unit != 'N':
+            scale_prefix = unit[0]
+        else:
+            scale_prefix = ''
+        unit_label =   '[' + scale_prefix + GD.UNITS_POINT_LOAD_DIRECTION[dof][1:]
 
         ax[d_i].legend()
         ax[d_i].grid()
@@ -1133,5 +1137,43 @@ def plot_eigenmodes_3D(beam_model:BeamModel, eigenfrequencies, eigenmodes, numbe
     plt.show()
 
 
+def plot_along_height(wert, z, label):
 
+    plt.plot(wert, z)
+    plt.xlabel(label)
+    plt.ylabel('z [m]')
+    plt.grid()
+    plt.show()
+
+def plot_dict_subplots(dict, z, title = '', unit = 'N'):
+
+    fig, ax = plt.subplots(ncols=len(dict))
+    fig.suptitle(title)
+
+    for i, name in enumerate(dict):
+        scale= GD.UNIT_SCALE[unit]
+        x = dict[name] * scale
+
+        ax[i].plot( np.zeros(len(z)),
+                    z,
+                    #label = r'$structure$',
+                    color = 'grey',
+                    marker = 'o', 
+                    linestyle = '--')
+
+
+        xlabel = r'${}$'.format(name)
+        if unit != 'N':
+            scale_prefix = unit[0]
+        else:
+            scale_prefix = ''
+        xlabel +=   ' [' + scale_prefix + GD.UNITS_POINT_LOAD_DIRECTION[GD.LOAD_DOF_MAP[name]][1:]
+
+        ax[i].plot(x, z)
+        ax[i].grid()
+        ax[i].set_xlabel(xlabel)
+    
+    ax[0].set_ylabel('z [m]')
+    plt.tight_layout()
+    plt.show()
 

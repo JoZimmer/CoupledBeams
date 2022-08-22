@@ -1,3 +1,4 @@
+from copy import deepcopy
 import numpy as np 
 import matplotlib.pyplot as plt
 from scipy import linalg
@@ -20,10 +21,9 @@ class BeamModel(object):
         self.dim = self.parameters['dimension']
         self.n_dofs_node = GD.DOFS_PER_NODE[self.dim]
         self.dof_labels = GD.DOF_LABELS[self.dim]
-        self.dofs_of_bc = GD.dofs_of_bc[self.dim]
+        self.dofs_of_bc = self.parameters['dofs_of_bc']
         if self.parameters['type_of_bc'] == 'spring':
             self.dofs_of_bc = [0] # nur in längsrichtung einspannen 
-        self.load_id = GD.tip_load[self.dim]
         
         self.n_elems = parameters['n_elements']
         self.n_nodes = self.n_elems + 1
@@ -39,13 +39,12 @@ class BeamModel(object):
                 'c_d':val["D"]
             })
 
-        self.translate_matrix = False
-
         self.initialize_elements() 
 
         self.apply_k_geo = apply_k_geo
         self.build_system_matricies()
-        self.calculate_total_mass()
+        self.calculate_total_mass_and_volume()
+        self.calculate_eigengewicht_knoten_kraft()
         
         self.eigenvalue_solve()
 
@@ -209,11 +208,18 @@ class BeamModel(object):
             if "End" not in val['bounds']:
                 if val['bounds'][0] <= running_coord < val['bounds'][1]:
                     polynom = Polynomial(val[characteristic_identifier])
-                    return polynom (running_coord - val['bounds'][0])
+                    #return polynom (running_coord - val['bounds'][0])
+
+                    # Alternative, da die werte schon als sectional means kommen
+                    return val[characteristic_identifier][0]
+
             elif "End" in val['bounds']:
                 if val['bounds'][0] <= running_coord <= self.parameters['lx']:
                     polynom = Polynomial(val[characteristic_identifier])
-                    return polynom(running_coord - val['bounds'][0])
+                    #return polynom(running_coord - val['bounds'][0])
+
+                    # Alternative, da die werte schon als sectional means kommen
+                    return val[characteristic_identifier][0]
 
     def update_equivalent_nodal_mass(self):
         '''
@@ -225,18 +231,37 @@ class BeamModel(object):
 
         Here only element and NO point mass contribution
         '''
-        self.parameters['m'] = [0 for val in self.parameters['x']]
+        self.parameters['nodal_mass'] = [0 for val in self.parameters['x']]
+        self.volume = 0
 
-        for idx in range(len(self.elements)):
-            self.parameters['m'][idx] += 0.5 * self.elements[idx].A * self.elements[idx].rho * self.elements[idx].L
-            self.parameters['m'][idx+1] += 0.5 * self.elements[idx].A * self.elements[idx].rho * self.elements[idx].L
+        for idx, element in enumerate(self.elements):
+            self.parameters['nodal_mass'][idx] += 0.5 * element.A * element.rho * element.L
+            self.parameters['nodal_mass'][idx+1] += 0.5 * element.A * element.rho * element.L
+            self.volume += element.V
 
-    def calculate_total_mass(self, print_to_console=False):
+    def calculate_total_mass_and_volume(self, print_to_console=False):
         # update influencing parameters
         self.update_equivalent_nodal_mass()
 
-        self.parameters['m_tot'] = sum(self.parameters['m'])
+        self.parameters['m_tot'] = sum(self.parameters['nodal_mass'])
         
+    def calculate_eigengewicht_knoten_kraft(self):
+        '''
+        'nodal_mass' muss mit self.update_equivalent_nodal_mass() schon ausgeführt worden sein
+        Gewichtskraft in [N]
+        Negativ da Druckkraft
+        '''
+        self.eigengewicht = np.zeros(self.n_nodes) 
+        volume_total = 0
+        for i, element in enumerate(self.elements):
+            
+            self.eigengewicht[i] = element.V * element.rho * GD.GRAVITY
+            volume_total += element.V
+            #self.eigengewicht[-2-i] += self.eigengewicht[-1-i] + element.V * element.rho * GD.GRAVITY
+
+        # In Druckkraft umwandeln
+        self.eigengewicht *= -1
+
 
 # # BOUNDARY CONDITIONS
 
@@ -360,33 +385,34 @@ class BeamModel(object):
 
         self.eig_freqs_sorted_indices = np.argsort(self.eigenfrequencies)
         
-    def static_analysis_solve(self, load_vector_file = None, apply_mean_dynamic = True, directions = 'y'):
+    def static_analysis_solve(self, load_vector_file = None, apply_mean_dynamic = False, directions = 'y', return_result = False, gamma_Q = 1.0, add_eigengewicht=True):
         ''' 
-        static load so far defaults as tip load in y direction
-        TODO: include passing a load vector
+        pass_load_vector_file (directions ist dann unrelevant)
         if apply_mean_dynamic: the dynamic load file is taken and at each point the mean magnitude
         direction: if 'all' all load directions are applied
         ''' 
         if load_vector_file != None:
             load_vector = np.load(load_vector_file)
-        else:
-            load_vector = np.zeros(self.n_nodes*self.n_dofs_node)
-            if apply_mean_dynamic:
-                dyn_load = np.load(self.parameters['dynamic_load_file'])
-                if directions == 'all':
-                    load_vector = np.apply_along_axis(np.mean, 1, dyn_load)
-                else:
-                    for direction in directions:
-                        dir_id = GD.DOF_LABELS['3D'].index(direction)
-                        mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node['3D']]
-                        load_vector[dir_id::GD.n_dofs_node['3D']] = mean_load
+            if add_eigengewicht:
+                load_vector[0::GD.DOFS_PER_NODE[self.dim]] += self.eigengewicht.reshape(self.n_nodes,1)
+                print ()
+        elif apply_mean_dynamic:
+            dyn_load = np.load(self.parameters['dynamic_load_file'])
+            if directions == 'all':
+                load_vector = np.apply_along_axis(np.mean, 1, dyn_load)
             else:
-                raise Exception('No load vector file provided')
+                for direction in directions:
+                    dir_id = GD.DOF_LABELS['3D'].index(direction)
+                    mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node['3D']]
+                    load_vector[dir_id::GD.n_dofs_node['3D']] = mean_load
+        else:
+            raise Exception('No load vector file provided')
 
         self.static_deformation = {}
         self.reaction = {}
 
         load = self.apply_bc_by_reduction(load_vector, axis='row_vector')
+        load *= gamma_Q
 
         #missing ground node -> get bc by extension
         static_result = np.linalg.solve(self.comp_k, load)
@@ -402,6 +428,9 @@ class BeamModel(object):
         internal_forces_list = []
         self.internal_forces = {}
         for i, element in enumerate(self.elements):
+            # schnittgröße am ground node ist gleich der resisting force
+            if i == 0:
+                internal_forces_list.append(self.resisting_force[:self.n_dofs_node][:,0])
 
             start = i*self.n_dofs_node
             stop = start + 2*self.n_dofs_node
@@ -409,17 +438,17 @@ class BeamModel(object):
             u_i = static_result[start:stop]
             f_i = np.dot(element.k_element, u_i)
             
-            internal_forces_list.append(f_i[:self.n_dofs_node][:,0])
-            if i == self.n_elems-1:
-                internal_forces_list.append(f_i[self.n_dofs_node:self.n_dofs_node*2][:,0]*-1)
+            # negatives Schnittufer sind die hinteren einträge diese müssen mit den äußeren Lasten im Gleichgewicht stehen
+            internal_forces_list.append(f_i[self.n_dofs_node:][:,0])
+            # if i == self.n_elems-1:
+            #     internal_forces_list.append(f_i[self.n_dofs_node:self.n_dofs_node*2][:,0])#*-1
         
         internal_forces_arr = np.array(internal_forces_list)
         for i, label in enumerate(self.dof_labels):
             self.internal_forces[label] = internal_forces_arr[:,i]
 
-
-
-        
+        if return_result:
+            return self.internal_forces
 
 # # RETURN OPTIMIZED PARAMETERS
 

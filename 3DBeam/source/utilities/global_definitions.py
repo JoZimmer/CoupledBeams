@@ -1,20 +1,22 @@
 
 
 DOF_LABELS = {'2D': ['x','y','g'], '3D':['x', 'y', 'z', 'a', 'b', 'g']}
-dofs_of_bc = {'2D': [0,1,2], '3D':[0,1,2,3,4,5] }
-tip_load = {'2D': -2, '3D':-5}
+
+GRAVITY = 9.81 
 
 DOFS_PER_NODE = {'2D':3, '3D':6}
 
-RESPONSE_DOF_MAP = {'Qx':'x', 'Qy':'y', 'Qz':'z', 'Mx':'a', 'My':'b', 'Mz':'g'}
+RESPONSE_DOF_MAP = {'Nx':'x', 'Qy':'y', 'Qz':'z', 'Mx':'a', 'My':'b', 'Mz':'g'}
 
-DOF_RESPONSE_MAP = {'x':'Qx', 'y':'Qy', 'z':'Qz', 'a':'Mx', 'b':'My', 'g':'Mz'}
+DOF_RESPONSE_MAP = {'x':'Nx', 'y':'Qy', 'z':'Qz', 'a':'Mx', 'b':'My', 'g':'Mz'}
 
 DOF_LOAD_MAP = {'x':'Fx', 'y':'Fy', 'z':'Fz', 'a':'Mx', 'b':'My', 'g':'Mz'}
 
 LOAD_DOF_MAP = {'Fx':'x', 'Fy':'y', 'Fz':'z', 'Mx':'a', 'My':'b', 'Mz':'g'}
 
 GREEK = {'y':'y','z':'z', 'x':'x','a':r'\alpha', 'b':r'\beta', 'g':r'\gamma'}
+
+GREEK_UNICODE = {'sigma':'\u03C3', 'mu':'\u03BC', 'delta':'\u03C3', 'eta':'\u03B7', }
 
 UNITS_LOAD_DIRECTION = {'x':'[N/m]', 'y':'[N/m]', 'z':'[N/m]', 'a':'[Nm/m]', 'b':'[Nm/m]', 'g':'[Nm/m]'}
 

@@ -14,7 +14,7 @@ HOLZBAU = {
 
 
 charakteristische_werte = {
-    'units':{'Festigkeit':'N/mm²', 'Steifigkeit':'N/mm²', 'Rohdichte':'kg/m³'},
+    'units':{'Festigkeit':'N/mm²', 'Steifigkeit':'N/m²', 'Rohdichte':'kg/m³'},
     'C24':{
         'fmk':24,
         'ft0k':14,
@@ -23,8 +23,8 @@ charakteristische_werte = {
         'fc90k':2.5,
         'fvk':4.0,
         'rhok':350,
-        'E0mean':11000,
-        'E90mean':370
+        'E0mean':11000E+06,
+        'E90mean':370E+06
     },
     'BSP_RFEM':{
         'fmk':24,
@@ -34,7 +34,7 @@ charakteristische_werte = {
         'fc90k':2.5,
         'fvk':4.0,
         'rhok':460,
-        'E0mean':12000,
-        'E90mean':370
+        'E0mean':12000E+06,
+        'E90mean':370E+06
     }
 }

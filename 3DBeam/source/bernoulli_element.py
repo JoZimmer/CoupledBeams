@@ -14,6 +14,7 @@ class BernoulliElement(object):
         self.rho = parameters['material_density']
         self.nu = parameters['nu']
         self.L = elem_length
+        self.V = self.A * self.L
 
         self.Iz = parameters['Iz']
 

@@ -29,11 +29,11 @@ ecken_possible = [8,10,12]
 d_achse = np.flip(np.array(ebenen_radien) *2)
 t_wand = 0.4
 
-lagen_aufbau = [{'ortho':'X','ti':0.08, 'di':d_achse + 0.03 + 0.04 + 0.04},
-                {'ortho':'Y','ti':0.04, 'di':d_achse + 0.03 +0.02},
-                {'ortho':'X','ti':0.06, 'di':d_achse},
-                {'ortho':'Y','ti':0.04, 'di':d_achse -  0.03 - 0.02},
-                {'ortho':'X','ti':0.08, 'di':d_achse - 0.03 -  0.04 -  0.04}]
+lagen_aufbau = [{'ortho':'X','ti':0.08, 'di':d_achse + 0.03 + 0.04 + 0.04, 'a': 0.03+0.04+0.04},
+                {'ortho':'Y','ti':0.04, 'di':d_achse + 0.03 +0.02, 'a': 0.03+0.02},
+                {'ortho':'X','ti':0.06, 'di':d_achse, 'a':0},
+                {'ortho':'Y','ti':0.04, 'di':d_achse -  0.03 - 0.02, 'a': 0.03+0.02},
+                {'ortho':'X','ti':0.08, 'di':d_achse - 0.03 -  0.04 -  0.04, 'a': 0.03+0.04+0.04}]
 
 kreis_ring = KreisRing(d_achse, 0.4, lagen_aufbau=lagen_aufbau,
                     holz_parameter = holz.charakteristische_werte['BSP_RFEM'], nachweis_parameter = holz.HOLZBAU, hoehen_parameter= heights_parameter, einheiten=einheiten)
@@ -44,3 +44,4 @@ kreis_ring.calculate_ausnutzung_schub(lasten.lasten_design_LF['LF1'])
 nEck12_fuß.calculate_ausnutzung_normalspannung(lasten.lasten_design_LF['LF1'])
 nEck12_fuß.calculate_ausnutzung_schub(lasten.lasten_design_LF['LF1'])
 nEck12_fuß.ausnutzung_Plattenbeanspruchung_Nebentragrichtung('kurz', 3200, 1)
+nEck12_fuß.calculate_ausnutzung_kombiniert(lasten.lasten_design_LF['LF1'])

@@ -7,9 +7,10 @@ from os.path import sep as os_sep
 import string 
 import xlwings as xl
 import pandas as pd
+import copy
 
 # from source.utilities import statistics_utilities as stats_utils
-# from source.utilities import global_definitions as GD
+from source.utilities import global_definitions as GD
 
 
 def evaluate_residual(a_cur, a_tar):
@@ -160,6 +161,9 @@ def save_optimized_beam_parameters(opt_beam_model, fname):
     f.close()
     print('\nsaved:', new)
 
+
+#________________ LASTEN ____________________________________
+
 def parse_load_signal_backwards(signal, domain_size):
     '''
     signal kommt als dictionary mit den Richtungen als keys (müssen nicht alle 6 Richtugne sein)
@@ -264,7 +268,57 @@ def generate_kopflasten_file(number_of_nodes, loads_dict, file_base_name = 'kopf
 
     return force_file_name
 
-# # DYNAMIC ANALYSIS
+def update_lasten_dict(lasten_dict, wind_kraft, kopflasten):
+    
+    lasten_dict_updated = copy.deepcopy(lasten_dict)
+    lasten_dict_updated['Fy'] += wind_kraft
+    for i, direction in enumerate(lasten_dict):
+        lasten_dict_updated[direction][-1] += kopflasten[direction]
+    return lasten_dict_updated
+
+def generate_lasten_file(number_of_nodes, lasten_dict, file_base_name):
+
+    from source.utilities import global_definitions as GD
+    src_path = os_join(*['inputs','loads','static'])
+    if not os.path.isdir(src_path):
+        os.makedirs(src_path)
+
+    force_file_name = os_join(src_path, file_base_name + '.npy')
+
+    force_data = np.zeros(GD.DOFS_PER_NODE['2D']*number_of_nodes)
+    for load_direction, magnitude in lasten_dict.items():
+        force_direction = GD.LOAD_DOF_MAP[load_direction]
+        start = GD.DOF_LABELS['2D'].index(force_direction)
+        step = len(GD.DOF_LABELS['2D'])
+
+        sub = force_data[start::step]
+
+        force_data[start::step] += magnitude
+
+    force_data = force_data.reshape(GD.DOFS_PER_NODE['2D']*number_of_nodes,1)
+
+    np.save(force_file_name, force_data)
+
+    return force_file_name
+
+def linien_last_to_knoten_last(last_vektor, knoten_z):
+
+    '''
+    vekotr der eine Last pro meter darstellt in knotenlasten vektor überführen 
+    '''
+    if not isinstance(knoten_z, np.ndarray):
+        knoten_z = np.array(knoten_z)
+
+    d_i = np.diff(knoten_z)
+    
+    d_i[0] = d_i[1]/2
+    d_i = np.append(d_i, d_i[1]/2)
+
+    F_z = last_vektor * np.array(d_i)
+    return F_z
+
+
+#____________________DYNAMIC ANALYSIS________________________________
 def get_fft(given_series, sampling_freq):
 
     '''
@@ -317,10 +371,16 @@ def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of
 
     return abs_max_qnt, abs_max_est
 
-# SONSTIGES
+#______________________SONSTIGES_____________________________________
 
+def load_object_pkl(pkl_file):
+    '''full path mit datei name zum jobejt file'''
+    with open(pkl_file, 'rb') as handle:
+        data = pickle.load(handle)
 
-def add_model_data_from_pkl(pkl_file, model_parameters, set_I_eff=True):
+    return data
+
+def add_model_data_from_pkl(pkl_file, model_parameters, set_I_eff=False):
     '''
     pickle datei mit geometrie daten von nEck laden und den parametes hinzufügen
     Koordinaten definition wird hier an den Beam angepasst
@@ -350,7 +410,7 @@ def add_model_data_from_pkl(pkl_file, model_parameters, set_I_eff=True):
 
     return model_parameters
 
-# OPENFAST / RFEM
+#_____________________OPENFAST / RFEM_______________________________________
 
 def convert_coordinate_system(loads, direction = 'fore-aft'):
     '''
@@ -367,9 +427,7 @@ def convert_coordinate_system(loads, direction = 'fore-aft'):
     return loads_beam
 
 
-# # ALLGEMEINES
-
-EXCEL_COLUMNS = list(string.ascii_uppercase)
+#____________________  ALLGEMEINES __________________________________________________
 
 def convert_for_latex(string):
     l = list(string.split('_'))
@@ -389,20 +447,26 @@ def unit_conversion(unit_in:str, unit_out:str) -> float:
                 'kN/m²':{'N/mm²':1E-03,'N/cm²':1E-01,'kN/mm²':1E-06,'kN/m²':1,'MPa':1E-03},
                 'N':{'kN':1E-03, 'MN':1E-06},
                 'kN':{'N':1E+03, 'MN':1E-03},
-                'MN':{'N':1E+06, 'kN':1E+03}}
+                'MN':{'N':1E+06, 'kN':1E+03},
+                'Nm':{'kNm':1E-03, 'MNm':1E-06},
+                'kNm':{'Nm':1E+03, 'MNm':1E-03},
+                'MNm':{'Nm':1E+06, 'kNm':1E+03},
+                'm':{'cm':1E+02, 'mm':1E+03},
+                'cm':{'m':1E-02, 'mm':1E+01},
+                'mm':{'m':1E-02, 'cm':1E-01}}
 
     return converter[unit_in][unit_out]
 
 
-# # EXCEL STUFF
+#________________________ EXCEL STUFF ________________________
+
+EXCEL_COLUMNS = list(string.ascii_uppercase)
 
 def excel_cell_name_to_row_col(cell_name):
 
     row = int(cell_name[1:]) - 1 
     col = string.ascii_uppercase.index(cell_name[0])
     return row, col
-
-
 
 def read_xl_column(xl_worksheet, start_cell:str = None, start_row:int = None, start_col:int = None, end_row:int=None, end_cell:str = None):
     '''
@@ -507,8 +571,29 @@ def write_stats_to_excel(excel_file, worksheet, start_cell, statistics_to_write,
         ws[start_cell[0], col].value = value 
     wb.save()
 
+def zellen_groeße_formatieren(excel_file, worksheet, cell_width, n_cols,  start_col = 'A', cell_height = None):
+    ''' 
+    excel_file: datei pfad
+    Worksheet: sheet name
+    cell_width: breite der zell
+    n_cols: anzahl der spalten die formatiert werden sollen 
+    start_col: erste Spalte ab der das formatieren los gehen soll (als Excel Buschtabe oder nummer)
+    '''
+    from openpyxl import load_workbook
 
-# BERECHNUNGEN
+    wb = load_workbook(excel_file)
+    ws = wb[worksheet]
+
+    if isinstance(start_col, str):
+        start_col = EXCEL_COLUMNS.index(start_col)
+
+    for i in range(start_col, n_cols):
+        excel_col = EXCEL_COLUMNS[i]
+        ws.column_dimensions[excel_col].width = cell_width
+    wb.save(excel_file)
+    wb.close()
+
+#______________________ BERECHNUNGEN __________________________
 
 def twr_poly_eval(x, coeffs):
     ''' beginnt erst am ^2 geht bis ^6 und c0 = 0'''
