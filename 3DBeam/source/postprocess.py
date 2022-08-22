@@ -1003,7 +1003,7 @@ def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plo
     elif result_type == 'internal_forces':
         result = beam_model.internal_forces
 
-    title = 'static results ' + result_type + ' '+ title_suffix
+    title = 'static results ' + result_type + '\n'+ title_suffix
 
     fig, ax = plt.subplots(ncols=len(dofs_to_plot), num=title, figsize=[6.4*figsize_scale, 4.8*figsize_scale])
     fig.suptitle(title)

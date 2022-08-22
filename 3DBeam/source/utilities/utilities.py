@@ -12,7 +12,6 @@ import copy
 # from source.utilities import statistics_utilities as stats_utils
 from source.utilities import global_definitions as GD
 
-
 def evaluate_residual(a_cur, a_tar):
     residual = np.linalg.norm(np.subtract(a_cur, a_tar)) / np.amax(np.absolute(a_tar))
 
@@ -268,11 +267,16 @@ def generate_kopflasten_file(number_of_nodes, loads_dict, file_base_name = 'kopf
 
     return force_file_name
 
-def update_lasten_dict(lasten_dict, wind_kraft, kopflasten):
-    
-    lasten_dict_updated = copy.deepcopy(lasten_dict)
-    lasten_dict_updated['Fy'] += wind_kraft
-    for i, direction in enumerate(lasten_dict):
+def update_lasten_dict(lasten_dict_base, wind_kraft, kopflasten):
+    '''
+    merged die Kopflasten und die windkraft nach DIN 
+    lasten_dict_base: gibt größe und bezeichnugn der kräfte vor
+    wenn windkraft = None wird nur die Kopflast in das richtige format gebracht
+    '''
+    lasten_dict_updated = copy.deepcopy(lasten_dict_base)
+    if isinstance(wind_kraft, np.ndarray):
+        lasten_dict_updated['Fy'] += wind_kraft
+    for i, direction in enumerate(lasten_dict_base):
         lasten_dict_updated[direction][-1] += kopflasten[direction]
     return lasten_dict_updated
 
@@ -316,6 +320,18 @@ def linien_last_to_knoten_last(last_vektor, knoten_z):
 
     F_z = last_vektor * np.array(d_i)
     return F_z
+
+def parse_schnittgrößen_labels(lasten_dict):
+    '''
+    lasten dict mit ersten keys gleich den einwirkungsdauern
+    '''
+    lasten_dict_parsed = copy.deepcopy(lasten_dict)
+    for dauer, lasten in lasten_dict.items():
+        for direction in lasten:
+            lasten_dict_parsed[dauer][GD.DOF_RESPONSE_MAP[direction]] = lasten[direction]
+            del lasten_dict_parsed[dauer][direction]
+
+    return lasten_dict_parsed
 
 
 #____________________DYNAMIC ANALYSIS________________________________
@@ -373,20 +389,19 @@ def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of
 
 #______________________SONSTIGES_____________________________________
 
-def load_object_pkl(pkl_file):
+def load_object_from_pkl(pkl_file):
     '''full path mit datei name zum jobejt file'''
     with open(pkl_file, 'rb') as handle:
         data = pickle.load(handle)
 
     return data
 
-def add_model_data_from_pkl(pkl_file, model_parameters, set_I_eff=False):
+def add_model_data_from_dict(section_dict, model_parameters, set_I_eff=False):
     '''
-    pickle datei mit geometrie daten von nEck laden und den parametes hinzufügen
+    die sectional properties als dict
     Koordinaten definition wird hier an den Beam angepasst
     '''
-    with open(pkl_file, 'rb') as handle:
-        data = pickle.load(handle)
+    
     model_parameters['defined_on_intervals'] = []
 
     if set_I_eff:
@@ -394,18 +409,18 @@ def add_model_data_from_pkl(pkl_file, model_parameters, set_I_eff=False):
     else:
         I = 'Iy'
 
-    model_parameters['lx_total_beam'] = data['section_absolute_heights'][-1]
+    model_parameters['lx_total_beam'] = section_dict['section_absolute_heights'][-1]
 
-    for section in range(data['n_sections']-1):
+    for section in range(section_dict['n_sections']-1):
         model_parameters['defined_on_intervals'].append(
             {
-            'interval_bounds':[data['section_absolute_heights'][section], data['section_absolute_heights'][section+1]],
-            'area': [data['A'][section]],
-            'Iz':[data[I][section]], # anpassen der Koordianten Richtung
-            'D':[data['d_achse'][section]]
+            'interval_bounds':[section_dict['section_absolute_heights'][section], section_dict['section_absolute_heights'][section+1]],
+            'area': [section_dict['A'][section]],
+            'Iz':[section_dict[I][section]], # anpassen der Koordianten Richtung
+            'D':[section_dict['d_achse'][section]]
             }
             )
-        if section == data['n_sections']-1:
+        if section == section_dict['n_sections']-1:
             model_parameters['defined_on_intervals']['interval_bounds'][-1] = 'End'
 
     return model_parameters
@@ -415,14 +430,20 @@ def add_model_data_from_pkl(pkl_file, model_parameters, set_I_eff=False):
 def convert_coordinate_system(loads, direction = 'fore-aft'):
     '''
     Lasten aus IEA, OpenFAST in die Richtung vom Balken konvertieren
+    Sortiert die Lasten nach einwirkungsdauer: Annahme -> Vertikallast = ständig die anderen kurz
+    Dauer 'egal' gibt alle lasten zurück
     '''
-    loads_beam = {'Fy':0, 'Fx':0, 'Mz':0}
+    einwirkungsdauer = {'ständig':{'Fy':0, 'Fx':1, 'Mz':0}, 'kurz':{'Fy':1, 'Fx':0, 'Mz':1}, 'egal':{'Fy':1, 'Fx':1, 'Mz':1}}
+    directions_beam = ['Fy', 'Fx', 'Mz']
+    loads_beam = {'ständig':{}, 'kurz':{}, 'egal':{}}
     if isinstance(loads, dict):
         converter_fast_beam = {'Fx':'Fy','Fy':'Fz', 'Fz':'Fx', 'Mx':'My', 'My':'Mz', 'Mz':'Mx'}
         converter_beam_fast = {'Fy':'Fx','Fx':'Fz', 'Mz':'My'}
         sign_beam_fast = {'Fy':1,'Fx':1, 'Mz':-1}
-        for direction in loads_beam:
-            loads_beam[direction] = sign_beam_fast[direction] * loads[converter_beam_fast[direction]]
+        for dauer in einwirkungsdauer:
+            for direction in directions_beam:
+                factor = einwirkungsdauer[dauer][direction]
+                loads_beam[dauer][direction] = sign_beam_fast[direction] * loads[converter_beam_fast[direction]] * factor
 
     return loads_beam
 
@@ -460,7 +481,16 @@ def unit_conversion(unit_in:str, unit_out:str) -> float:
 
 #________________________ EXCEL STUFF ________________________
 
-EXCEL_COLUMNS = list(string.ascii_uppercase)
+def get_excel_column_names():
+    xl_cols = list(string.ascii_uppercase)
+    ABC = list(string.ascii_uppercase)
+
+    for char in list(string.ascii_uppercase):
+        next_level = [char + abc for abc in ABC]
+        xl_cols.extend(next_level)
+    return xl_cols
+
+EXCEL_COLUMNS = get_excel_column_names()
 
 def excel_cell_name_to_row_col(cell_name):
 
@@ -592,6 +622,44 @@ def zellen_groeße_formatieren(excel_file, worksheet, cell_width, n_cols,  start
         ws.column_dimensions[excel_col].width = cell_width
     wb.save(excel_file)
     wb.close()
+
+def zellen_farbe_formatieren(excel_file, worksheet, n_cols,  start_col = 'A', color = None):
+    ''' 
+    TODO funktioniert nicht
+    '''
+    from openpyxl import load_workbook
+
+    wb = load_workbook(excel_file)
+    ws = wb[worksheet]
+
+    if isinstance(start_col, str):
+        start_col = EXCEL_COLUMNS.index(start_col)
+
+    for i in range(start_col, n_cols):
+        excel_col = EXCEL_COLUMNS[i]
+        c = ws[excel_col].value
+        print()
+    wb.save(excel_file)
+    wb.close()
+
+def zelle_beschriften(excel_file, worksheet, cell, wert, merge_from_to = None):
+    '''
+    merge_from_to: 'A2:D2'
+    '''
+    from openpyxl import load_workbook
+    from openpyxl.styles import PatternFill
+
+    wb = load_workbook(excel_file)
+    ws = wb[worksheet]
+
+    ws[cell].value = wert
+    ws[cell].fill = PatternFill(fill_type='solid', fgColor='FFD3D3D3')
+    if merge_from_to:
+        ws.merge_cells(merge_from_to)
+    wb.save(excel_file)
+    wb.close()
+
+
 
 #______________________ BERECHNUNGEN __________________________
 

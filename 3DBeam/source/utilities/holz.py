@@ -1,6 +1,6 @@
 HOLZBAU = {
     'k_mod':{'kurz': 0.9, 'mittel':0.8, 'lang': 0.7, 'ständig':0.6},
-    'gamma_m': 1.3, 
+    'gamma_m': 1.2, 
     'k_sys': 1.2
 }
 #

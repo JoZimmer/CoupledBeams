@@ -59,26 +59,44 @@ class Querschnitt(object):
         hfract, absolute_height
         '''
         self.d_achse = d_achse
-        self.wand_dicke = 0
+        self.wand_stärke = 0
         self.lagen_aufbau = lagen_aufbau
+        self.t_laengslagen = sum([lage['ti'] for lage in lagen_aufbau if lage['ortho'] == 'X'])
+        self.t_querlagen = sum([lage['ti'] for lage in lagen_aufbau if lage['ortho'] == 'Y'])
 
         for lage in lagen_aufbau:
-            self.wand_dicke += lage['ti']
+            self.wand_stärke += lage['ti']
         
         self.wichte = holz_parameter['rhok']
 
-        self.d_außen = self.d_achse + self.wand_dicke/2
-        self.d_innen = self.d_achse - self.wand_dicke/2
+        self.d_außen = self.d_achse + self.wand_stärke/2
+        self.d_innen = self.d_achse - self.wand_stärke/2
 
         self.hfract = hoehen_parameter['hfract']
         self.section_absolute_heights = hoehen_parameter['absolute_höhen'] # Höhen koordinate der section 
         self.section_heights = np.diff(self.section_absolute_heights) # Höhe der einzelnen elemente (abstand zwischen höhen)
+        self.max_height = self.section_absolute_heights[-1]
 
         self.holz_parameter = holz_parameter
         self.nachweis_parameter= nachweis_parameter
         self.hoehen_parameter = hoehen_parameter
-        self.einheiten = einheiten
+        self.einheiten = einheiten      
+
+        self.initialize_eimheiten_umrechnung()
+
+
+    def initialize_eimheiten_umrechnung(self):
+        self.einheiten_umrechnung = {'Normalspannung':1}
+
+        einheit_normalspannung = self.einheiten['Kraft'] + '/' + self.einheiten['Länge'] + '²'
+
+        if einheit_normalspannung != self.einheiten['Festigkeit']:
+            self.einheiten_umrechnung['Normalspannung'] =  utils.unit_conversion(einheit_normalspannung, self.einheiten['Festigkeit'])
+            self.einheiten['Normalspannung'] = self.einheiten['Festigkeit']
         
+        else:
+            self.einheiten['Normalspannung'] = einheit_normalspannung
+
 
     def compute_sectional_mean(self, parameter):
         
@@ -133,10 +151,10 @@ class Querschnitt(object):
             if lage['ortho'] == 'Y':
                 t_querlagen+= lage['ti']
 
-        self.fmk_eff_laengs = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['fmk']
-        self.ft0k_eff_laengs = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['ft0k']
-        self.fc0k_eff_laengs = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['fc0k']
-        self.fvk_eff_laengs = (self.wand_dicke - t_querlagen)/self.wand_dicke * self.holz_parameter['fvk']
+        self.fmk_eff_laengs = (self.wand_stärke - t_querlagen)/self.wand_stärke * self.holz_parameter['fmk']
+        self.ft0k_eff_laengs = (self.wand_stärke - t_querlagen)/self.wand_stärke * self.holz_parameter['ft0k']
+        self.fc0k_eff_laengs = (self.wand_stärke - t_querlagen)/self.wand_stärke * self.holz_parameter['fc0k']
+        self.fvk_eff_laengs = (self.wand_stärke - t_querlagen)/self.wand_stärke * self.holz_parameter['fvk']
     
         #effektive Festigkeiten quer
         t_laengslagen = 0 
@@ -144,15 +162,14 @@ class Querschnitt(object):
             if lage['ortho'] == 'X':
                 t_laengslagen+= lage['ti']
 
-        self.fmk_eff_quer = (self.wand_dicke - t_laengslagen)/self.wand_dicke * self.holz_parameter['fmk']
-        self.ft0k_eff_quer = (self.wand_dicke - t_laengslagen)/self.wand_dicke * self.holz_parameter['ft0k']
-        self.fc0k_eff_quer = (self.wand_dicke - t_laengslagen)/self.wand_dicke * self.holz_parameter['fc0k']
-        self.fvk_eff_quer = (self.wand_dicke - t_laengslagen)/self.wand_dicke * self.holz_parameter['fvk']
+        self.fmk_eff_quer = (self.wand_stärke - t_laengslagen)/self.wand_stärke * self.holz_parameter['fmk']
+        self.ft0k_eff_quer = (self.wand_stärke - t_laengslagen)/self.wand_stärke * self.holz_parameter['ft0k']
+        self.fc0k_eff_quer = (self.wand_stärke - t_laengslagen)/self.wand_stärke * self.holz_parameter['fc0k']
+        self.fvk_eff_quer = (self.wand_stärke - t_laengslagen)/self.wand_stärke * self.holz_parameter['fvk']
 
     def compute_effektive_festigkeiten_design(self, einwirkungsdauer):
 
 
-        
         self.compute_effektive_festigkeiten_charakteristisch()
 
         #effektive Festigkeite laengs
@@ -170,9 +187,9 @@ class Querschnitt(object):
         
 # _________ NORMALSPANNUNGEN __________________________________
     
-    def calculate_normalspannung(self, lasten_design, e = 0):
+    def calculate_normalspannung(self, lasten_design, add_vorspannkraft = False):
         '''
-        ergibt:
+        ergibt dictionaries mit der einwirkungsdauer als key:
             sigma_druck: Spannung aus Normalkraft und moment
             sigma_zug: Spannung aus moment abzüglich Normalkraft(Annahme immer Druckkraft)
             sigma_N: Spannung nur mit Normalkraft berechnet
@@ -180,45 +197,61 @@ class Querschnitt(object):
         TODO e Richtig oder sollte das der Außenradius sein?!
         '''
         
-        e = self.d_achse/2
+        e = self.d_außen/2
 
-        # Wirkungsrichtung von M neutralisieren
-        lasten_design['Md'] = abs(lasten_design['Md'])
-        lasten_design['Mimp'] = abs(lasten_design['Mimp'])
+        self.sigma_druck, self.sigma_zug, self.sigma_N, self.sigma_M = {},{},{},{}
 
-        self.sigma_druck = -(lasten_design['Md']+lasten_design['Mimp'])/self.Iy * e + lasten_design['Nd'] / self.A
-        self.sigma_zug = (lasten_design['Md']+lasten_design['Mimp'])/self.Iy * e + lasten_design['Nd'] / self.A
-        self.sigma_N = lasten_design['Nd'] / self.A
-        self.sigma_M = (lasten_design['Md']+lasten_design['Mimp'])/self.Iy * e 
+        for dauer in lasten_design:
+            # Wirkungsrichtung von M neutralisieren
 
-        self.einheiten['Normalspannung'] = self.einheiten['Kraft'] + '/' + self.einheiten['Länge'] + '²'
+            lasten_design[dauer]['Mz'] = abs(lasten_design[dauer]['Mz'])
 
-    def calculate_ausnutzung_normalspannung(self, lasten_design):
+            self.sigma_druck[dauer] = -(lasten_design[dauer]['Mz'])/self.Iy * e + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_zug[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e + lasten_design[dauer]['Nx'] / self.A
+
+            if add_vorspannkraft:
+                self.sigma_druck[dauer] += np.negative(self.sigma_zug[dauer])
+
+            self.sigma_N[dauer] = lasten_design[dauer]['Nx'] / self.A
+            self.sigma_M[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e 
+
+        
+
+    def calculate_ausnutzung_normalspannung(self, lasten_design, add_vorspannkraft = False):
         '''
         Berechnung der Ausnutzungen für:
             sigma_druck: Spannung aus Normalkraft und moment
             sigma_zug: Spannung aus moment abzüglich Normalkraft(Annahme immer Druckkraft)
             sigma_N: Spannung nur mit Normalkraft berechnet
             sigma_M: Spannung nur mit Moment berechnet
+
+        Ergibt:
+            die design Spannungen unabhängig von der einwirkungsdauer in der Einheit der Festigkeit 
+            die Ausnutzungen in unter Berücksichtigung der Einwirkungsdauern
         Lasten kommen schon als Design
+        Lasten = Schnittgrößen als dict sortiert nach einwirkungsdauer
         '''
 
-        self.calculate_normalspannung(lasten_design)
+        self.calculate_normalspannung(lasten_design, add_vorspannkraft)
 
         # erst mal Einheiten klar machen
-        self.sigma_druck_design = self.sigma_druck * utils.unit_conversion(self.einheiten['Normalspannung'], self.einheiten['Festigkeit'])
-        self.sigma_zug_design = self.sigma_zug * utils.unit_conversion(self.einheiten['Normalspannung'], self.einheiten['Festigkeit'])
-        self.sigma_N_design = self.sigma_N * utils.unit_conversion(self.einheiten['Normalspannung'], self.einheiten['Festigkeit'])
-        self.sigma_M_design = self.sigma_M * utils.unit_conversion(self.einheiten['Normalspannung'], self.einheiten['Festigkeit'])
+        einheiten_faktor = self.einheiten_umrechnung['Normalspannung']
+        self.sigma_druck_design = self.sigma_druck['egal'] * einheiten_faktor
+        self.sigma_zug_design = self.sigma_zug['egal'] * einheiten_faktor
+        self.sigma_N_design = self.sigma_N['egal'] * einheiten_faktor
+        self.sigma_M_design = self.sigma_M['egal'] * einheiten_faktor
 
-        self.einheiten['Normalspannung'] = self.einheiten['Festigkeit']
+        self.ausnutzung_druck, self.ausnutzung_zug, self.ausnutzung_N, self.ausnutzung_M = 0,0,0,0
+        for dauer in lasten_design:
+            if dauer == 'egal':
+                continue
 
-        self.compute_effektive_festigkeiten_design('kurz')
+            self.compute_effektive_festigkeiten_design(dauer)
 
-        self.ausnutzung_druck = abs(self.sigma_druck_design)/self.fc0d_eff_laengs 
-        self.ausnutzung_zug = abs(self.sigma_zug_design)/self.ft0d_eff_laengs 
-        self.ausnutzung_N = abs(self.sigma_N_design)/self.fc0d_eff_laengs # Annahme nur Normalkraft
-        self.ausnutzung_M = abs(self.sigma_M_design)/self.fc0d_eff_laengs 
+            self.ausnutzung_druck += abs(self.sigma_druck[dauer]* einheiten_faktor)/self.fc0d_eff_laengs 
+            self.ausnutzung_zug += abs(self.sigma_zug[dauer]* einheiten_faktor)/self.ft0d_eff_laengs 
+            self.ausnutzung_N += abs(self.sigma_N[dauer]* einheiten_faktor)/self.fc0d_eff_laengs # Annahme nur Normalkraft
+            self.ausnutzung_M += abs(self.sigma_M[dauer]* einheiten_faktor)/self.fc0d_eff_laengs 
 
     
 # _________ SCHUBSPANNUNGEN __________________________________
@@ -228,11 +261,11 @@ class Querschnitt(object):
         self.compute_effective_moment_of_inertia()
         self.compute_static_moment()
 
-        self.tau_Q = (lasten_design['Q'] * self.Sy_max) / (self.Iy * self.wand_dicke)
+        self.tau_Q = (lasten_design['Q'] * self.Sy_max) / (self.Iy * self.wand_stärke)
         self.einheiten['Schubspannung'] = self.einheiten['Kraft'] + '/' + self.einheiten['Länge'] + '²'
         
     def calculate_schubspannung_torsion(self, lasten_design):
-        self.Wt = 2* self.A_m * self.wand_dicke
+        self.Wt = 2* self.A_m * self.wand_stärke
         self.tau_Mt = lasten_design['Mt'] /self.Wt
 
     def calculate_ausnutzung_schub(self, lasten_design):
@@ -255,14 +288,10 @@ class Querschnitt(object):
 # _________ KOMBINIERTE AUSNUTZUNG __________________________________
 
     def calculate_ausnutzung_kombiniert(self, LF):
-        
-        
 
         sigma_d_normal = self.calculate_normalspannung(LF)
         tau_q= self.calculate_schubspannung_querkraft(LF)
         tau_Mt= self.calculate_schubspannung_torsion(LF)
-
-
     
         self.compute_effektive_festigkeiten_design('kurz')
 
@@ -283,7 +312,7 @@ class Querschnitt(object):
         
         self.compute_effektive_moment_of_inertia_platte_z()
         M0_k= (wind_max*width**2)/8
-        self.sigma_md_platte= M0_k/self.Iy_eff_platte * self.wand_dicke/2
+        self.sigma_md_platte= M0_k/self.Iy_eff_platte * self.wand_stärke/2
 
         return self.sigma_md_platte
 
@@ -340,9 +369,9 @@ class Querschnitt(object):
 
         plt.show()
 
-    def export_to_dict_pkl(self, dest_file):
+    def save_section_parameters(self):
 
-        dict_to_export = {
+        self.section_parameters = {
             'n_sections':len(self.Iy),
             'Iy': self.compute_sectional_mean(self.Iy),
             #'Iy_eff': self.compute_sectional_mean(self.Iy_eff),
@@ -353,10 +382,10 @@ class Querschnitt(object):
             'section_heights':self.section_heights
         }
 
-        with open(dest_file, 'wb') as handle:
-            pickle.dump(dict_to_export, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # with open(dest_file, 'wb') as handle:
+        #     pickle.dump(self.section_parameters, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        print ('\nSaved nEck Daten in', dest_file)
+        # print ('\nSaved nEck Daten in', dest_file)
 
     def export_object_to_pkl(self, dest_file):
 
@@ -369,13 +398,14 @@ class Querschnitt(object):
 
 class KreisRing(Querschnitt):
 
-    def __init__(self, d_achse, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}) -> None:
+    def __init__(self, d_achse, cd = 1.1, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}) -> None:
         
         super().__init__(d_achse, lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten)
 
 
         self.masse_pro_meter = None
         self.hfract = np.linspace(0,1,10)
+        self.name = 'Ring'
 
         self.A_außen = self.compute_area(self.d_außen/2)
         self.A_innen = self.compute_area(self.d_innen/2)
@@ -384,8 +414,11 @@ class KreisRing(Querschnitt):
         self.A = self.A_außen-self.A_innen
         self.nachweis_parameter= nachweis_parameter
         self.masse_pro_meter = self.compute_sectional_mean(self.A) * self.wichte
+
+        self.cd = cd
         
         self.compute_flächenträgheitsmoment()
+        self.save_section_parameters()
         # if self.lagen_aufbau:
         #     self.compute_effective_moment_of_inertia()
 
@@ -421,7 +454,7 @@ class KreisRing(Querschnitt):
         '''
 
 
-        self.Sy_max= ((self.d_achse/2)**2)*self.wand_dicke 
+        self.Sy_max= ((self.d_achse/2)**2)*self.wand_stärke 
         return self.Sy_max 
 
 
@@ -429,7 +462,7 @@ class KreisRing(Querschnitt):
 
 class nEck(Querschnitt):
 
-    def __init__(self, n_ecken, d_achse, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):
+    def __init__(self, n_ecken, d_achse, cd = 1.5, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):
         '''
         werte können für einzelne sections oder als arrays gegeben werden
         Geometrie: https://de.wikipedia.org/wiki/Regelm%C3%A4%C3%9Figes_Polygon  
@@ -438,6 +471,7 @@ class nEck(Querschnitt):
         super().__init__(d_achse, lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten)
 
         self.n_ecken = n_ecken
+        self.name = str(self.n_ecken) + '-Eck'
         self.alpha = 360/self.n_ecken
         self.nachweis_parameter= nachweis_parameter
         self.a_außen = sin(radians(self.alpha/2)) * self.d_außen
@@ -459,6 +493,9 @@ class nEck(Querschnitt):
 
         self.A = self.A_außen-self.A_innen
         self.masse_pro_meter = self.compute_sectional_mean(self.A) * self.wichte
+
+        self.cd = cd
+        self.save_section_parameters()
 
 
     def compute_winkel_term(self):
@@ -511,7 +548,7 @@ class nEck(Querschnitt):
         for i in range(int(e)): 
             alpha_i= (2*np.pi/self.n_ecken)*(i+1) 
             z_e= (cos(alpha_i)*r) 
-            Sy_max+= (z_e*length+((z_before-z_e)/2)*length)*self.wand_dicke
+            Sy_max+= (z_e*length+((z_before-z_e)/2)*length)*self.wand_stärke
             z_before = z_e 
         self.Sy_max=Sy_max   
         return Sy_max

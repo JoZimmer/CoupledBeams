@@ -385,7 +385,8 @@ class BeamModel(object):
 
         self.eig_freqs_sorted_indices = np.argsort(self.eigenfrequencies)
         
-    def static_analysis_solve(self, load_vector_file = None, apply_mean_dynamic = False, directions = 'y', return_result = False, gamma_Q = 1.0, add_eigengewicht=True):
+    def static_analysis_solve(self, load_vector_file = None, apply_mean_dynamic = False, directions = 'y', 
+                                    return_result = False, add_eigengewicht=True, add_imperfektion = True):
         ''' 
         pass_load_vector_file (directions ist dann unrelevant)
         if apply_mean_dynamic: the dynamic load file is taken and at each point the mean magnitude
@@ -393,9 +394,6 @@ class BeamModel(object):
         ''' 
         if load_vector_file != None:
             load_vector = np.load(load_vector_file)
-            if add_eigengewicht:
-                load_vector[0::GD.DOFS_PER_NODE[self.dim]] += self.eigengewicht.reshape(self.n_nodes,1)
-                print ()
         elif apply_mean_dynamic:
             dyn_load = np.load(self.parameters['dynamic_load_file'])
             if directions == 'all':
@@ -408,11 +406,25 @@ class BeamModel(object):
         else:
             raise Exception('No load vector file provided')
 
+        if add_eigengewicht:
+            load_vector[0::GD.DOFS_PER_NODE[self.dim]] += self.eigengewicht.reshape(self.n_nodes,1)
+            print ()
+        if add_imperfektion:
+            if add_eigengewicht == False:
+                print ('WARINING! Einfluss aus Imperfektion ohne Eigengewicht berechnet!!')
+            theta_x = self.parameters['imperfektion']
+            # horizontale ersatzkraft = Schiefstellung an höhe x * Vertikalkraft an dieser stelle?!
+            Fv_id = GD.DOF_LABELS[self.dim].index('x')
+            Fh_id = GD.DOF_LABELS[self.dim].index('y')
+            step = GD.DOFS_PER_NODE[self.dim]
+            # -1 da Vertikalkraft nach unten wirkt die äquivalente Horizontalkraft aber in richtung der bereits wirkenden horizontalkraft sein sollte
+            self.Fh_imp_x = theta_x * load_vector[Fv_id::step] * -1 
+            load_vector[Fh_id::step] += self.Fh_imp_x
+
         self.static_deformation = {}
         self.reaction = {}
 
         load = self.apply_bc_by_reduction(load_vector, axis='row_vector')
-        load *= gamma_Q
 
         #missing ground node -> get bc by extension
         static_result = np.linalg.solve(self.comp_k, load)
