@@ -69,8 +69,8 @@ class Querschnitt(object):
         
         self.wichte = holz_parameter['rhok']
 
-        self.d_außen = self.d_achse + self.wand_stärke/2
-        self.d_innen = self.d_achse - self.wand_stärke/2
+        self.d_außen = self.d_achse + self.wand_stärke
+        self.d_innen = self.d_achse - self.wand_stärke
 
         self.hfract = hoehen_parameter['hfract']
         self.section_absolute_heights = hoehen_parameter['absolute_höhen'] # Höhen koordinate der section 
@@ -284,6 +284,50 @@ class Querschnitt(object):
         self.ausnutzung = 1.35 * einwirkung/fd
 
         print(self.ausnutzung)
+
+    def calculate_nw_abscheren_der_Bretter(self,lasten_design):
+        
+        self.calculate_schubspannung_querkraft(lasten_design)
+        self.calculate_schubspannung_torsion(lasten_design)
+        self.compute_effektive_festigkeiten_design('kurz')
+        einwirkung = self.tau_Q + self.tau_Mt 
+
+        fd_laengs = self.fvd_eff_laengs * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
+        fd_quer = self.fvd_eff_quer * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
+        self.ausnutzung_abscheren_der_bretter = einwirkung/max(fd_laengs, fd_quer)
+        return self.ausnutzung_abscheren_der_bretter 
+            
+    def calculate_nw_abscheren_der_Klebefugen(self):
+        '''
+        Schubkraft * Abstand zur betrachteten Fuge ist maßgebendes Moment das aufgenommen werden muss
+        Anzahl der Kreuzungsfelder -->Hersteller  
+        Anzahl der Klebefugen 
+        '''
+        n_k= 10*50
+        lamellenbreite= 0.2
+        self.Ip_Brett= lamellenbreite**4/6
+        Mt_fuge=lamellenbreite/2*(self.tau_Mt+self.tau_Q)/self.wand_stärke
+
+        tau_Mt_fuge= (3*Mt_fuge/n_k+lamellenbreite**3)
+
+
+
+
+    def calculate_Schubkerrekturbeiwert(self, anzahl_lagen):
+        '''
+        k_n Abhängig von der Anzahl der Schichten und das Verhältnis der Schubmodule längs und quer zur Faser 
+        Verhältnis der Schubmoduli bei Fichte 0,1
+        Berechnung nach DIN
+        Einfluss auf Schubsteifigkeit
+        '''
+        n=anzahl_lagen
+        self.k_n= (11/(2*(n-1)))*((n-1)/20+(n+1)/2)
+
+
+
+    #def calculate_rollschubnachweis(self):
+
+
 
 # _________ KOMBINIERTE AUSNUTZUNG __________________________________
 

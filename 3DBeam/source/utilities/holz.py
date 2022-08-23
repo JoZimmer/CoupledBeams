@@ -22,8 +22,19 @@ charakteristische_werte = {
         'fc0k':21,
         'fc90k':2.5,
         'fvk':4.0,
-        'rhok':350,
-        'E0mean':11000E+06,
+        'rhok':460,
+        'E0mean':12000E+06,
+        'E90mean':370E+06
+    },
+    'C30':{
+        'fmk':30,
+        'ft0k':18,
+        'ft90k':0.4,
+        'fc0k':23,
+        'fc90k':2.7,
+        'fvk':4.0,
+        'rhok':460,
+        'E0mean':12000E+06,
         'E90mean':370E+06
     },
     'BSP_RFEM':{

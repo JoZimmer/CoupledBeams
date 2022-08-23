@@ -408,7 +408,6 @@ class BeamModel(object):
 
         if add_eigengewicht:
             load_vector[0::GD.DOFS_PER_NODE[self.dim]] += self.eigengewicht.reshape(self.n_nodes,1)
-            print ()
         if add_imperfektion:
             if add_eigengewicht == False:
                 print ('WARINING! Einfluss aus Imperfektion ohne Eigengewicht berechnet!!')

@@ -305,7 +305,7 @@ def generate_lasten_file(number_of_nodes, lasten_dict, file_base_name):
 
     return force_file_name
 
-def linien_last_to_knoten_last(last_vektor, knoten_z):
+def linien_last_to_knoten_last(last_vektor, knoten_z, gamma_q=1.5):
 
     '''
     vekotr der eine Last pro meter darstellt in knotenlasten vektor überführen 
@@ -318,7 +318,7 @@ def linien_last_to_knoten_last(last_vektor, knoten_z):
     d_i[0] = d_i[1]/2
     d_i = np.append(d_i, d_i[1]/2)
 
-    F_z = last_vektor * np.array(d_i)
+    F_z = gamma_q * last_vektor * np.array(d_i)
     return F_z
 
 def parse_schnittgrößen_labels(lasten_dict):
