@@ -1149,7 +1149,7 @@ def plot_along_height(wert, z, label):
 def plot_dict_subplots(dict, z, title = '', unit = 'N'):
 
     fig, ax = plt.subplots(ncols=len(dict))
-    fig.suptitle(title)
+    fig.suptitle('Knotenlasten\n' + title)
 
     for i, name in enumerate(dict):
         scale= GD.UNIT_SCALE[unit]

@@ -400,6 +400,8 @@ def add_model_data_from_dict(section_dict, model_parameters, set_I_eff=False):
     '''
     die sectional properties als dict
     Koordinaten definition wird hier an den Beam angepasst
+    Jedem Interval wird der Mittelwert der jeweiligen Querschnittswerte zugeordnet 
+    (dieser kommt schon aus dem QS dictionary )
     '''
     
     model_parameters['defined_on_intervals'] = []
@@ -411,7 +413,7 @@ def add_model_data_from_dict(section_dict, model_parameters, set_I_eff=False):
 
     model_parameters['lx_total_beam'] = section_dict['section_absolute_heights'][-1]
 
-    for section in range(section_dict['n_sections']-1):
+    for section in range(section_dict['n_sections']):
         model_parameters['defined_on_intervals'].append(
             {
             'interval_bounds':[section_dict['section_absolute_heights'][section], section_dict['section_absolute_heights'][section+1]],
@@ -420,7 +422,7 @@ def add_model_data_from_dict(section_dict, model_parameters, set_I_eff=False):
             'D':[section_dict['d_achse'][section]]
             }
             )
-        if section == section_dict['n_sections']-1:
+        if section == section_dict['n_sections']:
             model_parameters['defined_on_intervals']['interval_bounds'][-1] = 'End'
 
     return model_parameters

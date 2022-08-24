@@ -208,18 +208,20 @@ class BeamModel(object):
             if "End" not in val['bounds']:
                 if val['bounds'][0] <= running_coord < val['bounds'][1]:
                     polynom = Polynomial(val[characteristic_identifier])
-                    #return polynom (running_coord - val['bounds'][0])
+                    polynom_x = polynom (running_coord - val['bounds'][0])
+                    return polynom_x
 
                     # Alternative, da die werte schon als sectional means kommen
-                    return val[characteristic_identifier][0]
+                    # return val[characteristic_identifier][0]
 
             elif "End" in val['bounds']:
                 if val['bounds'][0] <= running_coord <= self.parameters['lx']:
                     polynom = Polynomial(val[characteristic_identifier])
-                    #return polynom(running_coord - val['bounds'][0])
+                    polynom_x = polynom(running_coord - val['bounds'][0])
+                    return polynom_x
 
                     # Alternative, da die werte schon als sectional means kommen
-                    return val[characteristic_identifier][0]
+                    # return val[characteristic_identifier][0]
 
     def update_equivalent_nodal_mass(self):
         '''

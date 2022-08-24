@@ -189,12 +189,11 @@ class Querschnitt(object):
     
     def calculate_normalspannung(self, lasten_design, add_vorspannkraft = False):
         '''
-        ergibt dictionaries mit der einwirkungsdauer als key:
+        ergibt dictionaries mit der einwirkungsdauers Dauer als key:
             sigma_druck: Spannung aus Normalkraft und moment
-            sigma_zug: Spannung aus moment abzüglich Normalkraft(Annahme immer Druckkraft)
+            sigma_zug: Spannung aus moment abzüglich Normalkraft (Annahme immer Druckkraft)
             sigma_N: Spannung nur mit Normalkraft berechnet
             sigma_M: Spannung nur mit Moment berechnet
-        TODO e Richtig oder sollte das der Außenradius sein?!
         '''
         
         e = self.d_außen/2
@@ -214,8 +213,6 @@ class Querschnitt(object):
 
             self.sigma_N[dauer] = lasten_design[dauer]['Nx'] / self.A
             self.sigma_M[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e 
-
-        
 
     def calculate_ausnutzung_normalspannung(self, lasten_design, add_vorspannkraft = False):
         '''
@@ -311,8 +308,6 @@ class Querschnitt(object):
         tau_Mt_fuge= (3*Mt_fuge/n_k+lamellenbreite**3)
 
 
-
-
     def calculate_Schubkerrekturbeiwert(self, anzahl_lagen):
         '''
         k_n Abhängig von der Anzahl der Schichten und das Verhältnis der Schubmodule längs und quer zur Faser 
@@ -322,8 +317,6 @@ class Querschnitt(object):
         '''
         n=anzahl_lagen
         self.k_n= (11/(2*(n-1)))*((n-1)/20+(n+1)/2)
-
-
 
     #def calculate_rollschubnachweis(self):
 
@@ -416,7 +409,8 @@ class Querschnitt(object):
     def save_section_parameters(self):
 
         self.section_parameters = {
-            'n_sections':len(self.Iy),
+            'n_sections':len(self.Iy) - 1,
+            'n_ebenen':len(self.Iy),
             'Iy': self.compute_sectional_mean(self.Iy),
             #'Iy_eff': self.compute_sectional_mean(self.Iy_eff),
             'd_achse':self.compute_sectional_mean(self.d_achse),
@@ -426,10 +420,6 @@ class Querschnitt(object):
             'section_heights':self.section_heights
         }
 
-        # with open(dest_file, 'wb') as handle:
-        #     pickle.dump(self.section_parameters, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-        # print ('\nSaved nEck Daten in', dest_file)
 
     def export_object_to_pkl(self, dest_file):
 
