@@ -6,5 +6,6 @@ import pandas as pd
 import string
 
 
-print (int(55.999))
+a = np.array([2.454364,2.1234,5.4351354])
+print (np.linspace(12,3,3))
 

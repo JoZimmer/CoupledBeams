@@ -922,30 +922,24 @@ class Postprocess(object):
 
 # ohne Klasse mit weniger formatierung 
 
-def plot_static_result(beam_model:BeamModel, result_type:str, dofs_to_plot:list, rad_scale = True, unit = 'm', rfem_result = None):
+def plot_static_result(beam_model:BeamModel, result_type:str, dofs_to_plot:list, rad_scale = True, unit = 'm', rfem_result = None, title_suffix = ''):
     '''
     statische deformation ploten entlang der höhe 
+
     rfem_result: als dict mit dof als key so wie auch bem_model verformung, muss auch ein key: knoten haben 
-    result_types: select one of: 'deformation', 'reaction', 'internal_forces'
-    # TODO neue funktion die die Schnittgrößen in subplots plottet und nicht in einem 
+
+    result_types: select one of: 'deformation', 
     '''
-    if result_type == 'deformation':
-        result = beam_model.static_deformation
-        xlabel = 'defl.'
-    elif result_type == 'reaction':
-        result = beam_model.reaction
-        rad_scale = False
-        xlabel = 'force/moment'
-    elif result_type == 'internal_forces':
-        result = beam_model.internal_forces
-        rad_scale = False
-        xlabel = 'force/moment'
+    result = beam_model.static_deformation
+    xlabel = 'defl.'
 
-    rad_scale = np.sqrt(beam_model.parameters['cross_section_area'])
+    rad_scale = beam_model.parameters['D']
 
-    title = 'static results '
+    title = 'static results '  + result_type + '\n'+ title_suffix
 
     fig, ax = plt.subplots(num=title)
+
+    fig.suptitle(title)
 
     ax.plot(beam_model.nodal_coordinates['y0'],
             beam_model.nodal_coordinates['x0'],
@@ -961,10 +955,7 @@ def plot_static_result(beam_model:BeamModel, result_type:str, dofs_to_plot:list,
         if rad_scale:
             if dof in ['a','b','g']:
                 scale = rad_scale
-        if result_type == 'deformation':
-            label = r'${}$'.format(greek[dof]) + r'$_{max} =$'+ '{0:.2e}'.format(result[dof][-1][0]*scale)
-        if result_type == 'reaction' or result_type == 'internal_forces':
-            label = r'${}$'.format(greek[dof]) + r'$_{max} =$'+ '{0:.2e}'.format(result[dof][0]*scale)
+        label = r'${}$'.format(greek[dof]) + r'$_{max} =$'+ '{0:.2e}'.format(result[dof][-1][0]*scale)
 
         ax.plot(result[dof] * scale,
                 beam_model.nodal_coordinates['x0'],
@@ -993,14 +984,15 @@ def plot_static_result(beam_model:BeamModel, result_type:str, dofs_to_plot:list,
 def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plot:list,  unit = 'm', rfem_result = None, title_suffix = '', figsize_scale= 1.0):
     '''
     statische deformation ploten entlang der höhe 
+
     rfem_result: als dict mit dof als key so wie auch bem_model verformung, muss auch ein key: knoten haben 
-    result_types: select one of: 'deformation', 'reaction', 'internal_forces'
-    # TODO neue funktion die die Schnittgrößen in subplots plottet und nicht in einem 
+
+    result_types: 'reaction', 'internal forces'
     '''
     if result_type == 'reaction':
         result = beam_model.reaction
-
-    elif result_type == 'internal_forces':
+    
+    if result_type == 'internal_forces':
         result = beam_model.internal_forces
 
     title = 'static results ' + result_type + '\n'+ title_suffix
@@ -1021,8 +1013,7 @@ def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plo
 
         scale= GD.UNIT_SCALE[unit]
         
-        if result_type == 'reaction' or result_type == 'internal_forces':
-            label = r'$|{}$'.format(GD.DOF_RESPONSE_MAP[dof]) + r'$_{max}| =$'+ '{0:.2e}'.format(max(abs(result[dof]))*scale)
+        label = r'$|{}$'.format(GD.DOF_RESPONSE_MAP[dof]) + r'$_{max}| =$'+ '{0:.2e}'.format(max(abs(result[dof]))*scale)
 
         ax[d_i].plot(result[dof] * scale,
                 beam_model.nodal_coordinates['x0'],

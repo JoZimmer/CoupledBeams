@@ -160,6 +160,12 @@ def save_optimized_beam_parameters(opt_beam_model, fname):
     f.close()
     print('\nsaved:', new)
 
+def remove_small_values_from_array(arr, tolerance=1e-05):
+
+    for i, val in enumerate(arr):
+        if abs(val) <= tolerance:
+            arr[i] = 0
+    return arr
 
 #________________ LASTEN ____________________________________
 
@@ -429,7 +435,7 @@ def add_model_data_from_dict(section_dict, model_parameters, set_I_eff=False):
 
 #_____________________OPENFAST / RFEM_______________________________________
 
-def convert_coordinate_system(loads, direction = 'fore-aft'):
+def convert_coordinate_system_and_consider_einwirkungsdauer(loads, direction = 'fore-aft'):
     '''
     Lasten aus IEA, OpenFAST in die Richtung vom Balken konvertieren
     Sortiert die Lasten nach einwirkungsdauer: Annahme -> Vertikallast = ständig die anderen kurz
@@ -448,6 +454,23 @@ def convert_coordinate_system(loads, direction = 'fore-aft'):
                 loads_beam[dauer][direction] = sign_beam_fast[direction] * loads[converter_beam_fast[direction]] * factor
 
     return loads_beam
+
+def teilsicherheitsbeiwert_gravity_IEC(DLC, F_gravity, Fk):
+    '''
+    nach IEC 61400-1 Kapitel 7.6.2.2
+    '''
+    if DLC == 1.1:
+        phi = 0.15
+    else:
+        phi = 0.25
+
+    if abs(F_gravity) > abs(Fk):
+        zeta = 0
+    else:
+        zeta = 1 - abs(F_gravity/Fk)
+
+    gamma_f = 1.1 + phi*zeta**2
+    return gamma_f
 
 
 #____________________  ALLGEMEINES __________________________________________________
@@ -622,6 +645,32 @@ def zellen_groeße_formatieren(excel_file, worksheet, cell_width, n_cols,  start
     for i in range(start_col, n_cols):
         excel_col = EXCEL_COLUMNS[i]
         ws.column_dimensions[excel_col].width = cell_width
+    wb.save(excel_file)
+    wb.close()
+
+def add_databar_color(excel_file, worksheet, columns):
+    '''
+    columns liste aus columns: ['B1:B12', ...]
+    https://prosperocoder.com/posts/science-with-python/openpyxl-part-16-styling-with-databar/ 
+    '''
+
+    from openpyxl import load_workbook
+    from openpyxl.formatting.rule import DataBarRule
+    from openpyxl.styles import colors
+
+    wb = load_workbook(excel_file)
+    ws = wb[worksheet]
+
+    ROT = '00FF0000'
+    rule = DataBarRule(start_type='num', 
+                   start_value=0, 
+                   end_type='num', 
+                   end_value=1, 
+                   color=ROT) # Rot:'00FF0000'
+
+    for col in columns:
+        ws.conditional_formatting.add(col, rule)
+    
     wb.save(excel_file)
     wb.close()
 

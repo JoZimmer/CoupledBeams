@@ -98,13 +98,6 @@ class Querschnitt(object):
             self.einheiten['Normalspannung'] = einheit_normalspannung
 
 
-    def compute_sectional_mean(self, parameter):
-        
-        if not isinstance(parameter, list):
-            parameter = list(parameter)
-        sectional_sum = [j+i for i, j in zip(parameter[:-1], parameter[1:])]
-        return np.array(sectional_sum)/2
-
 # _________ EFFEKTIVE TRÄGHEITSMOMENTE _________________________ 
 
     def compute_effektive_moment_of_inertia_platte_y(self):
@@ -214,7 +207,7 @@ class Querschnitt(object):
             self.sigma_N[dauer] = lasten_design[dauer]['Nx'] / self.A
             self.sigma_M[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e 
 
-    def calculate_ausnutzung_normalspannung(self, lasten_design, add_vorspannkraft = False):
+    def calculate_ausnutzung_normalspannung(self, lasten_design, add_vorspannkraft_grob = False):
         '''
         Berechnung der Ausnutzungen für:
             sigma_druck: Spannung aus Normalkraft und moment
@@ -229,7 +222,7 @@ class Querschnitt(object):
         Lasten = Schnittgrößen als dict sortiert nach einwirkungsdauer
         '''
 
-        self.calculate_normalspannung(lasten_design, add_vorspannkraft)
+        self.calculate_normalspannung(lasten_design, add_vorspannkraft_grob)
 
         # erst mal Einheiten klar machen
         einheiten_faktor = self.einheiten_umrechnung['Normalspannung']
@@ -251,7 +244,7 @@ class Querschnitt(object):
             self.ausnutzung_M += abs(self.sigma_M[dauer]* einheiten_faktor)/self.fc0d_eff_laengs 
 
     
-# _________ SCHUBSPANNUNGEN __________________________________
+# _________ SCHUBSPANNUNGEN SCHEIBENBEANSPRUCHUNG __________________________________
 
     def calculate_schubspannung_querkraft(self, lasten_design):
 
@@ -320,6 +313,19 @@ class Querschnitt(object):
 
     #def calculate_rollschubnachweis(self):
 
+    def calculate_vorspannkraft_sections(self, lasten_design, unit = 'MN'):
+        '''
+        aufgrund der in den Sektionen/ horizontalen Fugen auftretenden Fugen die Nötige Kraft berechnen um die maximal auftretente Zug Spannung zu kompensieren
+        '''
+
+        self.calculate_normalspannung(lasten_design)
+
+        sigma_zug = self.sigma_zug['egal'] # Einwirkungsdauer egal
+
+        self.U_außen = self.d_außen * np.pi
+
+        self.vorspannkraft_ges_fuge = sigma_zug * self.wand_stärke * self.U_außen * utils.unit_conversion(self.einheiten['Kraft'], unit)
+
 
 
 # _________ KOMBINIERTE AUSNUTZUNG __________________________________
@@ -369,6 +375,15 @@ class Querschnitt(object):
     def calculate_schub_plattenbeanspruchung(self, wind_max):
         return 0
 
+    def calculate_schub_knick(self):
+        d_unten=12
+        d_knick=5.5
+        d_oben=3.4
+        h_turm=110
+        h_knick=50
+        winkel= np.arctan((d_unten-d_knick)/h_knick)-np.arctan(d_knick-d_oben/h_turm-h_knick)
+
+
     def calculate_schub_plattenbeanspruchung_rollschub(self):
         '''Rollschubfestigkeit der schwerpunktnächsten Querlage maßgebend'''
         A_t_net=0 
@@ -378,7 +393,15 @@ class Querschnitt(object):
     def compute_drillsteifigkeit(self):
         self.K_xy= np.sqrt(self.Iy_eff_platte*self.holz_parameter['E0_mean']*self.Iz_eff_platte*self.holz_parameter['E90_mean'])
 
+
 # _________ OBJEKT FUNKTIONEN __________________________________
+
+    def compute_sectional_mean(self, parameter):
+        
+        if not isinstance(parameter, list):
+            parameter = list(parameter)
+        sectional_sum = [j+i for i, j in zip(parameter[:-1], parameter[1:])]
+        return np.array(sectional_sum)/2
 
     def plot_properties_along_height(self, properties:list, units:list=None, E_modul=12000, prop_to_compare=None):
         '''
@@ -420,6 +443,24 @@ class Querschnitt(object):
             'section_heights':self.section_heights
         }
 
+    def save_QS_parameters_charakteristisch(self):
+        '''
+        WICHTIG: uinterschied zu save_section_parameters: die Werte an den Knoten werden gespeichert und nicht die section mittelwerte
+        Gedacht um die werte die für einen Bestimmten QS charakterisitisch sind zu speichern um sie dann in ein excel zu packen
+        TODO Wandstärke bisher konstant
+        '''
+
+        self.querschnitts_werte = {
+            'Höhe [m]':self.section_absolute_heights,
+            'd_achse [m]':self.d_achse,
+            'Iy [m^4]': self.Iy,
+            'A [m²]':self.A,
+            't [m]':np.asarray([self.wand_stärke]*len(self.d_achse))
+            
+        }
+
+        return self.querschnitts_werte
+
 
     def export_object_to_pkl(self, dest_file):
 
@@ -453,6 +494,7 @@ class KreisRing(Querschnitt):
         
         self.compute_flächenträgheitsmoment()
         self.save_section_parameters()
+        self.save_QS_parameters_charakteristisch()
         # if self.lagen_aufbau:
         #     self.compute_effective_moment_of_inertia()
 
@@ -530,6 +572,7 @@ class nEck(Querschnitt):
 
         self.cd = cd
         self.save_section_parameters()
+        self.save_QS_parameters_charakteristisch()
 
 
     def compute_winkel_term(self):
