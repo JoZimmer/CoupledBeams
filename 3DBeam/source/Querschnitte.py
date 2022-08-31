@@ -52,13 +52,17 @@ class Querschnitt(object):
     Klasse geschlossener Querschnitte aus BSP definiert durch den durchmesser der Achse
     '''
 
-    def __init__(self, d_achse, lagen_aufbau, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter = {}, einheiten = {}):
+    def __init__(self, lagen_aufbau, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter = {}, einheiten = {}):
         '''
         d_achse: Durchmesser des Turms in der Achse des Querschnitts
         holz_parameter: dict siehe global definitions von einer Bestimmten Holzklasse/Art
         hfract, absolute_height
         '''
-        self.d_achse = d_achse
+        #self.d_achse = d_achse
+        self.hoehen_parameter = hoehen_parameter
+        self.nabenhöhe = hoehen_parameter['nabenhöhe']
+        self.initalize_höhen_parameter()
+
         self.wand_stärke = 0
         self.lagen_aufbau = lagen_aufbau
         self.t_laengslagen = sum([lage['ti'] for lage in lagen_aufbau if lage['ortho'] == 'X'])
@@ -72,33 +76,74 @@ class Querschnitt(object):
         self.d_außen = self.d_achse + self.wand_stärke
         self.d_innen = self.d_achse - self.wand_stärke
 
-        self.hfract = hoehen_parameter['hfract']
-        self.section_absolute_heights = hoehen_parameter['absolute_höhen'] # Höhen koordinate der section 
-        self.section_heights = np.diff(self.section_absolute_heights) # Höhe der einzelnen elemente (abstand zwischen höhen)
-        self.max_height = self.section_absolute_heights[-1]
-
         self.holz_parameter = holz_parameter
         self.nachweis_parameter= nachweis_parameter
-        self.hoehen_parameter = hoehen_parameter
         self.einheiten = einheiten      
 
-        self.initialize_eimheiten_umrechnung()
+        self.initialize_einheiten_umrechnung()
 
 
-    def initialize_eimheiten_umrechnung(self):
-        self.einheiten_umrechnung = {'Normalspannung':1}
+    def initialize_einheiten_umrechnung(self):
+        self.einheiten_umrechnung = {'Normalspannung':1, 'Schubspannung':1}
 
-        einheit_normalspannung = self.einheiten['Kraft'] + '/' + self.einheiten['Länge'] + '²'
+        einheit_spannung = self.einheiten['Kraft'] + '/' + self.einheiten['Länge'] + '²'
 
-        if einheit_normalspannung != self.einheiten['Festigkeit']:
-            self.einheiten_umrechnung['Normalspannung'] =  utils.unit_conversion(einheit_normalspannung, self.einheiten['Festigkeit'])
+        if einheit_spannung != self.einheiten['Festigkeit']:
+            self.einheiten_umrechnung['Normalspannung'] =  utils.unit_conversion(einheit_spannung, self.einheiten['Festigkeit'])
+            self.einheiten_umrechnung['Schubspannung'] =  utils.unit_conversion(einheit_spannung, self.einheiten['Festigkeit'])
             self.einheiten['Normalspannung'] = self.einheiten['Festigkeit']
+            self.einheiten['Schubspannung'] = self.einheiten['Festigkeit']
         
         else:
-            self.einheiten['Normalspannung'] = einheit_normalspannung
+            self.einheiten['Normalspannung'] = einheit_spannung
+            self.einheiten['Schubspannung'] = einheit_spannung
+
+    def initalize_höhen_parameter(self):
+        from scipy.optimize import minimize_scalar
+        from functools import partial
+
+        def func_hi(h, hi):
+            return h/hi - int(h/hi)
+
+        opt_func = partial(func_hi, self.nabenhöhe)
+        bounds_sektionen_höhen = tuple(self.hoehen_parameter['höhe_sektionen'])
+        minimization_result = minimize_scalar(opt_func,
+                                            method='Bounded',
+                                            bounds=bounds_sektionen_höhen)
+
+        self.section_heights = minimization_result.x
+        self.n_sections = int(self.nabenhöhe/self.section_heights)
+        self.n_ebenen = self.n_sections + 1
+        self.section_absolute_heights = np.arange(0, self.nabenhöhe, self.section_heights)
+        #self.section_absolute_heights = np.linspace(0, self.nabenhöhe, self.n_ebenen)
+        self.hfract = self.section_absolute_heights/self.section_absolute_heights[-1]
+
+        print ('Für Nabenhöhe', self.nabenhöhe, 'ergeben sich', self.n_sections, 'Sektionen mit einer Höhe von je', 
+                round(self.section_heights,2), 'm')
 
 
-# _________ EFFEKTIVE TRÄGHEITSMOMENTE _________________________ 
+        # Durchmesser mit Knicken
+        d_u = self.hoehen_parameter['d_unten_oben'][0]
+        d_o = self.hoehen_parameter['d_unten_oben'][1]
+        for knick_i, h_i in enumerate(self.hoehen_parameter['h_knick_von_oben']):
+            diff_knoten_i = self.section_absolute_heights - h_i
+            for i, dif in enumerate(diff_knoten_i):
+                if dif < 0:
+                    continue
+                if dif > 0:
+                    ebene_knick = i
+                    break
+            d_achse_u = np.linspace(d_u, self.hoehen_parameter['d_knick'][knick_i], ebene_knick)
+            d_achse_o = np.linspace(self.hoehen_parameter['d_knick'][knick_i], d_o, self.n_ebenen - ebene_knick+1)
+            # TODO 2. Knick einfügen
+
+        self.d_achse = np.concatenate((d_achse_u, d_achse_o[1:]))
+        d_achse_gerade = np.linspace(d_u, d_o, self.n_ebenen)
+
+        print()
+
+
+# _________ EFFEKTIVE Steifigkeitswerte PLATTENBEANSPRUCHUNG _________________________ 
 
     def compute_effektive_moment_of_inertia_platte_y(self):
         t_laengslagen= 0
@@ -129,11 +174,14 @@ class Querschnitt(object):
         print('Iz')
         print(self.Iy_eff_platte)
 
-    def compute_effective_moment_of_inertia(self):
-        '''
-        sollte Überschrieben werden von der child funktion
-        '''
+    def compute_effektive_moment_of_inertia_platte_Sxz(self):
         pass
+
+
+    def compute_effektive_moment_of_inertia_platte_Syz(self):
+        pass
+
+
     
 # ________ FESTIGKEITEN/ WIDERTÄNDE ____________________________
 
@@ -176,9 +224,16 @@ class Querschnitt(object):
         self.ft0d_eff_quer= self.ft0k_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
         self.fc0d_eff_quer= self.fc0k_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
         self.fvd_eff_quer= self.fvk_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
-        
-        
-# _________ NORMALSPANNUNGEN __________________________________
+    
+#__________ STATISCHES MOMENT______________________
+
+    def compute_static_moment(self):
+        '''
+        wird von der jeweiligen child klasse gemacht
+        '''
+        pass
+
+# _________ NORMALSPANNUNGEN nx__________________________________
     
     def calculate_normalspannung(self, lasten_design, add_vorspannkraft = False):
         '''
@@ -243,37 +298,68 @@ class Querschnitt(object):
             self.ausnutzung_N += abs(self.sigma_N[dauer]* einheiten_faktor)/self.fc0d_eff_laengs # Annahme nur Normalkraft
             self.ausnutzung_M += abs(self.sigma_M[dauer]* einheiten_faktor)/self.fc0d_eff_laengs 
 
+
+# _________ NORMALSPANNUNGEN ny__________________________________
+
+    def calculate_normalspannung_y(self):
+        c_p= 1.8
+        hoehe=[]
+        t_querlagen= 0.08
+        radius= self.d_achse/2
+        #in [kN/m²]
+        self.q_b= 0.5*1.25*25^2*10^(-3)
+        windbelastung= 2.1*self.q_b*(hoehe/10)^0.24*c_p
+
+        #in [kN/m]
+        n_y= radius* windbelastung
+
+        #in [kN/m²]
+        self.sigma_y= n_y/t_querlagen 
+
+
+    def nachweis_normalspannung_y(self):
+        einwirkung= self.sigma_y
+
+        self.ausnutzung_sigma_ny += abs(self.sigma_M[dauer]* einheiten_faktor)/self.fc0d_eff_quer
+
+
     
-# _________ SCHUBSPANNUNGEN SCHEIBENBEANSPRUCHUNG __________________________________
+# _________ SCHUBSPANNUNGEN SCHEIBENBEANSPRUCHUNG nxy__________________________________
 
     def calculate_schubspannung_querkraft(self, lasten_design):
 
-        self.compute_effective_moment_of_inertia()
         self.compute_static_moment()
 
-        self.tau_Q = (lasten_design['Q'] * self.Sy_max) / (self.Iy * self.wand_stärke)
-        self.einheiten['Schubspannung'] = self.einheiten['Kraft'] + '/' + self.einheiten['Länge'] + '²'
+        
+        self.tau_Qy = (lasten_design['egal']['Qy'] * self.Sy_max) / (self.Iy * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
         
     def calculate_schubspannung_torsion(self, lasten_design):
-        self.Wt = 2* self.A_m * self.wand_stärke
-        self.tau_Mt = lasten_design['Mt'] /self.Wt
+
+        self.Wx = 2* self.A_m * self.wand_stärke
+        self.tau_Mx = lasten_design['egal']['Mx'] /self.Wx  * self.einheiten_umrechnung['Schubspannung']
+
+    def calculate_schubspannung_resultierend(self,lasten_design):
+
+        self.calculate_schubspannung_querkraft(lasten_design)
+        self.calculate_schubspannung_torsion(lasten_design)
+
+        self.tau = self.tau_Mx + self.tau_Qy
 
     def calculate_ausnutzung_schub(self, lasten_design):
         '''
-        TODO Variable geben die definiert was ausgenutzt wird als Druck, Zug, ... bisher ist es druck fc0k
         '''
 
         self.calculate_schubspannung_querkraft(lasten_design)
         self.calculate_schubspannung_torsion(lasten_design)
         self.compute_effektive_festigkeiten_design('kurz')
 
-        einwirkung = self.tau_Q + self.tau_Mt 
+        einwirkung = self.tau_Qy + self.tau_Mx 
 
+        einheiten_faktor = self.einheiten_umrechnung['Schubspannung']
 
-        fd = self.fvd_eff_laengs * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
-        self.ausnutzung = 1.35 * einwirkung/fd
+        fd = self.fvd_eff_laengs * einheiten_faktor
+        self.ausnutzung = einwirkung/fd
 
-        print(self.ausnutzung)
 
     def calculate_nw_abscheren_der_Bretter(self,lasten_design):
         
@@ -347,14 +433,15 @@ class Querschnitt(object):
         print(self.ausnutzunG)
 
 
-# _________ PLATTENBEANSPRUCHUNG __________________________________
+# _________ PLATTENBEANSPRUCHUNG nx und ny__________________________________
 
 
-    def calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max, width): 
+    def calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max): 
         '''Längsspannungen bei Plattenbeanspruchung aus Windsog und -Druck'''
         
+        width_segment=3
         self.compute_effektive_moment_of_inertia_platte_z()
-        M0_k= (wind_max*width**2)/8
+        M0_k= (wind_max*width_segment**2)/8
         self.sigma_md_platte= M0_k/self.Iy_eff_platte * self.wand_stärke/2
 
         return self.sigma_md_platte
@@ -373,6 +460,10 @@ class Querschnitt(object):
         return 0
 
     def calculate_schub_plattenbeanspruchung(self, wind_max):
+        width_segment= 3
+        #in kN/m
+        self.Q_platte= 1/2*wind_max*width_segment
+        self.tau_platte= self.Q_platte/self.wand_stärke
         return 0
 
     def calculate_schub_knick(self):
@@ -433,7 +524,7 @@ class Querschnitt(object):
 
         self.section_parameters = {
             'n_sections':len(self.Iy) - 1,
-            'n_ebenen':len(self.Iy),
+            'self.n_ebenen':len(self.Iy),
             'Iy': self.compute_sectional_mean(self.Iy),
             #'Iy_eff': self.compute_sectional_mean(self.Iy_eff),
             'd_achse':self.compute_sectional_mean(self.d_achse),
@@ -473,9 +564,9 @@ class Querschnitt(object):
 
 class KreisRing(Querschnitt):
 
-    def __init__(self, d_achse, cd = 1.1, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}) -> None:
+    def __init__(self, cd = 1.1, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}) -> None:
         
-        super().__init__(d_achse, lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten)
+        super().__init__(lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten)
 
 
         self.masse_pro_meter = None
@@ -503,20 +594,6 @@ class KreisRing(Querschnitt):
 
         self.Iy = np.pi / 64 * (self.d_außen**4 - self.d_innen**4)
 
-    def compute_effective_moment_of_inertia(self):
-        '''
-        Flächenträgheitsmoment der Längslagen
-        '''
-        for i, lage in enumerate(self.lagen_aufbau):
-            querschnitt = KreisRing(lage['di'], lage['ti'], 
-                    holz_parameter = self.holz_parameter, hoehen_parameter= self.hoehen_parameter, einheiten =self.einheiten)
-            lage['Iy'] = querschnitt.Iy
-
-        self.Iy_eff = 0
-        for lage in self.lagen_aufbau:
-            if lage['ortho'] == 'X':
-                self.Iy_eff += lage['Iy']
-
     def compute_area(self, r):
         area= np.pi * r**2
 
@@ -528,23 +605,18 @@ class KreisRing(Querschnitt):
         my Sy bei z=0 (Viertelkreis)
         Berechnung für Kreisring 
         '''
-
-
         self.Sy_max= ((self.d_achse/2)**2)*self.wand_stärke 
-        return self.Sy_max 
-
 
         
-
 class nEck(Querschnitt):
 
-    def __init__(self, n_ecken, d_achse, cd = 1.5, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):
+    def __init__(self, n_ecken, cd = 1.5, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):
         '''
         werte können für einzelne sections oder als arrays gegeben werden
         Geometrie: https://de.wikipedia.org/wiki/Regelm%C3%A4%C3%9Figes_Polygon  
         '''
 
-        super().__init__(d_achse, lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten)
+        super().__init__(lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten)
 
         self.n_ecken = n_ecken
         self.name = str(self.n_ecken) + '-Eck'

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import pickle
 import numpy as np
 import os
@@ -402,9 +403,10 @@ def load_object_from_pkl(pkl_file):
 
     return data
 
-def add_model_data_from_dict(section_dict, model_parameters, set_I_eff=False):
+def add_model_data_from_dict(section_dict, model_parameters,):
     '''
     die sectional properties als dict
+    Knoten Anzahl wird an die Anzahl an Ebenen angepasst
     Koordinaten definition wird hier an den Beam angepasst
     Jedem Interval wird der Mittelwert der jeweiligen Querschnittswerte zugeordnet 
     (dieser kommt schon aus dem QS dictionary )
@@ -412,12 +414,10 @@ def add_model_data_from_dict(section_dict, model_parameters, set_I_eff=False):
     
     model_parameters['defined_on_intervals'] = []
 
-    if set_I_eff:
-        I = 'Iy_eff'
-    else:
-        I = 'Iy'
+    I = 'Iy'
 
     model_parameters['lx_total_beam'] = section_dict['section_absolute_heights'][-1]
+    model_parameters['n_elements'] = section_dict['n_sections']
 
     for section in range(section_dict['n_sections']):
         model_parameters['defined_on_intervals'].append(
@@ -445,13 +445,13 @@ def convert_coordinate_system_and_consider_einwirkungsdauer(loads, direction = '
     directions_beam = ['Fy', 'Fx', 'Mz']
     loads_beam = {'ständig':{}, 'kurz':{}, 'egal':{}}
     if isinstance(loads, dict):
-        converter_fast_beam = {'Fx':'Fy','Fy':'Fz', 'Fz':'Fx', 'Mx':'My', 'My':'Mz', 'Mz':'Mx'}
         converter_beam_fast = {'Fy':'Fx','Fx':'Fz', 'Mz':'My'}
+        # NOTE rein theoretisch ist dieser Vorzeichen wechsel hier falsch 
         sign_beam_fast = {'Fy':1,'Fx':1, 'Mz':-1}
         for dauer in einwirkungsdauer:
             for direction in directions_beam:
                 factor = einwirkungsdauer[dauer][direction]
-                loads_beam[dauer][direction] = sign_beam_fast[direction] * loads[converter_beam_fast[direction]] * factor
+                loads_beam[dauer][direction] = loads[converter_beam_fast[direction]] * factor * sign_beam_fast[direction]
 
     return loads_beam
 
@@ -710,7 +710,25 @@ def zelle_beschriften(excel_file, worksheet, cell, wert, merge_from_to = None):
     wb.save(excel_file)
     wb.close()
 
+def get_spalten_ausnutzung(df, df_header, start_row, start_col):
 
+    n_rows = df.shape[0]
+    end_row = start_row + n_rows + len(df_header) +1
+    cols = []
+    for i, val in enumerate(df_header[-1]):
+        if 'Ausnutzung' in val:
+            nth_col = i
+
+    nth_col += 1 # da index mit dabei und 
+    
+    for i in range(df.columns.levshape[0]*df.columns.levshape[1]):
+        cols.append(nth_col + i*df.columns.levshape[2])
+
+    xl_col = [EXCEL_COLUMNS[i] for i in cols]
+
+    cols_rows = [i + str(start_row) + ':' + i+ str(end_row) for i in xl_col]
+
+    return cols_rows
 
 #______________________ BERECHNUNGEN __________________________
 

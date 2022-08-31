@@ -216,9 +216,6 @@ class BeamModel(object):
                     polynom_x = polynom(running_coord - val['bounds'][0])
                     return polynom_x
 
-                    # Alternative, da die werte schon als sectional means kommen
-                    # return val[characteristic_identifier][0]
-
     def update_equivalent_nodal_mass(self):
         '''
         The mass matrix for the beam element can be
@@ -387,7 +384,7 @@ class BeamModel(object):
                                     return_result = False, add_eigengewicht=True, add_imperfektion = True,
                                     gamma_g = 1.35):
         ''' 
-        pass_load_vector_file (directions ist dann unrelevant)
+        pass_load_vector_file (directions ist dann unrelevant -> nur für mean_dynamic)
         if apply_mean_dynamic: the dynamic load file is taken and at each point the mean magnitude
         direction: if 'all' all load directions are applied
         ''' 
@@ -409,8 +406,8 @@ class BeamModel(object):
 
         if add_eigengewicht:
             load_vector_nur_eigengewicht[0::GD.DOFS_PER_NODE[self.dim]] += self.eigengewicht.reshape(self.n_nodes,1) + load_vector[0::GD.DOFS_PER_NODE[self.dim]]
-
             load_vector[0::GD.DOFS_PER_NODE[self.dim]] += (self.eigengewicht.reshape(self.n_nodes,1) * gamma_g)
+
         if add_imperfektion:
             if add_eigengewicht == False:
                 print ('WARINING! Einfluss aus Imperfektion ohne Eigengewicht berechnet!!')
@@ -464,6 +461,9 @@ class BeamModel(object):
                 
                 # negatives Schnittufer sind die hinteren einträge diese müssen mit den äußeren Lasten im Gleichgewicht stehen
                 internal_forces_list.append(f_i[self.n_dofs_node:][:,0])
+
+                # So fehlt der letzte Knoten und das Vorzeichen ist Falsch rum
+                #internal_forces_list.append(f_i[:self.n_dofs_node][:,0])
      
             self.internal_forces[load_type] = {}
             internal_forces_arr = np.array(internal_forces_list)

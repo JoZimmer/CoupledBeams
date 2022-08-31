@@ -54,10 +54,21 @@ class BernoulliElement(object):
         k_yg = 6.0 * EIz / self.L**2
         akyg = alpha * k_yg # parametrisches element
 
-        k_el_yg = np.array([[ k_yy_11, -akyg,    k_yy_12, -akyg],
+        # ursprüngliche Matrix
+        # -> Problem Positives äußeres Moment ergibt positives inneres Moment falsch
+        k_el_yg_1 = np.array([[ k_yy_11, -akyg,    k_yy_12, -akyg],
                             [-akyg,     k_gg_11, akyg,     k_gg_12],
                             [ k_yy_12,  akyg,    k_yy_11,  akyg],
                             [-akyg,     k_gg_12, akyg,     k_gg_11]])
+
+        # Wie man sie meist im Internet findet
+        # https://link.springer.com/content/pdf/bbm%3A978-3-319-56493-7%2F1.pdf 
+        k_el_yg_2 = np.array([[ k_yy_11, akyg,    k_yy_12, akyg],
+                            [akyg,     k_gg_11, -akyg,     k_gg_12],
+                            [ k_yy_12,  -akyg,    k_yy_11,  -akyg],
+                            [akyg,     k_gg_12, -akyg,     k_gg_11]])
+
+        k_el_yg = k_el_yg_1
 
         if self.dim == '3D':          
             EIy = self.E * self.Iy

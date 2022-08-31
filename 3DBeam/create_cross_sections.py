@@ -29,7 +29,6 @@ for höhe in höhen:
                         {'ortho':'Y','ti':t_querlagen},
                         {'ortho':'X','ti':tX[0]}] # 0.16, 0.2
         höhen_parameter['absolute_höhen'] = np.linspace(0, höhe, n_ebenen)
-        höhen_parameter['hfract'] = höhen_parameter['absolute_höhen']/höhen_parameter['absolute_höhen'][-1]
 
         kreis_ring = KreisRing(d_achse, cd=1.1, lagen_aufbau=lagen_aufbau,
                                 holz_parameter = holz.charakteristische_werte[holzgüte], 
