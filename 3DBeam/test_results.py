@@ -15,8 +15,15 @@ holzgüte = 'C24'
 werkstoff_parameter = holz.charakteristische_werte[holzgüte]
 
 einheiten_input = {'Kraft':'N', 'Moment':'Nm', 'Festigkeit':'N/mm²', 'Länge':'m'}
-d_achse = np.linspace(12, 3.4, 14)
-höhen_parameter = {'absolute_höhen': np.linspace(0,110,14)}
+
+höhen_parameter = {
+                           'nabenhöhe' :110,
+                           'h_knick_von_oben' :[60],
+                           'höhe_sektionen' :[12,15], # Range angeben
+                           'd_knick' :[None], # Mehrere Einträge in der Liste sollten mehrene Knicken entsprechen
+                           'd_unten_oben' :[12, 3.4]
+                           } 
+
 lagen_aufbau = [{'ortho':'X','ti':0.16},
                         {'ortho':'Y','ti':0.04},
                         {'ortho':'X','ti':0.08},
@@ -24,14 +31,13 @@ lagen_aufbau = [{'ortho':'X','ti':0.16},
                         {'ortho':'X','ti':0.16}]
 
 
-kreis_ring = KreisRing(d_achse, cd = 1.1, lagen_aufbau=lagen_aufbau,
-                                holz_parameter = holz.charakteristische_werte['C24'], 
-                                nachweis_parameter = holz.HOLZBAU,
-                                hoehen_parameter= höhen_parameter, 
-                                einheiten=einheiten_input)
-n_nodes = 14
+kreis_ring = KreisRing(cd = 1.1, lagen_aufbau=lagen_aufbau,
+                        holz_parameter = holz.charakteristische_werte['C24'], 
+                        nachweis_parameter = holz.HOLZBAU,
+                        hoehen_parameter= höhen_parameter, 
+                        einheiten=einheiten_input)
 
-lasten_dict_base = {'Fx':np.zeros(n_nodes), 'Fy':np.zeros(n_nodes), 'Mz':np.zeros(n_nodes)}
+lasten_dict_base = {'Fx':np.zeros(kreis_ring.n_ebenen), 'Fy':np.zeros(kreis_ring.n_ebenen), 'Mz':np.zeros(kreis_ring.n_ebenen)}
 
 
 class TestModel(unittest.TestCase):
@@ -84,7 +90,7 @@ class TestModel(unittest.TestCase):
         # NOTE hier das Vorzeichen ansich falsch rum aber Fehler wird nicht gefunden
         kopflast_test = {'Fy':1000, 'Mz':-1000, 'Fx':-1000}
         lasten_dict_test = utils.update_lasten_dict(lasten_dict_base, wind_kraft = None, kopflasten = kopflast_test)
-        lasten_file_test = utils.generate_lasten_file(n_nodes, lasten_dict_test, 'test_kopf_1000')
+        lasten_file_test = utils.generate_lasten_file(kreis_ring.n_ebenen, lasten_dict_test, 'test_kopf_1000')
 
         section_properties = kreis_ring.section_parameters 
         parameters = utils.add_model_data_from_dict(section_properties, parameters)
@@ -92,7 +98,7 @@ class TestModel(unittest.TestCase):
         beam = BeamModel(parameters, adjust_mass_density_for_total = False, optimize_frequencies_init=False , apply_k_geo=False)
         beam.static_analysis_solve(lasten_file_test, add_eigengewicht=False, add_imperfektion=False)
 
-        mz_soll_base = -höhen_parameter['absolute_höhen'][-1] * 1000 - 1000
+        mz_soll_base = -kreis_ring.nabenhöhe * 1000 - 1000
         qy_soll_base = 1000
         nx_soll_base = -1000
 
@@ -103,25 +109,6 @@ class TestModel(unittest.TestCase):
 
 
 #Summe Knotenwindkraft bei n_nodes: Ring gerade 14 nodes 648130.1479304307
-
-n_elements = 13
-nabenhöhe = 110 #m
-d_achse_unten = 12
-d_achse_oben = 3.4
-t = 0.48
-
-A_unten = 18.10
-V_ges = 1277.3
-Iz_unten = 326.24
-
-# mit SGR aus FE Model mit Belastung nur IEA Kopf
-Fy = 1.17 # MN
-Mz = 3.24 # MNm
-Fx = -3.64 # MN
-
-# Fußpunkt SGR inkl. Eigengewicht:
-Mz = 187 # MNm
-Nx = -9.4 #MN
 
 sigma_druck = 4.096 #MN/m² 
 

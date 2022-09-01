@@ -405,11 +405,12 @@ def load_object_from_pkl(pkl_file):
 
 def add_model_data_from_dict(section_dict, model_parameters,):
     '''
-    die sectional properties als dict
-    Knoten Anzahl wird an die Anzahl an Ebenen angepasst
-    Koordinaten definition wird hier an den Beam angepasst
-    Jedem Interval wird der Mittelwert der jeweiligen Querschnittswerte zugeordnet 
-    (dieser kommt schon aus dem QS dictionary )
+    Die Sektionsweiße definierten Querschnittswerte werden so an das Model gegebn.
+
+    - Knoten Anzahl wird an die Anzahl an Ebenen angepasst
+    - Koordinaten definition wird hier an den Beam angepasst
+    - Jedem Interval wird der Mittelwert der jeweiligen Querschnittswerte zugeordnet 
+        (dieser kommt schon aus dem QS dictionary )
     '''
     
     model_parameters['defined_on_intervals'] = []

@@ -1,3 +1,4 @@
+from ast import Raise
 from math import cos, radians, sin
 import pickle 
 import matplotlib.pyplot as plt
@@ -99,6 +100,10 @@ class Querschnitt(object):
             self.einheiten['Schubspannung'] = einheit_spannung
 
     def initalize_höhen_parameter(self):
+        '''
+        TODO Achtung es ist zwar grob vorbereitet auch mehrere Knicke vorzusehen allerdings brauchts da noch anpassungen!
+        hoehen_parameter['d_knick'] = None ändert sicht der Durchmesser linear von d_unten_oben
+        '''
         from scipy.optimize import minimize_scalar
         from functools import partial
 
@@ -121,24 +126,50 @@ class Querschnitt(object):
         print ('Für Nabenhöhe', self.nabenhöhe, 'ergeben sich', self.n_sections, 'Sektionen mit einer Höhe von je', 
                 round(self.section_heights,2), 'm')
 
-
-        # Durchmesser mit Knicken
         d_u = self.hoehen_parameter['d_unten_oben'][0]
         d_o = self.hoehen_parameter['d_unten_oben'][1]
-        for knick_i, h_i in enumerate(self.hoehen_parameter['h_knick_von_oben']):
-            diff_knoten_i = self.section_absolute_heights - h_i
-            for i, dif in enumerate(diff_knoten_i):
-                if dif < 0:
-                    continue
-                if dif > 0:
-                    ebene_knick = i
-                    break
-            d_achse_u = np.linspace(d_u, self.hoehen_parameter['d_knick'][knick_i], ebene_knick)
-            d_achse_o = np.linspace(self.hoehen_parameter['d_knick'][knick_i], d_o, self.n_ebenen - ebene_knick+1)
-            # TODO 2. Knick einfügen
 
-        self.d_achse = np.concatenate((d_achse_u, d_achse_o[1:]))
-        d_achse_gerade = np.linspace(d_u, d_o, self.n_ebenen)
+        # ________________________________________ Durchmesser mit Knicken
+
+        if self.hoehen_parameter['d_knick'][0] == None:
+            self.d_achse = np.linspace(d_u, d_o, self.n_ebenen)
+
+        else:
+            # TODO die For schleife hier ist gerade nur sinnvoll wenn es nur einen knick in h_knick_von_onben gibt :D
+            for knick_i, h_i in enumerate(self.hoehen_parameter['h_knick_von_oben']):
+                diff_knoten_i = self.section_absolute_heights - h_i
+                for i, dif in enumerate(diff_knoten_i):
+                    if dif < 0:
+                        continue
+                    if dif > 0:
+                        ebene_knick = i
+                        break
+                d_achse_o = np.linspace(self.hoehen_parameter['d_knick'][knick_i], d_o, self.n_ebenen - ebene_knick+1)    
+                d_achse_u = np.linspace(d_u, self.hoehen_parameter['d_knick'][knick_i], ebene_knick)
+                d_knick = self.hoehen_parameter['d_knick'][knick_i]
+                # TODO 2. Knick einfügen
+
+            print ('Bei h=', round(self.section_absolute_heights[ebene_knick],2), 'm ist ein Knick angeordnet.')
+
+            self.d_achse = np.concatenate((d_achse_u, d_achse_o[1:]))
+
+            if self.hoehen_parameter['d_knick_übergang'] == 'automatisch':
+                d_knick_übergang = self.d_achse[ebene_knick - self.hoehen_parameter['n_sektionen_übergang']-1]
+            else:
+                d_knick_übergang = self.hoehen_parameter['d_knick_übergang']
+
+            d_achse_übergang = np.linspace(d_knick_übergang, d_knick,  self.hoehen_parameter['n_sektionen_übergang']+1)
+            d_achse_u = np.linspace(self.hoehen_parameter['d_unten_angepasst'], d_knick_übergang, ebene_knick - self.hoehen_parameter['n_sektionen_übergang'])
+            self.d_achse= np.concatenate((d_achse_u[:-1], d_achse_übergang, d_achse_o[1:]))
+
+            
+            for d_knick in self.hoehen_parameter['d_knick']:
+                alpha_1 = np.arctan(self.section_absolute_heights[ebene_knick]/(d_u - d_knick))
+                alpha_2 = np.arctan((self.nabenhöhe - self.section_absolute_heights[ebene_knick])/(d_knick - d_o))
+
+            print ('Der Untere Teil ist um', round(np.rad2deg(alpha_1),2), '° geneigt')
+            print ('Der Obere Teil nach dem Knick um', round(np.rad2deg(alpha_2),2), '°')
+
 
         print()
 
