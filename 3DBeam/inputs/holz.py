@@ -1,5 +1,16 @@
 HOLZBAU = {
     'k_mod':{'kurz': 0.9, 'mittel':0.8, 'lang': 0.7, 'ständig':0.6},
+    'k_def':{'NKL1':{
+                      30: 0.2, # Belastungsgrad > 30%
+                      15:0.1,   # Belastungsgrad < 15%
+                      'sonst':0.15
+            },
+            'NKL2':{
+                      30: 0.4, # Belastungsgrad > 30%
+                      15:0.3,   # Belastungsgrad < 15%
+                      'sonst':0.2
+            }
+    },
     'gamma_m': 1.2, 
     'k_sys': 1.2
 }

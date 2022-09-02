@@ -1,5 +1,5 @@
 import xlwings as xl
-import source.utilities.holz as holz
+import inputs.holz as holz
 import source.utilities.utilities as utils
 import numpy as np
 from source.Querschnitte import nEck, KreisRing 

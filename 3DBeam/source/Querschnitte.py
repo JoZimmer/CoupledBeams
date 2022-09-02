@@ -1,10 +1,10 @@
-from ast import Raise
 from math import cos, radians, sin
 import pickle 
 import matplotlib.pyplot as plt
 import numpy as np
 from os.path import join  as os_join
 import source.utilities.utilities as utils
+import source.utilities.global_definitions as GD
 
 '''
 
@@ -53,13 +53,13 @@ class Querschnitt(object):
     Klasse geschlossener Querschnitte aus BSP definiert durch den durchmesser der Achse
     '''
 
-    def __init__(self, lagen_aufbau, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter = {}, einheiten = {}):
+    def __init__(self, lagen_aufbau, holz_parameter:dict, nachweis_parameter:dict, hoehen_parameter:dict, einheiten:dict):
         '''
         d_achse: Durchmesser des Turms in der Achse des Querschnitts
         holz_parameter: dict siehe global definitions von einer Bestimmten Holzklasse/Art
         hfract, absolute_height
+        TODO Iz Iy verwirrung auflösen -> Bennung 
         '''
-        #self.d_achse = d_achse
         self.hoehen_parameter = hoehen_parameter
         self.nabenhöhe = hoehen_parameter['nabenhöhe']
         self.initalize_höhen_parameter()
@@ -101,8 +101,18 @@ class Querschnitt(object):
 
     def initalize_höhen_parameter(self):
         '''
-        TODO Achtung es ist zwar grob vorbereitet auch mehrere Knicke vorzusehen allerdings brauchts da noch anpassungen!
-        hoehen_parameter['d_knick'] = None ändert sicht der Durchmesser linear von d_unten_oben
+        hoehen_parameter:
+            'h_knick_von_oben': Abstand des Knicks von der OK Turm (gemessen von oben) -> es Wird der Knoten genommen der am nächsten dran oben drüber liegt
+            'd_knick' = None ändert sicht der Durchmesser linear von d_unten_oben. Sonst wird an dieser 
+            'höhe_sektionen': range in meter in der die Höhe der einzelnen Sektionen liegen soll -> wird anhand der Nabenhöhe gewählt
+            'd_unten_oben': (Anfangs) Werte der Durchmesser am Fuß und am Kopf
+            'd_knick_übergang': 
+                2. Durchmesser wenn ein Übergnag stattfinden soll 
+                automatisch: setzt den Durchmesser der an der stelle vorhanden ist fest und ändert den Fußdurchmesser
+                None: macht gar nichts
+            'n_sektionen_übergang': Anzahl an Sektionen unterhalb des Knicks in denen ein 2. Radius Verlauf stattfinden soll 
+            'd_unten_angepasst': im Fall des 2. Knicks kann der untere Radius angepasst werden 
+        NOTE: das ganze ist nicht sooo super variable -> Bisher her nur für den fall gedacht mit den 2 kicken, einer in die iene Richtung einer in die andere
         '''
         from scipy.optimize import minimize_scalar
         from functools import partial
@@ -147,29 +157,35 @@ class Querschnitt(object):
                 d_achse_o = np.linspace(self.hoehen_parameter['d_knick'][knick_i], d_o, self.n_ebenen - ebene_knick+1)    
                 d_achse_u = np.linspace(d_u, self.hoehen_parameter['d_knick'][knick_i], ebene_knick)
                 d_knick = self.hoehen_parameter['d_knick'][knick_i]
-                # TODO 2. Knick einfügen
 
             print ('Bei h=', round(self.section_absolute_heights[ebene_knick],2), 'm ist ein Knick angeordnet.')
 
             self.d_achse = np.concatenate((d_achse_u, d_achse_o[1:]))
 
-            if self.hoehen_parameter['d_knick_übergang'] == 'automatisch':
-                d_knick_übergang = self.d_achse[ebene_knick - self.hoehen_parameter['n_sektionen_übergang']-1]
-            else:
-                d_knick_übergang = self.hoehen_parameter['d_knick_übergang']
+            if self.hoehen_parameter['d_knick_übergang'] != None:
+                if self.hoehen_parameter['d_knick_übergang'] == 'automatisch':
+                    d_knick_übergang = self.d_achse[ebene_knick - self.hoehen_parameter['n_sektionen_übergang']-1]
+                else:
+                    d_knick_übergang = self.hoehen_parameter['d_knick_übergang']
 
-            d_achse_übergang = np.linspace(d_knick_übergang, d_knick,  self.hoehen_parameter['n_sektionen_übergang']+1)
-            d_achse_u = np.linspace(self.hoehen_parameter['d_unten_angepasst'], d_knick_übergang, ebene_knick - self.hoehen_parameter['n_sektionen_übergang'])
-            self.d_achse= np.concatenate((d_achse_u[:-1], d_achse_übergang, d_achse_o[1:]))
+                print ('Bei h=', round(self.section_absolute_heights[ebene_knick-self.hoehen_parameter['n_sektionen_übergang']],2), 'm ist ein 2. Knick angeordnet.')
+
+                d_achse_übergang = np.linspace(d_knick_übergang, d_knick,  self.hoehen_parameter['n_sektionen_übergang']+1)
+                d_achse_u = np.linspace(self.hoehen_parameter['d_unten_angepasst'], d_knick_übergang, ebene_knick - self.hoehen_parameter['n_sektionen_übergang'])
+                self.d_achse= np.concatenate((d_achse_u[:-1], d_achse_übergang, d_achse_o[1:]))
 
             
-            for d_knick in self.hoehen_parameter['d_knick']:
-                alpha_1 = np.arctan(self.section_absolute_heights[ebene_knick]/(d_u - d_knick))
-                alpha_2 = np.arctan((self.nabenhöhe - self.section_absolute_heights[ebene_knick])/(d_knick - d_o))
+            #for d_knick in self.hoehen_parameter['d_knick']:
+            knick_ebenen = [ebene_knick-self.hoehen_parameter['n_sektionen_übergang'], ebene_knick]
+            alpha_unten = np.arctan(self.section_absolute_heights[knick_ebenen[0]]/(d_achse_u[0] - d_achse_u[-1]))
+            print ('Der Untere Teil ist um', round(np.rad2deg(alpha_unten),2), '° geneigt')
 
-            print ('Der Untere Teil ist um', round(np.rad2deg(alpha_1),2), '° geneigt')
-            print ('Der Obere Teil nach dem Knick um', round(np.rad2deg(alpha_2),2), '°')
-
+            if self.hoehen_parameter['d_knick_übergang'] != None:
+                alpha_übergang = np.arctan((self.section_absolute_heights[knick_ebenen[1]] - self.section_absolute_heights[knick_ebenen[0]])/(d_achse_u[0] - d_achse_u[-1]))
+                print ('Der Übergangsbereich ist um', round(np.rad2deg(alpha_übergang),2), '° geneigt')
+            alpha_knick = np.arctan((self.nabenhöhe - self.section_absolute_heights[knick_ebenen[1]])/(d_achse_u[0] - d_achse_u[-1]))
+            
+            print ('Der Obere Teil ist um', round(np.rad2deg(alpha_knick),2), '° geneigt')
 
         print()
 
@@ -266,34 +282,98 @@ class Querschnitt(object):
 
 # _________ NORMALSPANNUNGEN nx__________________________________
     
-    def calculate_normalspannung(self, lasten_design, add_vorspannkraft = False):
+    def calculate_normalspannung(self, lasten_design, add_vorspannkraft_grob = False, add_vorspannkraft_detail=False, plot = False):
         '''
         ergibt dictionaries mit der einwirkungsdauers Dauer als key:
             sigma_druck: Spannung aus Normalkraft und moment
             sigma_zug: Spannung aus moment abzüglich Normalkraft (Annahme immer Druckkraft)
             sigma_N: Spannung nur mit Normalkraft berechnet
             sigma_M: Spannung nur mit Moment berechnet
+        TODO Bennenung Iy in Iz was korrekter ist in dem cosy hier
         '''
         
         e = self.d_außen/2
+        e_innen = self.d_innen/2#, self.d_achse/2]
 
-        self.sigma_druck, self.sigma_zug, self.sigma_N, self.sigma_M = {},{},{},{}
+        self.sigma_druck, self.sigma_zug, self.sigma_N, self.sigma_M, self.sigma_druck_ohne_vorsp = {},{},{},{},{}
+        self.sigma_druck_innen, self.sigma_zug_innen, self.sigma_M_innen , self.sigma_M_neg= {},{}, {}, {}
 
         for dauer in lasten_design:
-            # Wirkungsrichtung von M neutralisieren
+            # Wirkungsrichtung von M neutralisieren um es dann als Druck und zug aufbringen zu können
 
             lasten_design[dauer]['Mz'] = abs(lasten_design[dauer]['Mz'])
+
 
             self.sigma_druck[dauer] = -(lasten_design[dauer]['Mz'])/self.Iy * e + lasten_design[dauer]['Nx'] / self.A
             self.sigma_zug[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e + lasten_design[dauer]['Nx'] / self.A
 
-            if add_vorspannkraft:
+            self.sigma_druck_ohne_vorsp[dauer] = -(lasten_design[dauer]['Mz'])/self.Iy * e + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_druck_innen[dauer] = -(lasten_design[dauer]['Mz'])/self.Iy * e_innen + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_zug_innen[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e_innen + lasten_design[dauer]['Nx'] / self.A
+
+            if add_vorspannkraft_grob:
+                if add_vorspannkraft_detail:
+                    raise Exception('Entweder Vorspannkraft grob oder detail wählen nicht beides True')
                 self.sigma_druck[dauer] += np.negative(self.sigma_zug[dauer])
+
+            if add_vorspannkraft_detail:
+                if add_vorspannkraft_grob:
+                    raise Exception('Entweder Vorspannkraft detail oder grob wählen nicht beides zu True setzen')
+
 
             self.sigma_N[dauer] = lasten_design[dauer]['Nx'] / self.A
             self.sigma_M[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e 
+            self.sigma_M_neg[dauer] = -(lasten_design[dauer]['Mz'])/self.Iy * e 
+            self.sigma_M_innen[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e_innen 
 
-    def calculate_ausnutzung_normalspannung(self, lasten_design, add_vorspannkraft_grob = False):
+        if plot:            
+            
+            # TODO oder input an welchem Knoten und auslagern in postprocess mit eingang Spannung und knoten 
+            knoten = [0, list(abs(self.sigma_druck['egal'])).index(max(abs(self.sigma_druck['egal']))),-1]
+
+            fig, ax = plt.subplots(ncols=len(knoten), figsize= (15, 4), sharey=True)
+            ef = utils.unit_conversion('N/m²', 'N/mm²')
+            fig.suptitle('Normalspannung im Schnitt '  + self.name)
+            import matplotlib.patches as patch
+            efl = utils.unit_conversion(self.einheiten['Länge'],'cm')
+            x = np.array([0, self.wand_stärke, 3*self.wand_stärke, 4*self.wand_stärke])* efl
+            dx = self.wand_stärke * efl
+
+            for i, knoten_i in enumerate(knoten):
+                dy = 0.4#self.sigma_druck['egal'][0] * ef * -1/10
+                y0_patch = -dy/2
+                p_links = patch.Rectangle((x[0],y0_patch), dx, dy, fill= None, hatch= '///' )
+                p_rechts = patch.Rectangle((x[2],y0_patch), dx, dy, fill= None, hatch= '///' )
+                ax[i].set_title('Knoten ' +str(knoten_i) + ' h='+ str(round(self.section_absolute_heights[knoten_i],2)) + 'm')
+                ax[i].add_patch(p_links)
+                ax[i].add_patch(p_rechts)
+                
+                y = [self.sigma_zug['egal'][knoten_i]*ef,
+                    self.sigma_zug_innen['egal'][knoten_i]*ef,
+                    self.sigma_druck_innen['egal'][knoten_i]*ef,
+                    self.sigma_druck_ohne_vorsp['egal'][knoten_i]*ef]
+
+                # TODO wenn Vorspannung dazu dann so ca.:
+                # y = np.array(y) - self.sigma_zug['egal'][knoten_i]*ef
+
+                colors = {1:'tab:red', -1:'tab:blue'}
+                for si, spannung in enumerate(y):
+                    ax[i].plot([x[si],x[si]], [0, spannung], color = colors[np.sign(spannung)])
+                
+                for xi, yi in zip(x,y):
+                    ax[i].annotate(str(round(yi,2)), xy=(xi, yi))# - sign*0.4))
+                
+                ax[i].plot([x[0],x[1]], [y[0], y[1]], color = colors[np.sign(y[1])])
+                ax[i].plot([x[2],x[3]], [y[2], y[3]], color = colors[np.sign(y[3])])
+
+                ax[i].set_xticks([])
+                ax[i].set_ylabel(GD.GREEK_UNICODE['sigma'] + ' [N/mm²]')
+                ax[i].grid()
+
+            plt.tight_layout()
+            plt.show()
+
+    def calculate_ausnutzung_normalspannung(self, lasten_design, add_vorspannkraft_grob = False, plot_spannungsverlauf=False):
         '''
         Berechnung der Ausnutzungen für:
             sigma_druck: Spannung aus Normalkraft und moment
@@ -308,7 +388,7 @@ class Querschnitt(object):
         Lasten = Schnittgrößen als dict sortiert nach einwirkungsdauer
         '''
 
-        self.calculate_normalspannung(lasten_design, add_vorspannkraft_grob)
+        self.calculate_normalspannung(lasten_design, add_vorspannkraft_grob, plot=plot_spannungsverlauf)
 
         # erst mal Einheiten klar machen
         einheiten_faktor = self.einheiten_umrechnung['Normalspannung']
@@ -327,7 +407,54 @@ class Querschnitt(object):
             self.ausnutzung_druck += abs(self.sigma_druck[dauer]* einheiten_faktor)/self.fc0d_eff_laengs 
             self.ausnutzung_zug += abs(self.sigma_zug[dauer]* einheiten_faktor)/self.ft0d_eff_laengs 
             self.ausnutzung_N += abs(self.sigma_N[dauer]* einheiten_faktor)/self.fc0d_eff_laengs # Annahme nur Normalkraft
-            self.ausnutzung_M += abs(self.sigma_M[dauer]* einheiten_faktor)/self.fc0d_eff_laengs 
+            self.ausnutzung_M += abs(self.sigma_M[dauer]* einheiten_faktor)/self.fc0d_eff_laengs         
+
+    def spannkraft_berechnung(self, lasten_design, unit = 'MN'):
+        '''
+        Zusammenfassung:
+        T:\Projekte\Projekte 2022\(E) Entwicklung\22-E-001 - Studie Windraeder\Vorspannung -> docy Dokument
+        Bemessungswert der Vorspannkraft ergibt sich auch der Mittleren Vorspannkraft abzüglich der Verluste infolge:
+            - Kriechen 
+            - Schwinden des Wekrstoffs
+            - Langzeitrelaxation des Spannstahls 
+            - Ankerschlupf
+            - Temperatur
+            --> Ausgabe der Verluste als dictionary sortiert nach diesen Arten + die gesamte = 'gesamt'
+
+        Teilsicherheitsbeiwerte: 
+            - Wirkt die Vorspannung günstig: γP = 1.0
+            - Wirkt sie ungünstig: γP,unfav = 1.3  NA: γP,unfav = 1.0 (bei Th. II Ordnung eines extern Vorgespannten Bauteils)
+
+        TODO:
+            - NKL ?
+            - F_quasi-Ständig nur Eigengewicht? oder auch eine Belastung aus z.B. aus einer Mittleren Windgeschwindigkeit 
+        '''
+
+        self.calculate_normalspannung(lasten_design)
+
+        sigma_zug = self.sigma_zug['egal'] # Einwirkungsdauer egal - zu Überdrückende Spannung
+
+        self.U_außen = self.d_außen * np.pi
+
+        self.P_erf = sigma_zug * self.wand_stärke * self.U_außen# * utils.unit_conversion(self.einheiten['Kraft'], unit)
+
+        self.spannkraft_verluste = {}
+
+        verlust_berechnung_fertig = False
+        if verlust_berechnung_fertig:
+
+            # _____KRIECHEN
+            belastungs_niveau = 30 # TODO Funktion die diese bestimmt und 30 , 15 oder 'sonst' zurückgibt
+            k_def = self.nachweis_parameter['k_def']['NKL1'][belastungs_niveau]
+            A_netto = self.A_längslagen
+            # Kraft in Richtung der Spannkraft (bisher ist Mz ständig aus Imperfektion)
+            F_quasi_ständig = abs(lasten_design['ständig']['Nx']) + abs(lasten_design['ständig']['Mz']/self.d_achse)
+            d_epsilon_kr = (self.P_erf + F_quasi_ständig) /(self.holz_parameter['E0mean'] * A_netto) * k_def
+            # TODO Spanngleifparameter aus inputs.spannglied_paramter ABER nirgens ist ein Emodul für die Stahllitzen gegebn
+            A_P = n * spannglied_parameter['St....']['A']
+            self.spannkraft_verluste['kriechen'] = A_P * E_P * d_epsilon_kr
+
+        # _______Schwinden
 
 
 # _________ NORMALSPANNUNGEN ny__________________________________
@@ -430,18 +557,6 @@ class Querschnitt(object):
 
     #def calculate_rollschubnachweis(self):
 
-    def calculate_vorspannkraft_sections(self, lasten_design, unit = 'MN'):
-        '''
-        aufgrund der in den Sektionen/ horizontalen Fugen auftretenden Fugen die Nötige Kraft berechnen um die maximal auftretente Zug Spannung zu kompensieren
-        '''
-
-        self.calculate_normalspannung(lasten_design)
-
-        sigma_zug = self.sigma_zug['egal'] # Einwirkungsdauer egal
-
-        self.U_außen = self.d_außen * np.pi
-
-        self.vorspannkraft_ges_fuge = sigma_zug * self.wand_stärke * self.U_außen * utils.unit_conversion(self.einheiten['Kraft'], unit)
 
 
 
@@ -604,11 +719,10 @@ class KreisRing(Querschnitt):
         self.hfract = np.linspace(0,1,10)
         self.name = 'Ring'
 
-        self.A_außen = self.compute_area(self.d_außen/2)
-        self.A_innen = self.compute_area(self.d_innen/2)
         self.A_m= self.compute_area(self.d_achse/2)
+        self.A = self.compute_area(self.d_außen/2)-self.compute_area(self.d_innen/2)
+        self.compute_netto_flächen()
 
-        self.A = self.A_außen-self.A_innen
         self.nachweis_parameter= nachweis_parameter
         self.masse_pro_meter = self.compute_sectional_mean(self.A) * self.wichte
 
@@ -629,6 +743,20 @@ class KreisRing(Querschnitt):
         area= np.pi * r**2
 
         return area
+
+    def compute_netto_flächen(self):
+
+        self.A_längslagen = 0
+        self.A_querlagen = 0
+
+        for i, lage in enumerate(self.lagen_aufbau):
+            t_von_innen = sum([li['ti'] for li in self.lagen_aufbau[:i]])
+            r_i_innen = self.d_innen/2 + t_von_innen
+            r_i_außen = self.d_innen/2 + t_von_innen + lage['ti']
+            if lage['ortho'] == 'X':
+                self.A_längslagen += self.compute_area(r_i_außen) - self.compute_area(r_i_innen)
+            elif lage['ortho'] == 'Y':
+                self.A_längslagen += self.compute_area(r_i_außen) - self.compute_area(r_i_innen)
 
     def compute_static_moment(self, is_effective = False):
         '''

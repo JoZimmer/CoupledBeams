@@ -1,7 +1,7 @@
 import unittest
 from source.model import BeamModel
 from source.Querschnitte import KreisRing
-import source.utilities.holz as holz
+import inputs.holz as holz
 import numpy as np
 from source.utilities import utilities as utils
 

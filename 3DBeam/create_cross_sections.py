@@ -1,7 +1,11 @@
 import numpy as np
 from os.path import join as os_join
-import source.utilities.holz as holz 
+import inputs.holz as holz 
 from source.Querschnitte import KreisRing, nEck
+
+'''
+TODO hier muss die Eingabe noch auf die neue Version der Höhenparameter angepasst werden
+'''
 
 ecken = [8,10,12]
 höhen = [110,130,140,150,160]
