@@ -1,8 +1,6 @@
-from dataclasses import dataclass
 import pickle
 import numpy as np
 import os
-import matplotlib.pyplot as plt 
 from os.path import join as os_join
 from os.path import sep as os_sep
 import string 
@@ -12,6 +10,8 @@ import copy
 
 # from source.utilities import statistics_utilities as stats_utils
 from source.utilities import global_definitions as GD
+
+#_____________ ALTES VOM URSPRÜNGLICHEN BEAM_____________________
 
 def evaluate_residual(a_cur, a_tar):
     residual = np.linalg.norm(np.subtract(a_cur, a_tar)) / np.amax(np.absolute(a_tar))
@@ -58,7 +58,7 @@ def check_and_flip_sign_array(mode_shape_array):
 
 def analytic_function_static_disp(parameters, x, load_type = 'single'):
     l = parameters['lx_total_beam']
-    EI = parameters['E_Modul'] * parameters['Iy']
+    EI = parameters['E_Modul'] * parameters['Iz']
     magnitude = parameters['static_load_magnitude']
     if load_type == 'single':
         #print ('  w_max soll:', magnitude*l**3/(3*EI))
@@ -71,7 +71,7 @@ def analytic_eigenfrequencies(beam_model):
     # von https://me-lrt.de/eigenfrequenzen-eigenformen-beim-balken 
     parameters = beam_model.parameters
     l = parameters['lx_total_beam']
-    EI = parameters['E_Modul'] * parameters['Iy']
+    EI = parameters['E_Modul'] * parameters['z']
     A = parameters['cross_section_area']
     rho = parameters['material_density']
     lambdas = [1.875, 4.694, 7.855]
@@ -105,48 +105,6 @@ def analytic_eigenmode_shapes(beam_model):
             raise Exception ('analytic mode shape normalization failed')
 
     return w
-
-def get_eigenform_polyfit(modeshape_i, z_coords,  evaluate_at, degree = 5, plot_compare = False):
-    ''' 
-    - modeshape_i: all modal deformations als 2D array, each column belongs to one dof
-    - z_coords: the original floor levels from the 45 floor model
-    - evaluate_at: nodal coordiantes at whcih the fitted curve should be evaluated 
-                   -> this is returned
-    ''' 
-    eigenmodes_fitted = {} 
-    #CAARC_eigenmodes = self.structure_model.CAARC_eigenmodes
-    # returns the fitted polynomial and the discrete array of displacements
-    if not evaluate_at.any():
-        raise Exception('provied evaluation coordiantes of the eigenform')
-    else:
-        x = evaluate_at 
-
-    eigenmodes_fitted['storey_level'] = np.copy(x)
-    eigenmodes_fitted['eigenmodes'] = {}
-
-    dof_direction_map = {'y':4, 'z':3,'a':2}
-
-    for dof_label in ['y', 'z', 'a']:
-        y = modeshape_i[:, dof_direction_map[dof_label]]
-        current_polynomial = np.poly1d(np.polyfit(z_coords,y,degree))
-        values = []
-        for x_i in x:# evaluate the fitted eigenmode at certain intervals
-            values.append(current_polynomial(x_i))
-        if values[0] != 0.0:
-            values[0] = 0.0
-        eigenmodes_fitted['eigenmodes'][dof_label] = np.asarray(values)
-
-    if plot_compare:
-        fig, ax = plt.subplots(ncols=3, num='fitted compared')
-        for d_i, dof_label in enumerate(['y', 'z', 'a']):
-            ax[d_i].plot(modeshape_i[:, dof_direction_map[dof_label]], z_coords, label = 'origin ' + dof_label)
-            ax[d_i].plot(eigenmodes_fitted['eigenmodes'][dof_label], x, label = 'fitted ' + dof_label)
-            ax[d_i].legend()
-            ax[d_i].grid()
-
-        plt.show()
-
-    return eigenmodes_fitted
 
 def save_optimized_beam_parameters(opt_beam_model, fname):
     import json
@@ -415,7 +373,7 @@ def add_model_data_from_dict(section_dict, model_parameters,):
     
     model_parameters['defined_on_intervals'] = []
 
-    I = 'Iy'
+    I = 'Iz'
 
     model_parameters['lx_total_beam'] = section_dict['section_absolute_heights'][-1]
     model_parameters['n_elements'] = section_dict['n_sections']

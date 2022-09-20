@@ -6,8 +6,8 @@ import numpy as np
 from source.utilities import utilities as utils
 
 '''
-Vielleicht irgendwann mal wirkliche Tests
-Bisher mit Excel und Papier getestet
+Testen des Codes. 
+Am besten so wie das mit python gedacht ist. 
 '''
 
 holzgüte = 'C24'

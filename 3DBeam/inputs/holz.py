@@ -1,3 +1,6 @@
+
+
+
 HOLZBAU = {
     'k_mod':{'kurz': 0.9, 'mittel':0.8, 'lang': 0.7, 'ständig':0.6},
     'k_def':{'NKL1':{

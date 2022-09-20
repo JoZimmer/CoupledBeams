@@ -58,7 +58,6 @@ class Querschnitt(object):
         d_achse: Durchmesser des Turms in der Achse des Querschnitts
         holz_parameter: dict siehe global definitions von einer Bestimmten Holzklasse/Art
         hfract, absolute_height
-        TODO Iz Iy verwirrung auflösen -> Bennung 
         '''
         self.hoehen_parameter = hoehen_parameter
         self.nabenhöhe = hoehen_parameter['nabenhöhe']
@@ -202,9 +201,9 @@ class Querschnitt(object):
                 t_laengslagen+= lage['ti']
                 eigenanteil += (lage['ti']**3)*width*(1/12)
                 steineranteil += lage['ti']*width*(lage['a']**2)
-                print(lage['ti'])
-        self.Iy_eff_platte= eigenanteil+steineranteil
-        print(self.Iy_eff_platte)
+                #print(lage['ti'])
+        self.Iz_eff_platte= eigenanteil+steineranteil
+        
 
     def compute_effektive_moment_of_inertia_platte_z(self):
         t_laengslagen= 0
@@ -216,10 +215,8 @@ class Querschnitt(object):
                 t_laengslagen+= lage['ti']
                 eigenanteil += (lage['ti']**3)*width*(1/12)
                 steineranteil += lage['ti']*width*lage['a']**2
-                print(lage['ti'])
-        self.Iy_eff_platte= eigenanteil+steineranteil
-        print('Iz')
-        print(self.Iy_eff_platte)
+                #print(lage['ti'])
+        self.Iz_eff_platte= eigenanteil+steineranteil
 
     def compute_effektive_moment_of_inertia_platte_Sxz(self):
         pass
@@ -289,7 +286,6 @@ class Querschnitt(object):
             sigma_zug: Spannung aus moment abzüglich Normalkraft (Annahme immer Druckkraft)
             sigma_N: Spannung nur mit Normalkraft berechnet
             sigma_M: Spannung nur mit Moment berechnet
-        TODO Bennenung Iy in Iz was korrekter ist in dem cosy hier
         '''
         
         e = self.d_außen/2
@@ -304,12 +300,12 @@ class Querschnitt(object):
             lasten_design[dauer]['Mz'] = abs(lasten_design[dauer]['Mz'])
 
 
-            self.sigma_druck[dauer] = -(lasten_design[dauer]['Mz'])/self.Iy * e + lasten_design[dauer]['Nx'] / self.A
-            self.sigma_zug[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_druck[dauer] = -(lasten_design[dauer]['Mz'])/self.Iz * e + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_zug[dauer] = (lasten_design[dauer]['Mz'])/self.Iz * e + lasten_design[dauer]['Nx'] / self.A
 
-            self.sigma_druck_ohne_vorsp[dauer] = -(lasten_design[dauer]['Mz'])/self.Iy * e + lasten_design[dauer]['Nx'] / self.A
-            self.sigma_druck_innen[dauer] = -(lasten_design[dauer]['Mz'])/self.Iy * e_innen + lasten_design[dauer]['Nx'] / self.A
-            self.sigma_zug_innen[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e_innen + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_druck_ohne_vorsp[dauer] = -(lasten_design[dauer]['Mz'])/self.Iz * e + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_druck_innen[dauer] = -(lasten_design[dauer]['Mz'])/self.Iz * e_innen + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_zug_innen[dauer] = (lasten_design[dauer]['Mz'])/self.Iz * e_innen + lasten_design[dauer]['Nx'] / self.A
 
             if add_vorspannkraft_grob:
                 if add_vorspannkraft_detail:
@@ -322,9 +318,9 @@ class Querschnitt(object):
 
 
             self.sigma_N[dauer] = lasten_design[dauer]['Nx'] / self.A
-            self.sigma_M[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e 
-            self.sigma_M_neg[dauer] = -(lasten_design[dauer]['Mz'])/self.Iy * e 
-            self.sigma_M_innen[dauer] = (lasten_design[dauer]['Mz'])/self.Iy * e_innen 
+            self.sigma_M[dauer] = (lasten_design[dauer]['Mz'])/self.Iz * e 
+            self.sigma_M_neg[dauer] = -(lasten_design[dauer]['Mz'])/self.Iz * e 
+            self.sigma_M_innen[dauer] = (lasten_design[dauer]['Mz'])/self.Iz * e_innen 
 
         if plot:            
             
@@ -457,29 +453,79 @@ class Querschnitt(object):
         # _______Schwinden
 
 
-# _________ NORMALSPANNUNGEN ny__________________________________
+# _________ Schalenbeanspruchung NORMALSPANNUNGEN ny__________________________________
 
-    def calculate_normalspannung_y(self):
-        c_p= 1.8
-        hoehe=[]
+    def calculate_normalspannung_y(self, windbelastung):
+
         t_querlagen= 0.08
         radius= self.d_achse/2
-        #in [kN/m²]
-        self.q_b= 0.5*1.25*25^2*10^(-3)
-        windbelastung= 2.1*self.q_b*(hoehe/10)^0.24*c_p
 
-        #in [kN/m]
-        n_y= radius* windbelastung
+        n_y= radius* windbelastung['Fy']
 
-        #in [kN/m²]
         self.sigma_y= n_y/t_querlagen 
 
 
-    def nachweis_normalspannung_y(self):
+    def nachweis_normalspannung_y(self, windbelastung):
+        self.calculate_normalspannung_y(windbelastung)
+
         einwirkung= self.sigma_y
 
-        self.ausnutzung_sigma_ny += abs(self.sigma_M[dauer]* einheiten_faktor)/self.fc0d_eff_quer
+        einheiten_faktor = self.einheiten_umrechnung['Schubspannung']
+        
+        self.ausnutzung_sigma_ny = self.sigma_y* einheiten_faktor/self.fc0d_eff_quer
 
+# _________ PLATTENBEANSPRUCHUNG BIEGUNG ny__________________________________
+
+
+    def calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max, segmentbreite): 
+        '''Längsspannungen bei Plattenbeanspruchung aus Windsog und -Druck ohne Berücksichtigung von Schalentragwirkung!'''
+        
+        
+        self.compute_effektive_moment_of_inertia_platte_z()
+        M0_k= (wind_max['Fy']*segmentbreite**2)/8
+        self.sigma_ny_biegung= M0_k/self.Iz_eff_platte * self.wand_stärke/2
+
+    def ausnutzung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max, segmentbreite):
+        
+        self.calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(wind_max, segmentbreite)
+
+        einwirkung= self.sigma_ny_biegung
+
+        einheiten_faktor = self.einheiten_umrechnung['Normalspannung']
+        
+        self.ausnutzung_sigma_ny_biegung= self.sigma_y* einheiten_faktor/self.fc0d_eff_quer
+
+        return self.ausnutzung_sigma_ny_biegung
+
+
+    def calculate_normalspannung_Plattenbeanspruchung_Haupttragrichtung():
+        return 0
+        #trägt nicht über die lange Seite (12m) ab.. Außerdem Schalenwirkung
+
+    def calculate_schub_plattenbeanspruchung(self, wind_max):
+        width_segment= 3
+        #in kN/m
+        self.Q_platte= 1/2*wind_max*width_segment
+        self.tau_platte= self.Q_platte/self.wand_stärke
+        return 0
+
+    def calculate_schub_knick(self):
+        d_unten=12
+        d_knick=5.5
+        d_oben=3.4
+        h_turm=110
+        h_knick=50
+        winkel= np.arctan((d_unten-d_knick)/h_knick)-np.arctan(d_knick-d_oben/h_turm-h_knick)
+
+
+    def calculate_schub_plattenbeanspruchung_rollschub(self):
+        '''Rollschubfestigkeit der schwerpunktnächsten Querlage maßgebend'''
+        A_t_net=0 
+        I0_net=0
+        S0R_net=0
+
+    def compute_drillsteifigkeit(self):
+        self.K_xy= np.sqrt(self.Iz_eff_platte*self.holz_parameter['E0_mean']*self.Iz_eff_platte*self.holz_parameter['E90_mean'])
 
     
 # _________ SCHUBSPANNUNGEN SCHEIBENBEANSPRUCHUNG nxy__________________________________
@@ -489,7 +535,7 @@ class Querschnitt(object):
         self.compute_static_moment()
 
         
-        self.tau_Qy = (lasten_design['egal']['Qy'] * self.Sy_max) / (self.Iy * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
+        self.tau_Qy = (lasten_design['egal']['Qy'] * self.Sy_max) / (self.Iz * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
         
     def calculate_schubspannung_torsion(self, lasten_design):
 
@@ -575,60 +621,10 @@ class Querschnitt(object):
 
         nu = einwirkung_d/fd
         self.ausnutzung_kombiniert = nu
-        print('ausnutzung_kombiniert')
-        print(self.ausnutzunG)
+        # print('ausnutzung_kombiniert')
+        # print(self.ausnutzunG)
 
 
-# _________ PLATTENBEANSPRUCHUNG nx und ny__________________________________
-
-
-    def calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max): 
-        '''Längsspannungen bei Plattenbeanspruchung aus Windsog und -Druck'''
-        
-        width_segment=3
-        self.compute_effektive_moment_of_inertia_platte_z()
-        M0_k= (wind_max*width_segment**2)/8
-        self.sigma_md_platte= M0_k/self.Iy_eff_platte * self.wand_stärke/2
-
-        return self.sigma_md_platte
-
-    def ausnutzung_Plattenbeanspruchung_Nebentragrichtung(self, einwirkungsdauer, wind_max, width):
-        
-        self.calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(wind_max, width)
-        self.compute_effektive_festigkeiten_design(einwirkungsdauer)
-        fd= self.fmd_eff_quer * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
-        ausnutzung= self.sigma_md_platte/fd
-        print('ausnutzung Platte quer')
-        print(ausnutzung)
-        return  ausnutzung
-
-    def calculate_normalspannung_Plattenbeanspruchung_Haupttragrichtung():
-        return 0
-
-    def calculate_schub_plattenbeanspruchung(self, wind_max):
-        width_segment= 3
-        #in kN/m
-        self.Q_platte= 1/2*wind_max*width_segment
-        self.tau_platte= self.Q_platte/self.wand_stärke
-        return 0
-
-    def calculate_schub_knick(self):
-        d_unten=12
-        d_knick=5.5
-        d_oben=3.4
-        h_turm=110
-        h_knick=50
-        winkel= np.arctan((d_unten-d_knick)/h_knick)-np.arctan(d_knick-d_oben/h_turm-h_knick)
-
-
-    def calculate_schub_plattenbeanspruchung_rollschub(self):
-        '''Rollschubfestigkeit der schwerpunktnächsten Querlage maßgebend'''
-        A_t_net=0 
-        I0_net=0
-        S0R_net=0
-
-    def compute_drillsteifigkeit(self):
-        self.K_xy= np.sqrt(self.Iy_eff_platte*self.holz_parameter['E0_mean']*self.Iz_eff_platte*self.holz_parameter['E90_mean'])
 
 
 # _________ OBJEKT FUNKTIONEN __________________________________
@@ -645,11 +641,11 @@ class Querschnitt(object):
         werte entlang der Höhe plotten. 
         gewünschte parameter als strings in einer liste geben
         E_modul = optional wenn EI berechnet werden soll
-        'Iy','EIy', 'd_achse', 'a_außen', 'a_innen', 'd_außen','M'
+        'Iz','EIz', 'd_achse', 'a_außen', 'a_innen', 'd_außen','M'
         '''
-        prop_values = {'Iy':self.Iy,'EIy':self.Iy * E_modul, 'd_achse':self.d_achse, 'a_außen':self.a_außen, 'a_innen':self.a_innen, 'd_außen':self.d_außen,
+        prop_values = {'Iz':self.Iz,'EIz':self.Iz * E_modul, 'd_achse':self.d_achse, 'a_außen':self.a_außen, 'a_innen':self.a_innen, 'd_außen':self.d_außen,
                         'M':self.masse_pro_meter}
-        prop_units_default = {'Iy':'m^4', 'EIy':'Nm²', 'd_achse':'m', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
+        prop_units_default = {'Iz':'m^4', 'EIz':'Nm²', 'd_achse':'m', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
 
         fg, ax = plt.subplots(ncols = len(properties))
         if len(properties) == 1:
@@ -669,10 +665,10 @@ class Querschnitt(object):
     def save_section_parameters(self):
 
         self.section_parameters = {
-            'n_sections':len(self.Iy) - 1,
-            'self.n_ebenen':len(self.Iy),
-            'Iy': self.compute_sectional_mean(self.Iy),
-            #'Iy_eff': self.compute_sectional_mean(self.Iy_eff),
+            'n_sections':len(self.Iz) - 1,
+            'self.n_ebenen':len(self.Iz),
+            'Iz': self.compute_sectional_mean(self.Iz),
+            #'Iz_eff': self.compute_sectional_mean(self.Iz_eff),
             'd_achse':self.compute_sectional_mean(self.d_achse),
             'A':self.compute_sectional_mean(self.A),
             'masse_pro_m':self.masse_pro_meter,
@@ -690,7 +686,7 @@ class Querschnitt(object):
         self.querschnitts_werte = {
             'Höhe [m]':self.section_absolute_heights,
             'd_achse [m]':self.d_achse,
-            'Iy [m^4]': self.Iy,
+            'Iz [m^4]': self.Iz,
             'A [m²]':self.A,
             't [m]':np.asarray([self.wand_stärke]*len(self.d_achse))
             
@@ -710,7 +706,7 @@ class Querschnitt(object):
 
 class KreisRing(Querschnitt):
 
-    def __init__(self, cd = 1.1, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}) -> None:
+    def __init__(self, cd = 1.1, cp_max =1.8 , lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}) -> None:
         
         super().__init__(lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten)
 
@@ -727,6 +723,7 @@ class KreisRing(Querschnitt):
         self.masse_pro_meter = self.compute_sectional_mean(self.A) * self.wichte
 
         self.cd = cd
+        self.cp_max = cp_max
         
         self.compute_flächenträgheitsmoment()
         self.save_section_parameters()
@@ -737,7 +734,7 @@ class KreisRing(Querschnitt):
 
     def compute_flächenträgheitsmoment(self):
 
-        self.Iy = np.pi / 64 * (self.d_außen**4 - self.d_innen**4)
+        self.Iz = np.pi / 64 * (self.d_außen**4 - self.d_innen**4)
 
     def compute_area(self, r):
         area= np.pi * r**2
@@ -769,7 +766,7 @@ class KreisRing(Querschnitt):
         
 class nEck(Querschnitt):
 
-    def __init__(self, n_ecken, cd = 1.5, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):
+    def __init__(self, n_ecken, cd = 1.5, cp_max= 2.1, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):
         '''
         werte können für einzelne sections oder als arrays gegeben werden
         Geometrie: https://de.wikipedia.org/wiki/Regelm%C3%A4%C3%9Figes_Polygon  
@@ -786,10 +783,10 @@ class nEck(Querschnitt):
 
         self.compute_winkel_term()
 
-        Iy_außen = self.compute_flächenträgheitsmoment_neck(self.a_außen)
-        Iy_innen = self.compute_flächenträgheitsmoment_neck(self.a_innen)
+        Iz_außen = self.compute_flächenträgheitsmoment_neck(self.a_außen)
+        Iz_innen = self.compute_flächenträgheitsmoment_neck(self.a_innen)
         
-        self.Iy = Iy_außen - Iy_innen
+        self.Iz = Iz_außen - Iz_innen
 
         # if self.lagen_aufbau:
         #     self.compute_effective_moment_of_inertia()
@@ -802,6 +799,7 @@ class nEck(Querschnitt):
         self.masse_pro_meter = self.compute_sectional_mean(self.A) * self.wichte
 
         self.cd = cd
+        self.cp_max=cp_max
         self.save_section_parameters()
         self.save_QS_parameters_charakteristisch()
 
@@ -821,8 +819,8 @@ class nEck(Querschnitt):
 
     def compute_flächenträgheitsmoment_neck(self, a):
 
-        self.Iy = self.n_ecken/96 * a**4 * self.winkel_term
-        return self.Iy
+        self.Iz = self.n_ecken/96 * a**4 * self.winkel_term
+        return self.Iz
 
     def compute_sectional_properties(self):
 
@@ -840,12 +838,12 @@ class nEck(Querschnitt):
         for i, lage in enumerate(self.lagen_aufbau):
             nEck_section = nEck(self.n_ecken, lage['di'], lage['ti'], holz_parameter= self.holz_parameter, hoehen_parameter=self.hoehen_parameter,
                                 einheiten =self.einheiten)
-            lage['Iy'] = nEck_section.Iy
+            lage['Iz'] = nEck_section.Iz
 
-        self.Iy_eff = 0
+        self.Iz_eff = 0
         for lage in self.lagen_aufbau:
             if lage['ortho'] == 'X':
-                self.Iy_eff += lage['Iy']
+                self.Iz_eff += lage['Iz']
 
     def compute_static_moment(self):
         e=self.n_ecken/4   # da maximales statisches moment bei einem viertel des querschnitts
@@ -877,17 +875,17 @@ def plot_properties_along_height_list(geometric_objects:list, properties:list, u
 
     legend = ['gesamt QS', 'Längslagen']
 
-    factors = [geometric_objects[-1].Iy_eff/geometric_objects[0].Iy_eff, geometric_objects[-1].Iy_eff/geometric_objects[1].Iy_eff, geometric_objects[1].Iy_eff/geometric_objects[0].Iy_eff]
+    factors = [geometric_objects[-1].Iz_eff/geometric_objects[0].Iz_eff, geometric_objects[-1].Iz_eff/geometric_objects[1].Iz_eff, geometric_objects[1].Iz_eff/geometric_objects[0].Iz_eff]
     factors_label = ['EI12/EI8','EI12/EI10','EI10/EI8']
 
     for f_i , factor in enumerate(factors):
         print (factors_label[f_i] + ':', round(factor[0],2))
 
     for e_i, cross_section in enumerate(geometric_objects):
-        prop_values = {'Iy':cross_section.Iy,'EIy':cross_section.Iy * E_modul, 'Iy_eff':cross_section.Iy_eff,'EIy_eff':cross_section.Iy_eff * E_modul,
+        prop_values = {'Iz':cross_section.Iz,'EIz':cross_section.Iz * E_modul, 'Iz_eff':cross_section.Iz_eff,'EIz_eff':cross_section.Iz_eff * E_modul,
                        'a_außen':cross_section.a_außen, 'a_innen':cross_section.a_innen, 'd_außen':cross_section.d_außen,
                         'M':cross_section.masse_pro_meter}
-        prop_units_default = {'Iy':'m^4', 'EIy':'Nm²', 'Iy_eff':'m^4', 'EIy_eff':'Nm²', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
+        prop_units_default = {'Iz':'m^4', 'EIz':'Nm²', 'Iz_eff':'m^4', 'EIz_eff':'Nm²', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
 
         for p_i, prop in enumerate(properties):
             if isinstance(cross_section, nEck):
@@ -905,7 +903,7 @@ def plot_properties_along_height_list(geometric_objects:list, properties:list, u
         ax[0].set_ylabel('Hfract [-]')
         ax[0].grid()
     
-    #f = round(geometric_objects[1].Iy[0]/geometric_objects[0].Iy[0],2)
+    #f = round(geometric_objects[1].Iz[0]/geometric_objects[0].Iz[0],2)
     #ax[0].plot(0,0, label = 'factor '+ str(f))
 
     plt.grid()

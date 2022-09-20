@@ -11,6 +11,13 @@ def wind_kraft(vb, category, height, cd, Aref):
 
     return Fw_i, z
 
+def flaechen_windkraft(vb, category, height, cp_max):
+    v_z, Iv_z, qp_z, z = DIN_potenz_profil(vb, category, height)
+    
+    F_flaeche= qp_z*cp_max
+    return F_flaeche, z
+
+
 def DIN_potenz_profil (vb, category, height,   at_height = 100):
     '''
     height: entweder absoluten wert geben oder diskrete Höhen Punkte als vektor oder liste
