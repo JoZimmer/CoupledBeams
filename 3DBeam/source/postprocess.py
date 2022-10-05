@@ -1006,7 +1006,7 @@ def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plo
 
         ax[d_i].plot(beam_model.nodal_coordinates['y0'],
             beam_model.nodal_coordinates['x0'],
-            label = 'structure',
+            #label = 'structure',
             marker = 'o',
             color = 'grey',
             linestyle = '--')

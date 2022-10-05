@@ -15,6 +15,8 @@ class BernoulliElement(object):
         self.nu = parameters['nu']
         self.L = elem_length
         self.V = self.A * self.L
+        self.x_mid = parameters['x_mid'][elem_id]
+        self.D = parameters['D']
 
         self.Iz = parameters['Iz']
 

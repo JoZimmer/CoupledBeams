@@ -25,17 +25,17 @@ class BeamModel(object):
         self.n_nodes = self.n_elems + 1
         self.nodes_per_elem = self.parameters['nodes_per_elem']
 
-        self.parameters['intervals'] = []
-        for idx, val in enumerate(parameters["defined_on_intervals"]):
-            self.parameters["intervals"].append({
-                'bounds': val['interval_bounds'],
-                # further quantities defined by polynomial coefficient as a function of running coord x
-                'c_a': val["area"],
-                'c_iz': val["Iz"],
-                'c_d':val["D"]
-            })
+        # self.parameters['intervals'] = []
+        # for idx, val in enumerate(parameters["defined_on_intervals"]):
+        #     self.parameters["intervals"].append({
+        #         'bounds': val['interval_bounds'],
+        #         # further quantities defined by polynomial coefficient as a function of running coord x
+        #         'c_a': val["area"],
+        #         'c_iz': val["Iz"],
+        #         'c_d':val["D"]
+        #     })
 
-        self.initialize_elements() 
+        self.initialize_elements(neu=True) 
 
         self.apply_k_geo = apply_k_geo
         self.build_system_matricies()
@@ -80,9 +80,10 @@ class BeamModel(object):
 
 # # ELEMENT INITIALIZATION AND GLOBAL MATRIX ASSAMBLAGE
 
-    def initialize_elements(self):
+    def initialize_elements(self, neu=True):
         '''
         eine Listen von Bernoulli elementen erstellen -> Steifigkeitsmatrizen werden in seperater Funktion erstellt
+        neu: bezieht sich auf die interpolation von werten und wird immer verwendet
         '''
         self.nodal_coordinates = {}
         self.elements = []
@@ -111,7 +112,7 @@ class BeamModel(object):
             self.parameters['x_mid'] = [(a+b)/2 for a, b in zip(self.parameters['x'][:-1], self.parameters['x'][1:])]            
 
             for i in range(self.n_elems):
-                element_params = self.initialize_element_geometric_parameters(i)
+                element_params = self.initialize_element_geometric_parameters(i,neu)
                 self.parameters.update(element_params)
                 coord = np.array([[self.parameters['x'][i], 0.0, 0.0],
                                 [self.parameters['x'][i + 1], 0.0, 0.0]])
@@ -175,46 +176,56 @@ class BeamModel(object):
         self.b = self.get_damping()
         self.comp_b = self.apply_bc_by_reduction(self.b)
         
-    def initialize_element_geometric_parameters(self, i):
+    def initialize_element_geometric_parameters(self, i, neu=True):
         element_params = {}
         # element properties
         x = self.parameters['x_mid'][i]
-        # area
-        element_params['A'] = self.evaluate_characteristic_on_interval(x, 'c_a')
 
-        # second moment of inertia
-        element_params['Iz'] = self.evaluate_characteristic_on_interval(x, 'c_iz')
-
-        # Durchmesser
-        element_params['D'] = self.evaluate_characteristic_on_interval(x, 'c_d')
+        element_params['A'] = self.evaluate_characteristic_on_interval(x, 'area', neu)
+        element_params['Iz'] = self.evaluate_characteristic_on_interval(x, 'Iz', neu)
+        element_params['D'] = self.evaluate_characteristic_on_interval(x, 'D', neu)
        
         return element_params
 
-    def evaluate_characteristic_on_interval(self, running_coord, characteristic_identifier):
+    def evaluate_characteristic_on_interval(self, x_mid, characteristic_identifier, neu = True):
         '''
         NOTE: continous polynomial defined within interval
         starting from the local coordinate 0.0
         so a shift is needed
-        see shifted coordinate defined as: running_coord-val['bounds'][0]
+        see shifted coordinate defined as: x_mid-val['bounds'][0]
 
         TODO: might not be robust enough with end-check -> add some tolerance
+
+        JZ:
+        rename running_coord -> x_mid = absolute x_coorinate des elements in in der mitte der elementgrenzen
+        neu: die Polynomsache ist falsch 
         '''
         from numpy.polynomial import Polynomial
-        for val in self.parameters['intervals']:
-            if "End" not in val['bounds']:
-                if val['bounds'][0] <= running_coord < val['bounds'][1]:
-                    polynom = Polynomial(val[characteristic_identifier])
-                    polynom_x = polynom (running_coord - val['bounds'][0])
-                    return polynom_x
+        for i, interval in enumerate(self.parameters['intervals']):
+            x1, x2 = interval['bounds'][0], interval['bounds'][1]
+            if "End" not in interval['bounds']:
+                if interval['bounds'][0] <= x_mid < interval['bounds'][1]:
+                    if neu:
+                        y1 = interval[characteristic_identifier][0]
+                        y2 = interval[characteristic_identifier][1]
+                        val_x = np.interp(x_mid, (x1,x2), (y1,y2))
+                        return val_x
+                    else:
+                        polynom = Polynomial(interval[characteristic_identifier])
+                        polynom_x = polynom (x_mid - interval['bounds'][0])
+                        return polynom_x
 
-                    # Alternative, da die werte schon als sectional means kommen
-                    # return val[characteristic_identifier][0]
-
-            elif "End" in val['bounds']:
-                if val['bounds'][0] <= running_coord <= self.parameters['lx']:
-                    polynom = Polynomial(val[characteristic_identifier])
-                    polynom_x = polynom(running_coord - val['bounds'][0])
-                    return polynom_x
+            elif "End" in interval['bounds']:
+                if interval['bounds'][0] <= x_mid <= self.parameters['lx']:
+                    if neu:
+                        y1 = interval[characteristic_identifier][0]
+                        y2 = interval[characteristic_identifier][1]
+                        val_x = np.interp(x_mid, (x1,x2), (y1,y2))
+                        return val_x
+                    else:
+                        polynom = Polynomial(interval[characteristic_identifier])
+                        polynom_x = polynom(x_mid - interval['bounds'][0])
+                        return polynom_x
 
     def update_equivalent_nodal_mass(self):
         '''

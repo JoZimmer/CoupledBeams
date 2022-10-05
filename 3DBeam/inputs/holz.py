@@ -3,6 +3,7 @@
 
 HOLZBAU = {
     'k_mod':{'kurz': 0.9, 'mittel':0.8, 'lang': 0.7, 'ständig':0.6},
+    # kdef von Martin Tabelle 3.7
     'k_def':{'NKL1':{
                       30: 0.2, # Belastungsgrad > 30%
                       15:0.1,   # Belastungsgrad < 15%
@@ -38,7 +39,9 @@ charakteristische_werte = {
         'fvk':4.0,
         'rhok':460,
         'E0mean':12000E+06,
-        'E90mean':370E+06
+        'E90mean':370E+06,
+        'alpha':0.02, # schwindmaß je % Holzfuechteänderung
+        'alphaT':4E-06, # K^-1 Temperaturausdehnungskoeffizeint
     },
     'C30':{
         'fmk':30,
@@ -49,7 +52,9 @@ charakteristische_werte = {
         'fvk':4.0,
         'rhok':460,
         'E0mean':12000E+06,
-        'E90mean':370E+06
+        'E90mean':370E+06,
+        'alpha':0.02, # schwindmaß je % Holzfuechteänderung
+        'alphaT':4E-06, # K^-1 Temperaturausdehnungskoeffizeint
     },
     'BSP_RFEM':{
         'fmk':24,
@@ -60,6 +65,49 @@ charakteristische_werte = {
         'fvk':4.0,
         'rhok':460,
         'E0mean':12000E+06,
-        'E90mean':370E+06
+        'E90mean':370E+06,
+        'alpha':0.02, # schwindmaß je % Holzfuechteänderung
+        'alphaT':4E-06, # K^-1 Temperaturausdehnungskoeffizeint
     }
+}
+
+# Key gibt die gesamt dicke an
+# 'a': ist hier nicht aktuell 
+t_querlagen = 0.04
+lagenaufbauten = {
+    36:[{'ortho':'X','ti':0.10, 'a': 0.12},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.08, 'a': 0},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.10, 'a': 0.12}],
+
+    40:[{'ortho':'X','ti':0.12, 'a': 0.12},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.08, 'a': 0},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.12, 'a': 0.12}],
+
+    44:[{'ortho':'X','ti':0.14, 'a': 0.14},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.08, 'a': 0},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.14, 'a': 0.14}],
+
+    48:[{'ortho':'X','ti':0.16, 'a': 0.14},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.08, 'a': 0},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.16, 'a': 0.14}],
+
+    56:[{'ortho':'X','ti':0.20, 'a': 0.14},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.08, 'a': 0},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.20, 'a': 0.14}],
+
+    64:[{'ortho':'X','ti':0.20, 'a': 0.14},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.16, 'a': 0},
+        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
+        {'ortho':'X','ti':0.20, 'a': 0.14}],
 }

@@ -298,6 +298,20 @@ def parse_schnittgrößen_labels(lasten_dict):
 
     return lasten_dict_parsed
 
+def interpolate(z_soll , z_ist, werte):
+    
+    interpolierte_werte = []
+    for z in z_soll:
+        for i, z_i in enumerate(z_ist[:-1]):
+            z1, z2 = z_ist[i], z_ist[i+1]
+            if z1 <= z < z2:
+                y1 = werte[i]
+                y2 = werte[i+1]
+                val_z = np.interp(z, (z1,z2), (y1,y2))
+                interpolierte_werte.append(val_z)
+    interpolierte_werte.append(werte[-1])
+
+    return np.asarray(interpolierte_werte)
 
 #____________________DYNAMIC ANALYSIS________________________________
 def get_fft(given_series, sampling_freq):
@@ -364,31 +378,31 @@ def load_object_from_pkl(pkl_file):
 def add_model_data_from_dict(section_dict, model_parameters,):
     '''
     Die Sektionsweiße definierten Querschnittswerte werden so an das Model gegebn.
-
+    NOTE/TODO: das ist hier alles ein bisschen kompliziert und eventuell verwirrend.
+    Es gibt keine Intervale. Jeder x-Koordinate sind verschiedene QS werte zu geordnet da sich diese
+    über die Höhe kontinuierlich verändern.
     - Knoten Anzahl wird an die Anzahl an Ebenen angepasst
     - Koordinaten definition wird hier an den Beam angepasst
     - Jedem Interval wird der Mittelwert der jeweiligen Querschnittswerte zugeordnet 
         (dieser kommt schon aus dem QS dictionary )
     '''
     
-    model_parameters['defined_on_intervals'] = []
-
-    I = 'Iz'
+    model_parameters['intervals'] = []
 
     model_parameters['lx_total_beam'] = section_dict['section_absolute_heights'][-1]
-    model_parameters['n_elements'] = section_dict['n_sections']
-
+    #model_parameters['n_elements'] = section_dict['n_sections']
+    # TODO von section auf ebenen umstellen 
     for section in range(section_dict['n_sections']):
-        model_parameters['defined_on_intervals'].append(
+        model_parameters['intervals'].append(
             {
-            'interval_bounds':[section_dict['section_absolute_heights'][section], section_dict['section_absolute_heights'][section+1]],
-            'area': [section_dict['A'][section]],
-            'Iz':[section_dict[I][section]], # anpassen der Koordianten Richtung
-            'D':[section_dict['d_achse'][section]]
+            'bounds':[section_dict['section_absolute_heights'][section], section_dict['section_absolute_heights'][section+1]],
+            'area': [section_dict['A'][section], section_dict['A'][section+1]],
+            'Iz':[section_dict['Iz'][section], section_dict['Iz'][section+1]], # anpassen der Koordianten Richtung
+            'D':[section_dict['d_achse'][section], section_dict['d_achse'][section+1]]
             }
             )
-        if section == section_dict['n_sections']:
-            model_parameters['defined_on_intervals']['interval_bounds'][-1] = 'End'
+        if section == section_dict['n_ebenen']:
+            model_parameters['intervals']['bounds'][-1] = 'End'
 
     return model_parameters
 
@@ -673,15 +687,16 @@ def get_spalten_ausnutzung(df, df_header, start_row, start_col):
 
     n_rows = df.shape[0]
     end_row = start_row + n_rows + len(df_header) +1
-    cols = []
+    cols, nth_col = [], []
+    # n-te Spalte je Querschnitt 
     for i, val in enumerate(df_header[-1]):
         if 'Ausnutzung' in val:
-            nth_col = i
-
-    nth_col += 1 # da index mit dabei und 
+            nth_col.append(i+1) # index vom df ist erst spalte
     
-    for i in range(df.columns.levshape[0]*df.columns.levshape[1]):
-        cols.append(nth_col + i*df.columns.levshape[2])
+    # alle Spalten die gesamt
+    for j in nth_col:
+        for i in range(df.columns.levshape[0]*df.columns.levshape[1]):
+            cols.append(j + i*df.columns.levshape[2])
 
     xl_col = [EXCEL_COLUMNS[i] for i in cols]
 

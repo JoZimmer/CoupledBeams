@@ -32,7 +32,6 @@ def DIN_potenz_profil (vb, category, height,   at_height = 100):
 
     qb = 0.5*1.25*vb**2
     
-    #TODO: split z array an stelle von z min und erstelle array 0 bis zmin mit vz0 wert--> concatenate them
     if category == 'I':
         zmin, vmin, Imin, qbmin = 2, 0.97, 0.17, 1.9
         a, b = 1.18, 0.12
@@ -63,19 +62,15 @@ def DIN_potenz_profil (vb, category, height,   at_height = 100):
     v_z = np.concatenate((v_z0, a*vb*(z1/10)**b), axis = 0)
     Iv_z = np.concatenate((Iv_z0, aI*(z1/10)**bI), axis = 0)
     qp_z = np.concatenate((qb_z0, qb*aq*(z1/10)**bq), axis = 0)
-    # else:
-    #     v_z = a*vb*(z/10)**b
-    #     Iv_z = aI*(z/10)**bI
-    #     qp_z = qb*aq*(z/10)**bq
 
     return v_z, Iv_z, qp_z, z
 
 def plot_DIN_all (vb, v_ref=1, z_ref=1, categories= ['I','II','III','IV']):
 
     # profile functions
-    fig = plt.figure('DIN profiles')
+    fig = plt.figure('DIN profiles', figsize=(3,3.8))
     ax = fig.add_subplot(111)
-    colors = ['b', 'g', 'r', 'orange']
+    colors = ['tab:blue','tab:orange','tab:green', 'tab:red']
     z = np.arange(0,160,0.5)
     for i, category in enumerate(categories):
         #TODO: split z array an stelle von z min und erstelle array 0 bis zmin mit vz0 wert--> concatenate them
