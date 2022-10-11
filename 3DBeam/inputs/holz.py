@@ -37,6 +37,8 @@ charakteristische_werte = {
         'fc0k':21,
         'fc90k':2.5,
         'fvk':4.0,
+        'fvxyk':5.5, # Standartwert 
+        'fvtork':2.5, # Standartwerd
         'rhok':460,
         'E0mean':12000E+06,
         'E90mean':370E+06,
@@ -50,6 +52,8 @@ charakteristische_werte = {
         'fc0k':23,
         'fc90k':2.7,
         'fvk':4.0,
+        'fvxyk':5.5,  # Standartwert 
+        'ftornodek':2.5, 
         'rhok':460,
         'E0mean':12000E+06,
         'E90mean':370E+06,
@@ -63,6 +67,7 @@ charakteristische_werte = {
         'fc0k':21,
         'fc90k':2.5,
         'fvk':4.0,
+        'fvxyk':'nicht definiert', # Standartwert 
         'rhok':460,
         'E0mean':12000E+06,
         'E90mean':370E+06,

@@ -997,10 +997,12 @@ def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plo
 
     title = 'static results ' + result_type + '\n'+ title_suffix
 
-    fig, ax = plt.subplots(ncols=len(dofs_to_plot), num=title, figsize=[6.4*figsize_scale, 4.8*figsize_scale], sharey=True)
+    n_res = {3:4.4, 4:3.2}
+
+    fig, ax = plt.subplots(ncols=len(dofs_to_plot), num=title, figsize=[6.4*figsize_scale, n_res[len(dofs_to_plot)]*figsize_scale], sharey=True)
     fig.suptitle(title)
 
-    dof_colors = {'y':'tab:blue','g':'tab:orange','x':'tab:green'}
+    dof_colors = {'y':'tab:blue','g':'tab:orange','x':'tab:green','a':'tab:red'}
     dof_colors_rfem = {'z':'tab:blue','y':'tab:orange','z':'tab:green'}
     for d_i, dof in enumerate(dofs_to_plot):
 

@@ -11,7 +11,7 @@ import copy
 # from source.utilities import statistics_utilities as stats_utils
 from source.utilities import global_definitions as GD
 
-#_____________ ALTES VOM URSPRÜNGLICHEN BEAM_____________________
+#_____________ ALTES VOM URSPRÜNGLICHEN BEAM _____________________
 
 def evaluate_residual(a_cur, a_tar):
     residual = np.linalg.norm(np.subtract(a_cur, a_tar)) / np.amax(np.absolute(a_tar))
@@ -127,6 +127,37 @@ def remove_small_values_from_array(arr, tolerance=1e-05):
     return arr
 
 #________________ LASTEN ____________________________________
+
+def parse_load_signal(signal_raw, time_array=None, load_directions_to_include = 'all', discard_time = None):
+    '''
+    - sorts the load signals in a dictionary with load direction as keys:
+        x,y,z: nodal force
+        a,b,g: nodal moments
+    - deletes first entries until discard_time
+    - only gives back the components specified, default is all 
+    TODO: instead of setting unused direction to 0 do some small number or exclude them differntly 
+    '''
+    if discard_time:
+        signal_raw = signal_raw[:,discard_time:]
+    if load_directions_to_include == 'all':
+        load_directions_to_include = ['Fx', 'Fy', 'Mx', 'Mz']
+    n_nodes = int(signal_raw.shape[0]/GD.DOFS_PER_NODE['2D'])
+    
+    signal = {}
+    for i, label in enumerate(GD.DOF_LABELS['2D']):
+        if GD.DOF_LOAD_MAP[label] in load_directions_to_include:
+            signal[label] = signal_raw[i::GD.DOFS_PER_NODE['2D']]
+        else:
+            signal[label] = np.zeros((n_nodes,signal_raw.shape[1]))
+
+    # if time_array.any():
+    #     dt = time_array[1] - time_array[0] # simulation time step
+    # else:
+    #     dt = 0.1 # some default
+
+    # signal['sample_freq'] = 1/dt
+
+    return signal
 
 def parse_load_signal_backwards(signal, domain_size):
     '''
@@ -405,6 +436,15 @@ def add_model_data_from_dict(section_dict, model_parameters,):
             model_parameters['intervals']['bounds'][-1] = 'End'
 
     return model_parameters
+
+def initialize_empty_dict(dict_name, key_to_add):
+
+    if key_to_add not in dict_name:
+        dict_name[key_to_add] = {}
+        return dict_name
+
+    else:
+        dict_name
 
 #_____________________OPENFAST / RFEM_______________________________________
 
@@ -690,7 +730,7 @@ def get_spalten_ausnutzung(df, df_header, start_row, start_col):
     cols, nth_col = [], []
     # n-te Spalte je Querschnitt 
     for i, val in enumerate(df_header[-1]):
-        if 'Ausnutzung' in val:
+        if 'Ausnutzung' in val or 'Ausn.' in val:
             nth_col.append(i+1) # index vom df ist erst spalte
     
     # alle Spalten die gesamt
@@ -782,5 +822,4 @@ def lgN_R(kfat, R, lgN_case = 1):
 
     else:
         return lgN_R(kfat, R, case)
-
 

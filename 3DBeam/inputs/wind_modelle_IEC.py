@@ -33,14 +33,6 @@ def A_1(z_hub):
     else:
         return 42
 
-def v_z_nwp(v_hub, wea, z):
-    ''' 
-    windprfil für WEA Standartklassen
-    NWP: Normales Windprofilmodell
-    Gl. (9)
-    '''
-    return v_hub*(z/wea)**0.2
-
 
 class normale_windbedinungen():
 

@@ -1,3 +1,4 @@
+from copy import copy
 import numpy as np 
 from scipy import linalg
 from source.bernoulli_element import BernoulliElement
@@ -24,16 +25,6 @@ class BeamModel(object):
         self.n_elems = parameters['n_elements']
         self.n_nodes = self.n_elems + 1
         self.nodes_per_elem = self.parameters['nodes_per_elem']
-
-        # self.parameters['intervals'] = []
-        # for idx, val in enumerate(parameters["defined_on_intervals"]):
-        #     self.parameters["intervals"].append({
-        #         'bounds': val['interval_bounds'],
-        #         # further quantities defined by polynomial coefficient as a function of running coord x
-        #         'c_a': val["area"],
-        #         'c_iz': val["Iz"],
-        #         'c_d':val["D"]
-        #     })
 
         self.initialize_elements(neu=True) 
 
@@ -268,7 +259,6 @@ class BeamModel(object):
         # In Druckkraft umwandeln
         self.eigengewicht *= -1
 
-
 # # BOUNDARY CONDITIONS
 
     def apply_bc_by_reduction(self, matrix, axis = 'both'):
@@ -393,11 +383,15 @@ class BeamModel(object):
         
     def static_analysis_solve(self, load_vector_file = None, apply_mean_dynamic = False, directions = 'y', 
                                     return_result = False, add_eigengewicht=True, add_imperfektion = True,
-                                    gamma_g = 1.35):
+                                    gamma_g = 1.35, constant_torsion = None):
         ''' 
         pass_load_vector_file (directions ist dann unrelevant -> nur für mean_dynamic)
         if apply_mean_dynamic: the dynamic load file is taken and at each point the mean magnitude
         direction: if 'all' all load directions are applied
+        load_dict: da erst hier die eigengewichte und Lasten aus imperfektion berechnet werden werden sämtliche wirkenden
+                    äußeren Belastungen noch mal zusammengefasst und sortiert um diese zusammenfassend ausgeben zu können.
+        TODO: gamma_g nach IEC
+        NOTE: Torsions last wird händisch hinzugefügt mit der annahme das es sich um eine kurzzeitige belastung handelt die konstant über die höhe ist
         ''' 
         if load_vector_file != None:
             load_vector = np.load(load_vector_file)
@@ -415,9 +409,15 @@ class BeamModel(object):
         else:
             raise Exception('No load vector file provided')
 
+        # Zwischenspeicherung in lesbarem Format für die Ausgabe bevor gravity und imperfection dazu kommt 
+        self.load_dict = utils.parse_load_signal(load_vector)
+        for dir, arr in self.load_dict.items():  
+            self.load_dict[dir] = copy(arr.T[0])
+
         if add_eigengewicht:
             load_vector_nur_eigengewicht[0::GD.DOFS_PER_NODE[self.dim]] += self.eigengewicht.reshape(self.n_nodes,1) + load_vector[0::GD.DOFS_PER_NODE[self.dim]]
             load_vector[0::GD.DOFS_PER_NODE[self.dim]] += (self.eigengewicht.reshape(self.n_nodes,1) * gamma_g)
+            self.load_dict['Gravity'] = copy(self.eigengewicht.reshape(self.n_nodes,1).T[0])
 
         if add_imperfektion:
             if add_eigengewicht == False:
@@ -430,7 +430,8 @@ class BeamModel(object):
             # -1 da Vertikalkraft nach unten wirkt die äquivalente Horizontalkraft aber in richtung der bereits wirkenden horizontalkraft sein sollte
             self.Fh_imp_x = theta_x * load_vector[Fv_id::step] * -1 
             load_vector[Fh_id::step] += self.Fh_imp_x
-
+            self.load_dict['Imp_hor_ers.'] = copy(self.Fh_imp_x.T[0])
+        
         load_vector_ohne_eigengewicht[0::GD.DOFS_PER_NODE[self.dim]] = np.zeros((self.n_nodes, 1))
         load_vector_ohne_eigengewicht[1::GD.DOFS_PER_NODE[self.dim]] += load_vector[1::GD.DOFS_PER_NODE[self.dim]]
         load_vector_ohne_eigengewicht[2::GD.DOFS_PER_NODE[self.dim]] += load_vector[2::GD.DOFS_PER_NODE[self.dim]]
@@ -485,6 +486,14 @@ class BeamModel(object):
         # if einwirkungsdauer == 'egal':
         #     gamma_f_g = utils.teilsicherheitsbeiwert_gravity_IEC(1.3, self.internal_forces['nur_g']['x'] , self.internal_forces['ohne_g']['x'])
         self.internal_forces = self.internal_forces['gesamt']
+
+        if constant_torsion: # Fall einwirkung kurz
+            self.internal_forces['a'] = np.array([constant_torsion]*self.n_nodes)
+        else:
+            self.internal_forces['a'] = np.zeros(self.n_nodes) 
+
+        self.load_dict['Mx'] = copy(self.internal_forces['a'])
+
         if return_result:
             return self.internal_forces
 

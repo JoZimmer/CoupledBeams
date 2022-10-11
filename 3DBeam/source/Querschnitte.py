@@ -257,7 +257,12 @@ class Querschnitt(object):
 # ________ FESTIGKEITEN/ WIDERTÄNDE ____________________________
 
     def compute_effektive_festigkeiten_charakteristisch(self):
-        #effektive festigkeiten laengs 
+        '''
+        die Festigkeiten werden Abgemindert durch den Lagenaufbau 
+        -> für den Nachweis muss daher die im gesamten QS wirkende Spannung dieser Abgeminderten Festigkeit gegenübergestellt werden
+        NOTE ACHTUNG im Fall der Scheibenbeanspruchung ist das bisher andersrum eingebaut
+        '''
+        # effektive festigkeiten laengs 
         t_querlagen = 0 
         for lage in self.lagen_aufbau:
             if lage['ortho'] == 'Y':
@@ -268,7 +273,7 @@ class Querschnitt(object):
         self.fc0k_eff_laengs = (self.wand_stärke - t_querlagen)/self.wand_stärke * self.holz_parameter['fc0k']
         self.fvk_eff_laengs = (self.wand_stärke - t_querlagen)/self.wand_stärke * self.holz_parameter['fvk']
     
-        #effektive Festigkeiten quer
+        # effektive Festigkeiten quer
         t_laengslagen = 0 
         for lage in self.lagen_aufbau:
             if lage['ortho'] == 'X':
@@ -279,22 +284,40 @@ class Querschnitt(object):
         self.fc0k_eff_quer = (self.wand_stärke - t_laengslagen)/self.wand_stärke * self.holz_parameter['fc0k']
         self.fvk_eff_quer = (self.wand_stärke - t_laengslagen)/self.wand_stärke * self.holz_parameter['fvk']
 
+        # Scheibfestigkeiten
+        
+        t_i_längs = [lage['ti'] for lage in self.lagen_aufbau if lage['ortho'] == 'X']
+        Axnet = 0.8*(t_i_längs[0] + t_i_längs[-1]) + sum(t_i_längs[1:-1])
+        Aynet = self.t_querlagen
+        Axynet = min(Axnet, Aynet) # "schwächere" Scheibenebene Versagt
+
+        self.fvk_brutto = self.holz_parameter['fvk']
+        self.fvxyk_netto = self.holz_parameter['fvxyk'] * (Axynet / self.wand_stärke) # In norm und VO wird diese Abmonderung auf Einwirkungsseite vorgenommen
+        self.fvtork = self.holz_parameter['ftornodek'] * (Axynet / self.wand_stärke)
+
     def compute_effektive_festigkeiten_design(self, einwirkungsdauer):
 
 
         self.compute_effektive_festigkeiten_charakteristisch()
 
+        sicherheits_faktor = self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+
         #effektive Festigkeite laengs
-        self.fmd_eff_laengs = self.fmk_eff_laengs * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
-        self.ft0d_eff_laengs= self.ft0k_eff_laengs * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
-        self.fc0d_eff_laengs= self.fc0k_eff_laengs * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
-        self.fvd_eff_laengs= self.fvk_eff_laengs * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        self.fmd_eff_laengs = self.fmk_eff_laengs * sicherheits_faktor
+        self.ft0d_eff_laengs= self.ft0k_eff_laengs * sicherheits_faktor
+        self.fc0d_eff_laengs= self.fc0k_eff_laengs * sicherheits_faktor
+        self.fvd_eff_laengs= self.fvk_eff_laengs * sicherheits_faktor
     
         #effektive Festigkeiten Quer
-        self.fmd_eff_quer = self.fmk_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
-        self.ft0d_eff_quer= self.ft0k_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
-        self.fc0d_eff_quer= self.fc0k_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
-        self.fvd_eff_quer= self.fvk_eff_quer * self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        self.fmd_eff_quer = self.fmk_eff_quer * sicherheits_faktor
+        self.ft0d_eff_quer= self.ft0k_eff_quer * sicherheits_faktor
+        self.fc0d_eff_quer= self.fc0k_eff_quer * sicherheits_faktor
+        self.fvd_eff_quer= self.fvk_eff_quer * sicherheits_faktor
+
+        # Scheibefestigkeiten
+        self.fvd_brutto = self.fvk_brutto * sicherheits_faktor
+        self.fvxyd_netto = self.fvxyk_netto * sicherheits_faktor 
+        self.fvtord = self.fvtork * sicherheits_faktor
     
 #__________ STATISCHES MOMENT______________________
 
@@ -325,7 +348,6 @@ class Querschnitt(object):
             # Wirkungsrichtung von M neutralisieren um es dann als Druck und zug aufbringen zu können
 
             lasten_design[dauer]['Mz'] = abs(lasten_design[dauer]['Mz'])
-
 
             self.sigma_druck[dauer] = -(lasten_design[dauer]['Mz'])/self.Iz * e + lasten_design[dauer]['Nx'] / self.A
             self.sigma_zug[dauer] = (lasten_design[dauer]['Mz'])/self.Iz * e + lasten_design[dauer]['Nx'] / self.A
@@ -626,6 +648,10 @@ class Querschnitt(object):
         #trägt nicht über die lange Seite (12m) ab.. Außerdem Schalenwirkung
 
     def calculate_schub_plattenbeanspruchung(self, wind_max):
+
+        '''
+        nach neuer Norm muss für die schubfestigkeit bei Biegung ein Krack Faktor mit berücksichtigt werden
+        '''
         width_segment= 3
         #in kN/m
         self.Q_platte= 1/2*wind_max*width_segment
@@ -653,64 +679,87 @@ class Querschnitt(object):
     
 # _________ SCHUBSPANNUNGEN SCHEIBENBEANSPRUCHUNG nxy__________________________________
 
-    def calculate_schubspannung_querkraft(self, lasten_design):
+    def calculate_schubspannung_scheibe(self, lasten_design, lamellenbreite=0.08):
+        '''
+        aus Vorlesung 7 und prEN 1995-1-1_v3:
+
+            tau_v,xy,d = nxy,d/A_xy,net
+            n_xy,d = Schubfluss als Integral der Schubspannung von -t/2 bis t/2 oder F/l (VO wenn einzel Last)
+            -> Festigkeit wird analog reduziert 
+      
+            tau_tor,node,d = 3/2 * tau_v,xy,d * (tl/bl)
+                mit: tl = dünnste Lagendicke (bezeichnung in Vorlesung mit d)
+                     bl = Brettbreite/Lamellenbreite bzw. Schwindnutabstand (l steht für Lamelle)
+            ODER mittels Meachnik:
+                Schubkraft * Abstand zur betrachteten Fuge ist maßgebendes Moment das aufgenommen werden muss
+                Anzahl der Kreuzungsfelder -->Hersteller  
+                Anzahl der Klebefugen 
+        '''
 
         self.compute_static_moment()
+        self.Wx = 2 * self.A_m * self.wand_stärke
 
-        self.tau_Qy = (lasten_design['egal']['Qy'] * self.Sy_max) / (self.Iz * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
-        
-    def calculate_schubspannung_torsion(self, lasten_design):
+        self.tau_Qy, self.tau_Mx, self.tau_xy, self.tau_vtor = {},{},{}, {}
+        for dauer in lasten_design:
 
-        self.Wx = 2* self.A_m * self.wand_stärke
-        self.tau_Mx = lasten_design['egal']['Mx'] /self.Wx  * self.einheiten_umrechnung['Schubspannung']
+            self.tau_Qy[dauer] = (lasten_design[dauer]['Qy'] * self.Sy_max) / (self.Iz * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
+            self.tau_Mx[dauer]  = lasten_design[dauer]['Mx'] /self.Wx  * self.einheiten_umrechnung['Schubspannung']
 
-    def calculate_schubspannung_resultierend(self,lasten_design):
-
-        self.calculate_schubspannung_querkraft(lasten_design)
-        self.calculate_schubspannung_torsion(lasten_design)
-
-        self.tau = self.tau_Mx + self.tau_Qy
-
-    def calculate_ausnutzung_schub(self, lasten_design):
-        '''
-        '''
-
-        self.calculate_schubspannung_resultierend(lasten_design)
-        self.compute_effektive_festigkeiten_design('kurz')
-
-        einwirkung = self.tau_Qy + self.tau_Mx 
-
-        fd = self.fvd_eff_laengs 
-
-        self.ausnutzung_schub_holz = einwirkung/fd
-
-
-    def calculate_nw_abscheren_der_Bretter(self,lasten_design):
-        
-        self.calculate_schubspannung_querkraft(lasten_design)
-        self.calculate_schubspannung_torsion(lasten_design)
-        self.compute_effektive_festigkeiten_design('kurz')
-        einwirkung = self.tau_Qy + self.tau_Mx 
-
-        fd_laengs = self.fvd_eff_laengs * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
-        fd_quer = self.fvd_eff_quer * utils.unit_conversion(self.einheiten['Festigkeit'], self.einheiten['Normalspannung'])
-        self.ausnutzung_abscheren_der_bretter = einwirkung/max(fd_laengs, fd_quer)
-        return self.ausnutzung_abscheren_der_bretter 
+            self.tau_xy[dauer] = self.tau_Mx[dauer] + self.tau_Qy[dauer]
             
-    def calculate_nw_abscheren_der_Klebefugen(self):
+            # TODO tl in abhänigkeit bestimmen was dei maßgebende Schicht ist? also wenn Axy,net = Ay,net ist dann nur die querlagen betrachten? 
+            # Maximale Lamellen dicke 6 cm -> 12 cm Lagendicke setzt sich demnach aus 6+6 zusammen
+            tl = min(max([lage['ti'] for lage in self.lagen_aufbau]), 0.06)
+
+            self.tau_vtor[dauer] = 1.5 * self.tau_xy[dauer] * (tl/lamellenbreite)
+
+        self.tau_Qy_design = self.tau_Qy['egal']
+        self.tau_Mx_design = self.tau_Mx['egal']
+        self.tau_xy_design = self.tau_xy['egal']
+        self.tau_vtor_design = self.tau_vtor['egal']
+    
+
+        # # Alt bzw. die "mechanische Alternative zum Trosionsversagen der Klebefuge"
+        # n_k= 10*50
+        # lamellenbreite= 0.2
+        # self.Ip_Brett= lamellenbreite**4/6
+        # Mt_fuge=lamellenbreite/2*(self.tau_Mx+self.tau_Qy)/self.wand_stärke
+
+        # tau_Mt_fuge= (3*Mt_fuge/n_k+lamellenbreite**3)
+
+    def calculate_ausnutzung_scheibenschub(self, lasten_design, lamellenbreite=0.08):
         '''
-        Schubkraft * Abstand zur betrachteten Fuge ist maßgebendes Moment das aufgenommen werden muss
-        Anzahl der Kreuzungsfelder -->Hersteller  
-        Anzahl der Klebefugen 
+        lasten_design = Schnittgrößen
+        NOTE/TODO Einwirkungsdauer ist hier manuell auf 'kurz' gesetz
+        lamellenbreite: Standartwert 0.08 -> TODO teste auswirkung
+
+        Nachweis beinhaltet 3 Versagensmechanismen
+            - Versagen des Gesamtquerschnitts = Brutto_schub
+            - abscheren der Bretter (= Netto-Schub, tau_v,xy,d)
+            - Torsion im Kreuzungspunkt (tau_tor,node,d)
+
+        Quellen:
+          T:\Organisation\00_AUSTAUSCH\zzz_Ehemalige\AH\Leitfaden BSP\BSP-LITERATUR -> Vorlesungsunterlagen BSP 
+          Entwurf der Norm prEN 1995-1-1_v3
         '''
-        n_k= 10*50
-        lamellenbreite= 0.2
-        self.Ip_Brett= lamellenbreite**4/6
-        Mt_fuge=lamellenbreite/2*(self.tau_Mt+self.tau_Q)/self.wand_stärke
 
-        tau_Mt_fuge= (3*Mt_fuge/n_k+lamellenbreite**3)
+        self.calculate_schubspannung_scheibe(lasten_design, lamellenbreite)
+        
+        self.ausnutzung_schub_brutto, self.ausnutzung_schub_netto, self.ausnutzung_schub_torsion = 0,0,0
+        
+        for dauer in lasten_design:
+            if dauer == 'egal':
+                continue
 
+            self.compute_effektive_festigkeiten_design(dauer)
 
+            self.ausnutzung_schub_brutto += self.tau_xy[dauer] / self.fvd_brutto
+            self.ausnutzung_schub_netto += self.tau_xy[dauer] / self.fvxyd_netto
+            self.ausnutzung_schub_torsion += self.tau_vtor[dauer] / self.fvtord
+
+        print ('\nSchub Brutto Nachweis nur mit Schmalseitenverklebten Aufbauten (laut VO7)??!')
+
+        
     def calculate_schubkerrekturbeiwert(self, anzahl_lagen):
         '''
         k_n Abhängig von der Anzahl der Schichten und das Verhältnis der Schubmodule längs und quer zur Faser 
