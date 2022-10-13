@@ -247,6 +247,7 @@ class BeamModel(object):
         'nodal_mass' muss mit self.update_equivalent_nodal_mass() schon ausgeführt worden sein
         Gewichtskraft in [N]
         Negativ da Druckkraft
+        --> hier durch wird das Gewicht jedes Elements bestimmt und Quasi an dessen Fußpunkt gespeichert. Für den Gewichtskraft Vektor kommt dann noch die 0 am Kopf dazu
         '''
         self.eigengewicht = np.zeros(self.n_nodes) 
         volume_total = 0
@@ -254,7 +255,6 @@ class BeamModel(object):
             
             self.eigengewicht[i] = element.V * element.rho * GD.GRAVITY
             volume_total += element.V
-            #self.eigengewicht[-2-i] += self.eigengewicht[-1-i] + element.V * element.rho * GD.GRAVITY
 
         # In Druckkraft umwandeln
         self.eigengewicht *= -1
@@ -381,23 +381,19 @@ class BeamModel(object):
 
         self.eig_freqs_sorted_indices = np.argsort(self.eigenfrequencies)
         
-    def static_analysis_solve(self, load_vector_file = None, apply_mean_dynamic = False, directions = 'y', 
-                                    return_result = False, add_eigengewicht=True, add_imperfektion = True,
-                                    gamma_g = 1.35, constant_torsion = None):
+    def static_analysis_solve(self, load_vector_file = None, apply_mean_dynamic = False, 
+                                    return_result = True, constant_torsion = None,):
         ''' 
-        pass_load_vector_file (directions ist dann unrelevant -> nur für mean_dynamic)
+        load_vector_file: Last datei mit design Lasten 
         if apply_mean_dynamic: the dynamic load file is taken and at each point the mean magnitude
         direction: if 'all' all load directions are applied
-        load_dict: da erst hier die eigengewichte und Lasten aus imperfektion berechnet werden werden sämtliche wirkenden
-                    äußeren Belastungen noch mal zusammengefasst und sortiert um diese zusammenfassend ausgeben zu können.
         TODO: gamma_g nach IEC
         NOTE: Torsions last wird händisch hinzugefügt mit der annahme das es sich um eine kurzzeitige belastung handelt die konstant über die höhe ist
         ''' 
         if load_vector_file != None:
             load_vector = np.load(load_vector_file)
-            load_vector_nur_eigengewicht = np.zeros(load_vector.shape)
-            load_vector_ohne_eigengewicht = np.zeros(load_vector.shape)
         elif apply_mean_dynamic:
+            directions = 'all'
             dyn_load = np.load(self.parameters['dynamic_load_file'])
             if directions == 'all':
                 load_vector = np.apply_along_axis(np.mean, 1, dyn_load)
@@ -409,90 +405,54 @@ class BeamModel(object):
         else:
             raise Exception('No load vector file provided')
 
-        # Zwischenspeicherung in lesbarem Format für die Ausgabe bevor gravity und imperfection dazu kommt 
-        self.load_dict = utils.parse_load_signal(load_vector)
-        for dir, arr in self.load_dict.items():  
-            self.load_dict[dir] = copy(arr.T[0])
-
-        if add_eigengewicht:
-            load_vector_nur_eigengewicht[0::GD.DOFS_PER_NODE[self.dim]] += self.eigengewicht.reshape(self.n_nodes,1) + load_vector[0::GD.DOFS_PER_NODE[self.dim]]
-            load_vector[0::GD.DOFS_PER_NODE[self.dim]] += (self.eigengewicht.reshape(self.n_nodes,1) * gamma_g)
-            self.load_dict['Gravity'] = copy(self.eigengewicht.reshape(self.n_nodes,1).T[0])
-
-        if add_imperfektion:
-            if add_eigengewicht == False:
-                print ('WARINING! Einfluss aus Imperfektion ohne Eigengewicht berechnet!!')
-            theta_x = self.parameters['imperfektion']
-            # horizontale ersatzkraft = Schiefstellung an höhe x * Vertikalkraft an dieser stelle?!
-            Fv_id = GD.DOF_LABELS[self.dim].index('x')
-            Fh_id = GD.DOF_LABELS[self.dim].index('y')
-            step = GD.DOFS_PER_NODE[self.dim]
-            # -1 da Vertikalkraft nach unten wirkt die äquivalente Horizontalkraft aber in richtung der bereits wirkenden horizontalkraft sein sollte
-            self.Fh_imp_x = theta_x * load_vector[Fv_id::step] * -1 
-            load_vector[Fh_id::step] += self.Fh_imp_x
-            self.load_dict['Imp_hor_ers.'] = copy(self.Fh_imp_x.T[0])
-        
-        load_vector_ohne_eigengewicht[0::GD.DOFS_PER_NODE[self.dim]] = np.zeros((self.n_nodes, 1))
-        load_vector_ohne_eigengewicht[1::GD.DOFS_PER_NODE[self.dim]] += load_vector[1::GD.DOFS_PER_NODE[self.dim]]
-        load_vector_ohne_eigengewicht[2::GD.DOFS_PER_NODE[self.dim]] += load_vector[2::GD.DOFS_PER_NODE[self.dim]]
-
         load = self.apply_bc_by_reduction(load_vector, axis='row_vector')
-        load_nur_eigengewicht = self.apply_bc_by_reduction(load_vector_nur_eigengewicht, axis='row_vector')
-        load_ohne_eigengewicht = self.apply_bc_by_reduction(load_vector_ohne_eigengewicht, axis='row_vector')
 
-        load_g = {'gesamt':load,'ohne_g':load_ohne_eigengewicht, 'nur_g':load_nur_eigengewicht}
-
-        #missing ground node -> get bc by extension
-        # NOTE Wichtig das 'gesamt am ende der Liste steht
         self.internal_forces = {}
-        for load_type in ['ohne_g', 'nur_g','gesamt',]:
-            self.static_deformation = {}
-            self.reaction = {}
-            load = load_g[load_type]
-            static_result = np.linalg.solve(self.comp_k, load)
-            static_result = self.recuperate_bc_by_extension(static_result, 'row_vector')
-            f = np.dot(self.k, static_result)
-            self.resisting_force = load_vector - f
+        self.static_deformation = {}
+        self.reaction = {}
+        static_result = np.linalg.solve(self.comp_k, load)
+        static_result = self.recuperate_bc_by_extension(static_result, 'row_vector')
+        f = np.dot(self.k, static_result)
+        self.resisting_force = load_vector - f
 
-            for i, label in enumerate(self.dof_labels):
-                self.static_deformation[label] = static_result[i::self.n_dofs_node]
-                self.reaction[label] = self.resisting_force[i::self.n_dofs_node][:, 0]
+        for i, label in enumerate(self.dof_labels):
+            self.static_deformation[label] = static_result[i::self.n_dofs_node]
+            self.reaction[label] = self.resisting_force[i::self.n_dofs_node][:, 0]
 
-            # internal forces - Schnittgrößen müssen an jedem Element gemacht werden 
-            internal_forces_list = []
-            for i, element in enumerate(self.elements):
-                # schnittgröße am ground node ist gleich der resisting force
-                if i == 0:
-                    internal_forces_list.append(self.resisting_force[:self.n_dofs_node][:,0])
+        # internal forces - Schnittgrößen müssen an jedem Element bestimmt werden anhand des verschiebungsvektors
+        internal_forces_list = []
+        for i, element in enumerate(self.elements):
+            # schnittgröße am ground node ist gleich der resisting force
+            if i == 0:
+                internal_forces_list.append(self.resisting_force[:self.n_dofs_node][:,0])
 
-                start = i*self.n_dofs_node
-                stop = start + 2*self.n_dofs_node
+            start = i*self.n_dofs_node
+            stop = start + 2*self.n_dofs_node
 
-                u_i = static_result[start:stop]
-                f_i = np.dot(element.k_element, u_i)
-                
-                # negatives Schnittufer sind die hinteren einträge diese müssen mit den äußeren Lasten im Gleichgewicht stehen
-                internal_forces_list.append(f_i[self.n_dofs_node:][:,0])
+            u_i = static_result[start:stop]
+            f_i = np.dot(element.k_element, u_i)
+            
+            # negatives Schnittufer sind die hinteren einträge diese müssen mit den äußeren Lasten im Gleichgewicht stehen
+            internal_forces_list.append(f_i[self.n_dofs_node:][:,0])
 
-                # So fehlt der letzte Knoten und das Vorzeichen ist Falsch rum
-                #internal_forces_list.append(f_i[:self.n_dofs_node][:,0])
-     
-            self.internal_forces[load_type] = {}
-            internal_forces_arr = np.array(internal_forces_list)
-            for i, label in enumerate(self.dof_labels):
-                self.internal_forces[load_type][label] = internal_forces_arr[:,i]
+            # So fehlt der letzte Knoten und das Vorzeichen ist Falsch rum
+            #internal_forces_list.append(f_i[:self.n_dofs_node][:,0])
+    
+        internal_forces_arr = np.array(internal_forces_list)
+        for i, label in enumerate(self.dof_labels):
+            self.internal_forces[label] = internal_forces_arr[:,i]
         
         # TODO
         # if einwirkungsdauer == 'egal':
         #     gamma_f_g = utils.teilsicherheitsbeiwert_gravity_IEC(1.3, self.internal_forces['nur_g']['x'] , self.internal_forces['ohne_g']['x'])
-        self.internal_forces = self.internal_forces['gesamt']
+        # self.internal_forces = self.internal_forces['gesamt']
 
         if constant_torsion: # Fall einwirkung kurz
             self.internal_forces['a'] = np.array([constant_torsion]*self.n_nodes)
         else:
             self.internal_forces['a'] = np.zeros(self.n_nodes) 
 
-        self.load_dict['Mx'] = copy(self.internal_forces['a'])
+        #self.load_dict['Mx'] = copy(self.internal_forces['a'])
 
         if return_result:
             return self.internal_forces

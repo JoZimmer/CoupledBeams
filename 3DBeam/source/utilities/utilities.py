@@ -263,20 +263,48 @@ def generate_kopflasten_file(number_of_nodes, loads_dict, file_base_name = 'kopf
 
     return force_file_name
 
-def update_lasten_dict(lasten_dict_base, wind_kraft, kopflasten):
+def horizontale_ersatzlast(vertikale_lasten:list, theta_x):
+    '''
+    Bisher annahme das Fx Lasten immer nach unten wirken stimmt in allen bisherigen Fällen aber ist ansich nciht richtig für schiefstellung
+    vertikale_lasten: lsite an dict die unter 'Fx' die vertiakeln Lasten enthalten die einen Effekt bei der Scheifstellung haben
+    theta_x: schiefstellung in m/m 
+    '''
+
+    F_h_ers = {'Fy':np.zeros(vertikale_lasten[0]['Fx'].shape)}
+
+    for last in vertikale_lasten:
+
+        F_h_ers['Fy'] += last['Fx'] * theta_x * -1
+
+    return F_h_ers
+
+def update_lasten_dict(lasten_dict_base, lasten_dicts_to_add:list, wind_kraft=None, kopflasten=None):
     '''
     merged die Kopflasten und die windkraft nach DIN 
     lasten_dict_base: gibt größe und bezeichnugn der kräfte vor
     wenn windkraft = None wird nur die Kopflast in das richtige format gebracht
     '''
     lasten_dict_updated = copy.deepcopy(lasten_dict_base)
-    if isinstance(wind_kraft, np.ndarray):
-        lasten_dict_updated['Fy'] += wind_kraft
-    for i, direction in enumerate(lasten_dict_base):
-        lasten_dict_updated[direction][-1] += kopflasten[direction]
+
+    # if isinstance(wind_kraft, np.ndarray):
+    #     lasten_dict_updated['Fy'] += wind_kraft
+    # for i, direction in enumerate(lasten_dict_base):
+    #     lasten_dict_updated[direction][-1] += kopflasten[direction]
+
+    for last in lasten_dicts_to_add:
+        for i, direction in enumerate(lasten_dict_base):
+            if direction not in last.keys():
+                continue
+            lasten_dict_updated[direction] += last[direction]
+
     return lasten_dict_updated
 
 def generate_lasten_file(number_of_nodes, lasten_dict, file_base_name):
+    '''
+    lasten kommen als dictionary mit den Richtungen als keys (siehe GD.LOAD_DOF_MAP)
+    und werden in einen 1D vektor umgewandelt 
+    return: datei name da last als npy datei gespeichert wird
+    '''
 
     from source.utilities import global_definitions as GD
     src_path = os_join(*['inputs','loads','static'])
@@ -287,11 +315,11 @@ def generate_lasten_file(number_of_nodes, lasten_dict, file_base_name):
 
     force_data = np.zeros(GD.DOFS_PER_NODE['2D']*number_of_nodes)
     for load_direction, magnitude in lasten_dict.items():
+        if load_direction == 'Mx':
+            continue
         force_direction = GD.LOAD_DOF_MAP[load_direction]
         start = GD.DOF_LABELS['2D'].index(force_direction)
         step = len(GD.DOF_LABELS['2D'])
-
-        sub = force_data[start::step]
 
         force_data[start::step] += magnitude
 
@@ -309,12 +337,20 @@ def linien_last_to_knoten_last(last_vektor, knoten_z, gamma_q=1.5):
     if not isinstance(knoten_z, np.ndarray):
         knoten_z = np.array(knoten_z)
 
+    # Hebelarme/zu integrierende Fläche
     d_i = np.diff(knoten_z)
-    
+            
     d_i[0] = d_i[1]/2
-    d_i = np.append(d_i, d_i[1]/2)
+    d_i = np.append(d_i, d_i[1]/2)    
 
-    F_z = gamma_q * last_vektor * np.array(d_i)
+    if isinstance(last_vektor, dict):
+        F_z = {}
+        for last_key in last_vektor:
+            F_z[last_key] = gamma_q * last_vektor[last_key] * np.array(d_i)
+    
+    else:
+        F_z = gamma_q * last_vektor * np.array(d_i)
+
     return F_z
 
 def parse_schnittgrößen_labels(lasten_dict):
@@ -448,23 +484,39 @@ def initialize_empty_dict(dict_name, key_to_add):
 
 #_____________________OPENFAST / RFEM_______________________________________
 
-def convert_coordinate_system_and_consider_einwirkungsdauer(loads, direction = 'fore-aft'):
+def convert_coordinate_system_and_consider_einwirkungsdauer(loads, n_nodes, gamma_g = 1.35, kopf_masse = 0, direction = 'fore-aft'):
     '''
-    Lasten aus IEA, OpenFAST in die Richtung vom Balken konvertieren
+    Design Lasten aus IEA, OpenFAST in die Richtung vom Balken konvertieren
     Sortiert die Lasten nach einwirkungsdauer: Annahme -> Vertikallast = ständig die anderen kurz
     Dauer 'egal' gibt alle lasten zurück
+    gamma_g: sicherheitsbeiwert für gewichtskraft wird aus den ständig wirkenden eigengewichten für die dauer "spannkraft" rausgerechnet 
+            da Druckspannungen günstig beid er Berechnung der erforderlichen Sapnnkraft wirken
+    kopf_masse: design gewichtskraft der Analgen masse wird für aufteilung in ständig und kurz rausgerechnet 
+    TODO manueller Vorzeichen Wechsel des Moments ist in der Theorie falsch
     '''
-    einwirkungsdauer = {'ständig':{'Fy':0, 'Fx':1, 'Mz':0}, 'kurz':{'Fy':1, 'Fx':0, 'Mz':1}, 'egal':{'Fy':1, 'Fx':1, 'Mz':1}}
+    einwirkungsdauer = {'ständig':{'Fy':0, 'Fx':1, 'Mz':0}, 'kurz':{'Fy':1, 'Fx':1, 'Mz':1}, 'egal':{'Fy':1, 'Fx':1, 'Mz':1}}#, 'spannkraft':{'Fy':1, 'Fx':1, 'Mz':1}}
     directions_beam = ['Fy', 'Fx', 'Mz']
-    loads_beam = {'ständig':{}, 'kurz':{}, 'egal':{}}
+    loads_beam = {'ständig':{}, 'kurz':{}, 'egal':{},'spannkraft':{}}
     if isinstance(loads, dict):
         converter_beam_fast = {'Fy':'Fx','Fx':'Fz', 'Mz':'My'}
-        # NOTE rein theoretisch ist dieser Vorzeichen wechsel hier falsch 
+        # TODO rein theoretisch ist dieser Vorzeichen wechsel hier falsch 
         sign_beam_fast = {'Fy':1,'Fx':1, 'Mz':-1}
         for dauer in einwirkungsdauer:
             for direction in directions_beam:
+                loads_beam[dauer][direction] = np.zeros(n_nodes)
                 factor = einwirkungsdauer[dauer][direction]
-                loads_beam[dauer][direction] = loads[converter_beam_fast[direction]] * factor * sign_beam_fast[direction]
+                kopflast_IEA = loads[converter_beam_fast[direction]]
+                if direction == 'Fx' and dauer == 'ständig':
+                    kopflast_IEA = kopf_masse
+                if direction == 'Fx' and dauer == 'kurz':
+                    kopflast_IEA -= kopf_masse
+
+                loads_beam[dauer][direction][-1] += kopflast_IEA * factor * sign_beam_fast[direction] 
+
+    #for direction in directions_beam:
+    loads_beam['spannkraft']['Fx'] = loads_beam['ständig']['Fx'] / gamma_g #ohne sicherheitsbeiwert
+    loads_beam['spannkraft']['Fy'] = loads_beam['egal']['Fy']
+    loads_beam['spannkraft']['Mz'] = loads_beam['egal']['Mz']
 
     return loads_beam
 

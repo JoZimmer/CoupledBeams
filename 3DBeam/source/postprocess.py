@@ -1144,6 +1144,9 @@ def plot_dict_subplots(dict, z, title = '', unit = 'N'):
     fig, ax = plt.subplots(ncols=len(dict))
     fig.suptitle('Knotenlasten\n' + title)
 
+    if len(dict) == 1:
+        ax = [ax]
+
     for i, name in enumerate(dict):
         scale= GD.UNIT_SCALE[unit]
         x = dict[name] * scale

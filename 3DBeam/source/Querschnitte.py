@@ -66,9 +66,6 @@ class Querschnitt(object):
         self.nabenhöhe = hoehen_parameter['nabenhöhe']
         self.initalize_höhen_parameter()
 
-        self.FE_nodes = FE_elements +1
-        self.initalize_geometrie_parameter_FE()
-
         self.wand_stärke = 0
         self.lagen_aufbau = lagen_aufbau
         self.t_laengslagen = sum([lage['ti'] for lage in lagen_aufbau if lage['ortho'] == 'X'])
@@ -81,6 +78,8 @@ class Querschnitt(object):
 
         self.d_außen = self.d_achse + self.wand_stärke
         self.d_innen = self.d_achse - self.wand_stärke
+
+        self.FE_nodes = FE_elements +1
 
         self.holz_parameter = holz_parameter
         self.nachweis_parameter= nachweis_parameter
@@ -190,34 +189,8 @@ class Querschnitt(object):
             #knick_ebenen = [ebene_knick-self.hoehen_parameter['n_sektionen_übergang'], ebene_knick]
             self.hoehen_parameter['knick_ebenen'] = knick_ebenen
 
-            # TODO nicht sicher ob diese winkelberechnung hier richtig ist
-            # alpha_unten = np.arctan(self.section_absolute_heights[knick_ebenen[0]]/(d_achse_u[0] - d_achse_u[-1]))
-            # print ('Der Untere Teil ist um', round(np.rad2deg(alpha_unten),2), '° geneigt')
-
-            # if self.hoehen_parameter['d_knick_übergang'] != None:
-            #     alpha_übergang = np.arctan((self.section_absolute_heights[knick_ebenen[1]] - self.section_absolute_heights[knick_ebenen[0]])/(d_achse_u[0] - d_achse_u[-1]))
-            #     print ('Der Übergangsbereich ist um', round(np.rad2deg(alpha_übergang),2), '° geneigt')
-            # alpha_knick = np.arctan((self.nabenhöhe - self.section_absolute_heights[knick_ebenen[1]])/(d_achse_u[0] - d_achse_u[-1]))
-            
-            # print ('Der Obere Teil ist um', round(np.rad2deg(alpha_knick),2), '° geneigt')
-
         print()
 
-    def initalize_geometrie_parameter_FE(self):
-        '''
-        die Querschnittswerte anhand der höhen parameter gleich auch auf die anzahl an FE Elementen hin interpolieren
-        '''
-        self.x_fe = np.linspace(0,self.section_absolute_heights[-1], self.FE_nodes)
-        self.d_achse_FE = []
-        for x in self.x_fe:
-            for i, ebene in enumerate(self.section_absolute_heights[:-1]):
-                x1, x2 = self.section_absolute_heights[i], self.section_absolute_heights[i+1]
-                if x1 <= x < x2:
-                    y1 = self.d_achse[i]
-                    y2 = self.d_achse[i+1]
-                    val_x = np.interp(x, (x1,x2), (y1,y2))
-                    self.d_achse_FE.append(val_x)
-        self.d_achse_FE.append(self.d_achse[-1])
 
 # _________ EFFEKTIVE Steifigkeitswerte PLATTENBEANSPRUCHUNG _________________________ 
 
@@ -329,7 +302,7 @@ class Querschnitt(object):
 
 # _________ NORMALSPANNUNGEN nx__________________________________
     
-    def calculate_normalspannung(self, lasten_design, add_vorspannkraft_grob = False, plot = False):
+    def calculate_normalspannung(self, SGR_design, add_vorspannkraft_grob = False, plot = False):
         '''
         ergibt dictionaries mit der einwirkungsdauers Dauer als key:
             sigma_druck: Spannung aus Normalkraft und moment
@@ -344,27 +317,27 @@ class Querschnitt(object):
         self.sigma_druck, self.sigma_zug, self.sigma_N, self.sigma_M, self.sigma_druck_ohne_vorsp = {},{},{},{},{}
         self.sigma_druck_innen, self.sigma_zug_innen, self.sigma_M_innen , self.sigma_M_neg= {},{}, {}, {}
 
-        for dauer in lasten_design:
+        for dauer in SGR_design:
             # Wirkungsrichtung von M neutralisieren um es dann als Druck und zug aufbringen zu können
 
-            lasten_design[dauer]['Mz'] = abs(lasten_design[dauer]['Mz'])
+            SGR_design[dauer]['Mz'] = abs(SGR_design[dauer]['Mz'])
 
-            self.sigma_druck[dauer] = -(lasten_design[dauer]['Mz'])/self.Iz * e + lasten_design[dauer]['Nx'] / self.A
-            self.sigma_zug[dauer] = (lasten_design[dauer]['Mz'])/self.Iz * e + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_druck[dauer] = -(SGR_design[dauer]['Mz'])/self.Iz * e + SGR_design[dauer]['Nx'] / self.A
+            self.sigma_zug[dauer] = (SGR_design[dauer]['Mz'])/self.Iz * e + SGR_design[dauer]['Nx'] / self.A
 
-            self.sigma_druck_ohne_vorsp[dauer] = -(lasten_design[dauer]['Mz'])/self.Iz * e + lasten_design[dauer]['Nx'] / self.A
-            self.sigma_druck_innen[dauer] = -(lasten_design[dauer]['Mz'])/self.Iz * e_innen + lasten_design[dauer]['Nx'] / self.A
-            self.sigma_zug_innen[dauer] = (lasten_design[dauer]['Mz'])/self.Iz * e_innen + lasten_design[dauer]['Nx'] / self.A
+            self.sigma_druck_ohne_vorsp[dauer] = -(SGR_design[dauer]['Mz'])/self.Iz * e + SGR_design[dauer]['Nx'] / self.A
+            self.sigma_druck_innen[dauer] = -(SGR_design[dauer]['Mz'])/self.Iz * e_innen + SGR_design[dauer]['Nx'] / self.A
+            self.sigma_zug_innen[dauer] = (SGR_design[dauer]['Mz'])/self.Iz * e_innen + SGR_design[dauer]['Nx'] / self.A
 
 
-            self.sigma_N[dauer] = lasten_design[dauer]['Nx'] / self.A
-            self.sigma_M[dauer] = (lasten_design[dauer]['Mz'])/self.Iz * e 
-            self.sigma_M_neg[dauer] = -(lasten_design[dauer]['Mz'])/self.Iz * e 
-            self.sigma_M_innen[dauer] = (lasten_design[dauer]['Mz'])/self.Iz * e_innen 
+            self.sigma_N[dauer] = SGR_design[dauer]['Nx'] / self.A
+            self.sigma_M[dauer] = (SGR_design[dauer]['Mz'])/self.Iz * e 
+            self.sigma_M_neg[dauer] = -(SGR_design[dauer]['Mz'])/self.Iz * e 
+            self.sigma_M_innen[dauer] = (SGR_design[dauer]['Mz'])/self.Iz * e_innen 
 
         if add_vorspannkraft_grob:
-            self.sigma_druck['ständig'] += np.negative(self.sigma_zug['egal']) * (1+add_vorspannkraft_grob/100) # für die berechnung der ausnutzung
-            self.sigma_druck['egal'] += np.negative(self.sigma_zug['egal']) * (1+add_vorspannkraft_grob/100) # für die ergebniss ausgabe
+            self.sigma_druck['ständig'] -= self.sigma_druck_P # np.negative(self.sigma_zug['egal']) * (1+add_vorspannkraft_grob/100) # für die berechnung der ausnutzung
+            self.sigma_druck['egal'] -= self.sigma_druck_P # np.negative(self.sigma_zug['egal']) * (1+add_vorspannkraft_grob/100) # für die ergebniss ausgabe
 
             self.U_außen = self.d_außen * np.pi
 
@@ -444,7 +417,7 @@ class Querschnitt(object):
 
         self.ausnutzung_druck, self.ausnutzung_zug, self.ausnutzung_N, self.ausnutzung_M = 0,0,0,0
         for dauer in lasten_design:
-            if dauer == 'egal':
+            if dauer == 'egal' or dauer == 'spannkraft':
                 continue
 
             self.compute_effektive_festigkeiten_design(dauer)
@@ -485,14 +458,12 @@ class Querschnitt(object):
             bis dahin nimm einfach > 30% als ungünstigsten fall
             '''
             return 0
-
+        # eigengewicht entfernen um zugspannugen nicht 
         self.calculate_normalspannung(lasten_design)
-
-        sigma_zug = self.sigma_zug['egal'] # Einwirkungsdauer egal -> zu Überdrückende Spannung
 
         self.U_außen = self.d_außen * np.pi
 
-        self.P_erf = sigma_zug * self.wand_stärke * self.U_außen # * utils.unit_conversion(self.einheiten['Kraft'], unit)
+        self.P_erf = self.sigma_zug['spannkraft'] * self.wand_stärke * self.U_außen # dauer 'spannkraft': hat die SGR berechnet mit den für die Spannkraft berechnung relevante einwirkungskombination
 
         n_stunden = n_jahre * 365 * 24
 
@@ -551,7 +522,8 @@ class Querschnitt(object):
 
         # die absoluten Verluste werden auf die gesamt Kraft aufaddiert
         self.P_m0 += self.spannkraft_verluste['gesamt']
-        print()
+
+        self.sigma_druck_P = self.P_m0 / self.wand_stärke / self.U_außen
 
         # TODO wieder in Spannungen umrechenen und dem Nachweis hinzufügen
         
@@ -748,7 +720,7 @@ class Querschnitt(object):
         self.ausnutzung_schub_brutto, self.ausnutzung_schub_netto, self.ausnutzung_schub_torsion = 0,0,0
         
         for dauer in lasten_design:
-            if dauer == 'egal':
+            if dauer == 'egal' or dauer == 'spannkraft':
                 continue
 
             self.compute_effektive_festigkeiten_design(dauer)
@@ -788,9 +760,7 @@ class Querschnitt(object):
 
         nu = einwirkung_d/fd
         self.ausnutzung_kombiniert = nu
-        # print('ausnutzung_kombiniert')
-        # print(self.ausnutzunG)
-
+       
 # _________ OBJEKT FUNKTIONEN __________________________________
 
     def compute_sectional_mean(self, parameter):
@@ -869,6 +839,7 @@ class Querschnitt(object):
             'd_achse [m]':self.d_achse,
             'Iz [m^4]': self.Iz,
             'A [m²]':self.A,
+            'U_achse [m]':self.U,
             't [m]':np.asarray([self.wand_stärke]*len(self.d_achse))
             
         }
@@ -880,7 +851,7 @@ class Querschnitt(object):
         with open(dest_file, 'wb') as handle:
             pickle.dump(self, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        print ('\nSaved nEck object in', dest_file)
+        print ('\nSaved object in', dest_file)
 
             
 
@@ -897,10 +868,16 @@ class KreisRing(Querschnitt):
 
         self.A_m= self.compute_area(self.d_achse/2)
         self.A = self.compute_area(self.d_außen/2)-self.compute_area(self.d_innen/2)
+        self.U = self.d_achse * np.pi
         self.compute_netto_flächen()
 
         self.nachweis_parameter= nachweis_parameter
+
         self.masse_pro_meter = self.compute_sectional_mean(self.A) * self.wichte
+        self.V = self.compute_sectional_mean(self.A) * self.section_heights
+        self.eigengewicht =  - self.V * self.wichte
+        self.gewichtskraft = {'Fx':- self.V * self.wichte*GD.GRAVITY}
+        self.initalize_geometrie_parameter_FE()
 
         self.cd = cd
         self.cp_max = cp_max
@@ -941,6 +918,32 @@ class KreisRing(Querschnitt):
         '''
         self.Sy_max= ((self.d_achse/2)**2)*self.wand_stärke 
 
+    def initalize_geometrie_parameter_FE(self):
+        '''
+        die Querschnittswerte anhand der höhen parameter gleich auch auf die anzahl an FE Elementen hin interpolieren
+        '''
+        self.x_fe = np.linspace(0,self.section_absolute_heights[-1], self.FE_nodes)
+        self.section_heights_FE = np.diff(self.x_fe)
+        geometrie_parameter = [self.d_achse, self.A]
+        self.d_achse_FE, self.A_FE = [],[]
+        geometrie_parameter_FE = [self.d_achse_FE, self.A_FE]
+
+        for param_i, parameter in enumerate(geometrie_parameter):
+            for x in self.x_fe:
+                for i, ebene in enumerate(parameter[:-1]):
+                    x1, x2 = self.section_absolute_heights[i], self.section_absolute_heights[i+1]
+                    if x1 <= x < x2:
+                        y1 = parameter[i]
+                        y2 = parameter[i+1]
+                        val_x = np.interp(x, (x1,x2), (y1,y2))
+
+                        geometrie_parameter_FE[param_i].append(val_x)
+            geometrie_parameter_FE[param_i].append(parameter[-1])
+            geometrie_parameter_FE[param_i] = np.asarray(geometrie_parameter_FE[param_i])
+
+        self.V_FE = self.compute_sectional_mean(self.A_FE) * self.section_heights_FE
+        self.eigengewicht_FE = - np.append(self.V_FE *  self.wichte, 0)
+        self.gewichtskraft_FE = {'Fx': - np.append(self.V_FE *  self.wichte * GD.GRAVITY, 0)}
         
 class nEck(Querschnitt):
 
