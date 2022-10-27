@@ -103,6 +103,9 @@ class Querschnitt(object):
             self.einheiten['Normalspannung'] = einheit_spannung
             self.einheiten['Schubspannung'] = einheit_spannung
 
+        self.einheiten['Grundschnittgrößen_f'] = self.einheiten['Kraft'] + '/' + self.einheiten['Länge'] 
+        self.einheiten['Grundschnittgrößen_m'] = self.einheiten['Kraft'] + self.einheiten['Länge'] + '/' + self.einheiten['Länge'] 
+
     def initalize_höhen_parameter(self):
         '''
         hoehen_parameter:
@@ -268,7 +271,16 @@ class Querschnitt(object):
         self.fvxyk_netto = self.holz_parameter['fvxyk'] * (Axynet / self.wand_stärke) # In norm und VO wird diese Abmonderung auf Einwirkungsseite vorgenommen
         self.fvtork = self.holz_parameter['ftornodek'] * (Axynet / self.wand_stärke)
 
+        # Schubfestigkeit einer Furnierebene
+        if 'fvFek' in self.holz_parameter:
+            self.fvFek = self.holz_parameter['fvFek']
+
     def compute_effektive_festigkeiten_design(self, einwirkungsdauer):
+        '''
+        TODO: Datenstruktur der Festigkeitskennwerte wäre vmtl auch in dict besser:
+        f = {'charakterisitsch':{'v':..., 'c0':...},
+             'design':{'v':..., 'c0':...}}
+        '''
 
 
         self.compute_effektive_festigkeiten_charakteristisch()
@@ -291,6 +303,9 @@ class Querschnitt(object):
         self.fvd_brutto = self.fvk_brutto * sicherheits_faktor
         self.fvxyd_netto = self.fvxyk_netto * sicherheits_faktor 
         self.fvtord = self.fvtork * sicherheits_faktor
+
+        if 'fvFek' in self.holz_parameter:
+            self.fvFed = self.fvFek * sicherheits_faktor
     
 #__________ STATISCHES MOMENT______________________
 
@@ -506,6 +521,8 @@ class Querschnitt(object):
             d_epsilon_T = (spannglied_parameter['alphaT'] - self.holz_parameter['alphaT']) * (dT + 273.15) # in Kelvin
             self.spannkraft_verluste['temperatur'] = n_drähte * spannglied_parameter['Ap'] * spannglied_parameter['Ep'] * d_epsilon_T
 
+            # ____REIBUNGSVERLUSTE
+
             #______SUMME
             dP_ges = sum(list(self.spannkraft_verluste.values()))
             self.spannkraft_verluste['gesamt'] = dP_ges
@@ -524,8 +541,6 @@ class Querschnitt(object):
         self.P_m0 += self.spannkraft_verluste['gesamt']
 
         self.sigma_druck_P = self.P_m0 / self.wand_stärke / self.U_außen
-
-        # TODO wieder in Spannungen umrechenen und dem Nachweis hinzufügen
         
     def get_spannglied_staffelung(self, überschuss_toleranz = 2):
         '''
@@ -651,7 +666,7 @@ class Querschnitt(object):
     
 # _________ SCHUBSPANNUNGEN SCHEIBENBEANSPRUCHUNG nxy__________________________________
 
-    def calculate_schubspannung_scheibe(self, lasten_design, lamellenbreite=0.08):
+    def calculate_schubspannung_scheibe(self, lasten_design, lamellenbreite=0.13):
         '''
         aus Vorlesung 7 und prEN 1995-1-1_v3:
 
@@ -668,29 +683,62 @@ class Querschnitt(object):
                 Anzahl der Klebefugen 
         '''
 
-        self.compute_static_moment()
-        self.Wx = 2 * self.A_m * self.wand_stärke
+        self.compute_static_moment(mit_furnier = self.holz_parameter['Furnierebene'])
+        self.compute_Wx(mit_furnier = self.holz_parameter['Furnierebene'])
 
-        self.tau_Qy, self.tau_Mx, self.tau_xy, self.tau_vtor = {},{},{}, {}
+        self.tau_Qy, self.tau_Mx, self.tau_xy, self.tau_vtor, self.tau_Fe, self.tau_längs = {},{},{}, {},{}, {}
+        n = 1 # im Fall von Furnierlagen
+        if self.holz_parameter['Furnierebene']:
+            print ('Verwende Furnierebenen Ansatz für die Schubspannungsberechnung')
+            n = self.holz_parameter['G4545']/self.holz_parameter['G0mean']
+
         for dauer in lasten_design:
+            if self.holz_parameter['Furnierebene']:
+                self.compute_flächenträgheitsmoment(mit_furnier= True)
+                n = self.holz_parameter['G4545']/self.holz_parameter['G0mean']
+                for lage in self.Sy_max:
+                    if lage == 'furnier':
+                        t = self.t_querlagen 
+                        kraft_aufteilung = n * t / (self.t_laengslagen + n*t)
 
-            self.tau_Qy[dauer] = (lasten_design[dauer]['Qy'] * self.Sy_max) / (self.Iz * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
-            self.tau_Mx[dauer]  = lasten_design[dauer]['Mx'] /self.Wx  * self.einheiten_umrechnung['Schubspannung']
+                        Qy = lasten_design[dauer]['Qy'] * kraft_aufteilung
+                        Mx = lasten_design[dauer]['Mx'] * kraft_aufteilung
+                        tau_Qy = (Qy * self.Sy_max[lage]) / (self.Iz[lage] * t) * self.einheiten_umrechnung['Schubspannung']
+                        tau_Mx  = Mx /self.Wx[lage]  * self.einheiten_umrechnung['Schubspannung']
 
-            self.tau_xy[dauer] = self.tau_Mx[dauer] + self.tau_Qy[dauer]
-            
-            # TODO tl in abhänigkeit bestimmen was dei maßgebende Schicht ist? also wenn Axy,net = Ay,net ist dann nur die querlagen betrachten? 
-            # Maximale Lamellen dicke 6 cm -> 12 cm Lagendicke setzt sich demnach aus 6+6 zusammen
-            tl = min(max([lage['ti'] for lage in self.lagen_aufbau]), 0.06)
+                        self.tau_Fe[dauer] = tau_Mx + tau_Qy
 
-            self.tau_vtor[dauer] = 1.5 * self.tau_xy[dauer] * (tl/lamellenbreite)
+                    if lage=='längslagen':
+                        t = self.t_laengslagen #sum([lage['ti'] for lage in self.lagen_aufbau if lage['ortho'] == 'Y']) # ist schon in self.t_querlagen
+                        kraft_aufteilung = self.t_laengslagen / (self.t_laengslagen + n*self.t_querlagen)
+                        Qy = lasten_design[dauer]['Qy'] * kraft_aufteilung
+                        Mx = lasten_design[dauer]['Mx'] * kraft_aufteilung
+                        tau_Qy = (Qy * self.Sy_max[lage]) / (self.Iz[lage] * t) * self.einheiten_umrechnung['Schubspannung']
+                        tau_Mx  = Mx /self.Wx[lage]  * self.einheiten_umrechnung['Schubspannung']
 
-        self.tau_Qy_design = self.tau_Qy['egal']
-        self.tau_Mx_design = self.tau_Mx['egal']
-        self.tau_xy_design = self.tau_xy['egal']
-        self.tau_vtor_design = self.tau_vtor['egal']
+                        self.tau_längs[dauer] = tau_Mx + tau_Qy
+                
+            else:
+                self.tau_Qy[dauer] = (lasten_design[dauer]['Qy'] * self.Sy_max) / (self.Iz * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
+                self.tau_Mx[dauer]  = lasten_design[dauer]['Mx'] /self.Wx  * self.einheiten_umrechnung['Schubspannung']
+
+                self.tau_xy[dauer] = self.tau_Mx[dauer] + self.tau_Qy[dauer]
+                
+                # TODO tl in abhänigkeit bestimmen was dei maßgebende Schicht ist? also wenn Axy,net = Ay,net ist dann nur die querlagen betrachten? 
+                # Maximale Lamellen dicke 6 cm -> 12 cm Lagendicke setzt sich demnach aus 6+6 zusammen
+                tl = min(max([lage['ti'] for lage in self.lagen_aufbau]), 0.04)
+
+                self.tau_vtor[dauer] = 1.5 * self.tau_xy[dauer] * (tl/lamellenbreite)
+
+        if not self.holz_parameter['Furnierebene']:
+            self.tau_Qy_design = self.tau_Qy['egal']
+            self.tau_Mx_design = self.tau_Mx['egal']
+            self.tau_xy_design = self.tau_xy['egal']
+            self.tau_vtor_design = self.tau_vtor['egal']
+        else:
+            self.tau_Fe_design = self.tau_Fe['egal']
+            self.tau_längs_design = self.tau_längs['egal']
     
-
         # # Alt bzw. die "mechanische Alternative zum Trosionsversagen der Klebefuge"
         # n_k= 10*50
         # lamellenbreite= 0.2
@@ -718,6 +766,7 @@ class Querschnitt(object):
         self.calculate_schubspannung_scheibe(lasten_design, lamellenbreite)
         
         self.ausnutzung_schub_brutto, self.ausnutzung_schub_netto, self.ausnutzung_schub_torsion = 0,0,0
+        self.ausnutzung_schub_Fe, self.ausnutzung_schub_längs = 0,0
         
         for dauer in lasten_design:
             if dauer == 'egal' or dauer == 'spannkraft':
@@ -725,13 +774,17 @@ class Querschnitt(object):
 
             self.compute_effektive_festigkeiten_design(dauer)
 
-            self.ausnutzung_schub_brutto += self.tau_xy[dauer] / self.fvd_brutto
-            self.ausnutzung_schub_netto += self.tau_xy[dauer] / self.fvxyd_netto
-            self.ausnutzung_schub_torsion += self.tau_vtor[dauer] / self.fvtord
+            if self.holz_parameter['Furnierebene']:
+                self.ausnutzung_schub_Fe += self.tau_Fe[dauer] / self.fvFed
+                self.ausnutzung_schub_längs += self.tau_längs[dauer] / self.fvd_brutto
 
-        print ('\nSchub Brutto Nachweis nur mit Schmalseitenverklebten Aufbauten (laut VO7)??!')
+            else:
+                self.ausnutzung_schub_brutto += self.tau_xy[dauer] / self.fvd_brutto
+                self.ausnutzung_schub_netto += self.tau_xy[dauer] / self.fvxyd_netto
+                self.ausnutzung_schub_torsion += self.tau_vtor[dauer] / self.fvtord
 
-        
+        print ('\nSchub Brutto Nachweis nur mit Schmalseitenverklebten Aufbauten (laut VO7)!')
+
     def calculate_schubkerrekturbeiwert(self, anzahl_lagen):
         '''
         k_n Abhängig von der Anzahl der Schichten und das Verhältnis der Schubmodule längs und quer zur Faser 
@@ -745,6 +798,22 @@ class Querschnitt(object):
     #def calculate_rollschubnachweis(self):
 
 
+# _________ KOMBINIERTE AUSNUTZUNG __________________________________
+
+    def reibungs_nachweis_horizontalfugen(self, sgr_design, mu):
+        '''
+        aus Beton Kalender 2011 Kapitel 4.7.4
+        Als vertikale, die Reibung aktivierende Kraft wird die gesamt Vorspannkraft je Fuge angenommen = Pm0
+        Einwirkung sind die Schnittgrößen gesamt unabhängig der Einwirkungsdauer
+        TODO: Oberste Fuge ist der Übergang von Holz zu Stahl
+        '''
+        # Vorzeichen werden hier vernachlässigt, da Pm0 ansich negative wirkt aber als absoluter wert gespeichert ist
+        self.n_Rd = mu * self.P_m0 / (np.pi * self.d_achse)
+
+        self.nxy_Qy = sgr_design['egal']['Qy'] / (self.d_achse/2)
+        self.nxy_Mx = sgr_design['egal']['Mx'] / (2*np.pi*(self.d_achse/2)**2)
+
+        self.ausnutzung_reibung = (self.nxy_Qy + self.nxy_Mx) / self.n_Rd
 # _________ KOMBINIERTE AUSNUTZUNG __________________________________
 
     def calculate_ausnutzung_kombiniert(self, LF):
@@ -866,7 +935,6 @@ class KreisRing(Querschnitt):
         self.masse_pro_meter = None
         self.name = 'Ring'
 
-        self.A_m= self.compute_area(self.d_achse/2)
         self.A = self.compute_area(self.d_außen/2)-self.compute_area(self.d_innen/2)
         self.U = self.d_achse * np.pi
         self.compute_netto_flächen()
@@ -876,7 +944,12 @@ class KreisRing(Querschnitt):
         self.masse_pro_meter = self.compute_sectional_mean(self.A) * self.wichte
         self.V = self.compute_sectional_mean(self.A) * self.section_heights
         self.eigengewicht =  - self.V * self.wichte
-        self.gewichtskraft = {'Fx':- self.V * self.wichte*GD.GRAVITY}
+        gewichtskraft = - self.V * self.wichte*GD.GRAVITY
+        if self.holz_parameter['Furnierebene']:# berücksichtigung der unterschiedlichen wichten
+            self.compute_geometrie_werte_Furnier()
+            gewichtskraft -= self.V_Fe * (self.holz_parameter['rhok_Fe'] - self.wichte) * GD.GRAVITY
+
+        self.gewichtskraft = {'Fx':gewichtskraft}
         self.initalize_geometrie_parameter_FE()
 
         self.cd = cd
@@ -887,9 +960,22 @@ class KreisRing(Querschnitt):
         self.save_QS_parameters_charakteristisch()
 
 
-    def compute_flächenträgheitsmoment(self):
+    def compute_flächenträgheitsmoment(self, mit_furnier = False):
 
-        self.Iz = np.pi / 64 * (self.d_außen**4 - self.d_innen**4)
+        if mit_furnier:
+            if 'di' not in self.lagen_aufbau[0]:
+                utils.get_d_achse_lagen(self.d_achse, self.lagen_aufbau)
+            self.Iz = {'furnier':0, 'längslagen':0}
+            for i, lage in enumerate(self.lagen_aufbau):
+                d_außen = lage['di'] + lage['ti']/2
+                d_innen = lage['di'] - lage['ti']/2
+                if lage['ortho'] == 'X':
+                    self.Iz['längslagen'] += np.pi / 64 * (d_außen**4 - d_innen**4)
+                if lage['ortho'] == 'Y':
+                    self.Iz['furnier'] += np.pi / 64 * (d_außen**4 - d_innen**4)
+        
+        else:
+            self.Iz = np.pi / 64 * (self.d_außen**4 - self.d_innen**4)
 
     def compute_area(self, r):
         area= np.pi * r**2
@@ -910,13 +996,41 @@ class KreisRing(Querschnitt):
             elif lage['ortho'] == 'Y':
                 self.A_längslagen += self.compute_area(r_i_außen) - self.compute_area(r_i_innen)
 
-    def compute_static_moment(self, is_effective = False):
+    def compute_static_moment(self, mit_furnier = False):
         '''
         Sy berechnene mit nur den Längslagen?!
         my Sy bei z=0 (Viertelkreis)
         Berechnung für Kreisring 
         '''
-        self.Sy_max= ((self.d_achse/2)**2)*self.wand_stärke 
+        if mit_furnier:
+            utils.get_d_achse_lagen(self.d_achse, self.lagen_aufbau)
+            self.Sy_max = {'furnier':0, 'längslagen':0}
+            for i, lage in enumerate(self.lagen_aufbau):
+                if lage['ortho'] == 'X':
+                    self.Sy_max['längslagen'] += ((lage['di']/2)**2)*lage['ti']
+                if lage['ortho'] == 'Y':
+                    self.Sy_max['furnier'] += ((lage['di']/2)**2)*lage['ti']
+
+        else:
+            self.Sy_max= ((self.d_achse/2)**2)*self.wand_stärke 
+
+    def compute_Wx(self, mit_furnier = False):
+        '''
+        TODO: Achtung, hier wird die datenstruktur von Klassenvariablen verändert ggf.
+        '''
+
+        if mit_furnier:
+            if 'di' not in self.lagen_aufbau[0]:
+                utils.get_d_achse_lagen(self.d_achse, self.lagen_aufbau)
+            self.Wx = {'furnier':0, 'längslagen':0}
+            for i, lage in enumerate(self.lagen_aufbau):
+                if lage['ortho'] == 'X':
+                    self.Wx['längslagen'] += 2 * self.compute_area(lage['di']/2) * lage['ti']
+                if lage['ortho'] == 'Y':
+                    self.Wx['furnier'] += 2 * self.compute_area(lage['di']/2) * lage['ti']
+        else:
+            A_m= self.compute_area(self.d_achse/2)
+            self.Wx = 2 * A_m * self.wand_stärke
 
     def initalize_geometrie_parameter_FE(self):
         '''
@@ -944,7 +1058,34 @@ class KreisRing(Querschnitt):
         self.V_FE = self.compute_sectional_mean(self.A_FE) * self.section_heights_FE
         self.eigengewicht_FE = - np.append(self.V_FE *  self.wichte, 0)
         self.gewichtskraft_FE = {'Fx': - np.append(self.V_FE *  self.wichte * GD.GRAVITY, 0)}
-        
+
+        if self.holz_parameter['Furnierebene']:
+            utils.get_d_achse_lagen(np.asarray(self.d_achse_FE), self.lagen_aufbau)
+            self.A_Fe_FE=0
+            for i, lage in enumerate(self.lagen_aufbau):
+                if lage['ortho'] == 'Y':
+                    d_a = lage['di'] + lage['ti']/2
+                    d_i = lage['di'] - lage['ti']/2
+                    self.A_Fe_FE += self.compute_area(d_a/2) - self.compute_area(d_i/2)
+
+            self.V_Fe_FE = self.compute_sectional_mean(self.A_Fe_FE) * self.section_heights_FE
+            self.gewichtskraft_FE['Fx'][:-1] -= self.V_Fe_FE * (self.holz_parameter['rhok_Fe'] - self.wichte) * GD.GRAVITY
+
+    def compute_geometrie_werte_Furnier(self):
+        '''
+        d_achse, A, V der Furniere 
+        '''
+
+        if 'di' not in self.lagen_aufbau[0]:
+            utils.get_d_achse_lagen(self.d_achse, self.lagen_aufbau)
+        self.A_Fe=0
+        for i, lage in enumerate(self.lagen_aufbau):
+            if lage['ortho'] == 'Y':
+                d_a = lage['di'] + lage['ti']/2
+                d_i = lage['di'] - lage['ti']/2
+                self.A_Fe += self.compute_area(d_a/2) - self.compute_area(d_i/2)
+        self.V_Fe = self.compute_sectional_mean(self.A_Fe) * self.section_heights
+
 class nEck(Querschnitt):
 
     def __init__(self, n_ecken, cd = 1.5, cp_max= 2.1, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):

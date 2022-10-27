@@ -35,3 +35,17 @@ MODE_CATEGORIZATION_REVERSE = {'3D':{'x':'longitudinal',
                                       'g':'sway_z'}}
 
 CAARC_MODE_DIRECTIONS = {'0_deg':{'sway_z':0, 'sway_y':1, 'torsional':2}}
+
+
+class VariableNames():
+    '''
+    die verschiedenen Variablen von FAST sortiert
+    '''
+
+    displacments = ["TTDspFA_[m]","TTDspSS_[m]"]
+    forces = ['YawBrMxp_[kN-m]','YawBrMyp_[kN-m]','YawBrMzp_[kN-m]']#'YawBrFxp_[kN]','YawBrFyp_[kN]', # FROM ElastoDyn
+    turbine_output = ['GenPwr_[kW]','GenSpeed_[rpm]']
+    control_variables = ['BldPitch1_[deg]','RotSpeed_[rpm]', 'RotTorq_[kN-m]']#,'GenTq_[kN-m]','GenPwr_[kW]','Wind1VelX_[m/s]']
+    blade_tip = ['OoPDefl1_[m]']
+    tower_aerodyn = ['TwN9DynP_[Pa]']
+

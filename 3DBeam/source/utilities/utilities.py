@@ -556,6 +556,8 @@ def unit_conversion(unit_in:str, unit_out:str) -> float:
                 'N/m²':{'N/mm²':1E-06,'N/cm²':1E-04,'kN/mm²':1E-09,'kN/m²':1E-03,'Pa':1, 'MPa':1E-06},
                 'N/cm²':{'N/mm²':1E-02},
                 'kN/m²':{'N/mm²':1E-03,'N/cm²':1E-01,'kN/mm²':1E-06,'kN/m²':1,'MPa':1E-03},
+                'N/m':{'kN/m':1E-03, 'MN/m':1E-06},
+                'Nm/m':{'kNm/m':1E-03, 'MNm/m':1E-06},
                 'N':{'kN':1E-03, 'MN':1E-06},
                 'kN':{'N':1E+03, 'MN':1E-03},
                 'MN':{'N':1E+06, 'kN':1E+03},
@@ -830,6 +832,27 @@ def compute_sectional_mean(parameter):
     sectional_sum = [j+i for i, j in zip(parameter[:-1], parameter[1:])]
     return np.array(sectional_sum)/2
 
+def get_d_achse_lagen(d_achse, lagenaufbau):
+    '''
+    d_achse: Achs-Durchmesser des gesamtquerschnitts
+    lagenaufbau: dict wie lagenaufbau
+    fügt 'di' der jeweiligen Lage hinzu
+    '''
+    mitte = int(len(lagenaufbau)/2) 
+
+    for i, lage in enumerate(lagenaufbau):
+        if i == mitte:
+            lage['di'] = d_achse
+            continue
+        # TODO für Mittellage sollte auch 11 rauskommen --> checke das alles
+        if i <= mitte:
+            ganze_lagen = sum([l['ti'] for l in lagenaufbau][i+1:mitte])
+            lage_selber = lage['ti']/2 
+            mittellage =lagenaufbau[mitte]['ti']/2
+            di = d_achse - ganze_lagen - lage_selber - mittellage
+        else:
+            di = d_achse + sum([l['ti'] for l in lagenaufbau][mitte+1:i]) + lage['ti']/2 + lagenaufbau[mitte]['ti']/2
+        lage['di'] = di
 
 # # DATEN MANGAMENT
 

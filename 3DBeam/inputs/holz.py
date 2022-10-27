@@ -16,7 +16,8 @@ HOLZBAU = {
             }
     },
     'gamma_m': 1.2, 
-    'k_sys': 1.2
+    'k_sys': 1.2,
+    'mu':0.5,  # Reibungsbeiwert
 }
 #
 # def calculate_k_sys(Breite_BSP):
@@ -54,11 +55,17 @@ charakteristische_werte = {
         'fvk':4.0,
         'fvxyk':5.5,  # Standartwert 
         'ftornodek':2.5, 
+        'fvFek':31, # Scherfestigkeit einer 45x45° Furnierebene
         'rhok':460,
         'E0mean':12000E+06,
         'E90mean':370E+06,
+        'Furnierebene':True,
+        'rhok_Fe':735, # aus Lechner Baubuche Furnier
+        'G0mean':500, # zwischen Lechner BSH 586 und ETA Radiusholz 690
+        'G4545':4227,# Aus Dissertation ermittelte Schubsteifigkeit der Furnierebene
         'alpha':0.02, # schwindmaß je % Holzfuechteänderung
         'alphaT':4E-06, # K^-1 Temperaturausdehnungskoeffizeint
+       
     },
     'BSP_RFEM':{
         'fmk':24,
@@ -79,6 +86,7 @@ charakteristische_werte = {
 # Key gibt die gesamt dicke an
 # 'a': ist hier nicht aktuell 
 t_querlagen = 0.04
+t_querlagen = 0.018 # 2 Furnierlagen
 lagenaufbauten = {
     36:[{'ortho':'X','ti':0.10, 'a': 0.12},
         {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
