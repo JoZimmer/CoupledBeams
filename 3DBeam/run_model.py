@@ -46,7 +46,6 @@ parameters['E_Modul'] = werkstoff_parameter['E0mean']
 
 nachweis_parameter = holz.HOLZBAU
 
-spannglied_parameter = spannglieder.spanndraht_parameter['St_1470/1670']
 spannkraft_verlust_pauschal = 20 # % 
 
 # Ergebnisse in einem DataFrame speichern - reihe = Höhe; Spalte = Ergebniss
@@ -112,7 +111,7 @@ if not querschnitts_dateien_laden:
         
         utils.zellen_groeße_formatieren(querschnitts_excel, worksheet= 'QS_Werte', cell_width=15, n_cols=len(holz_df.columns)*2+1)
 
-        print ('\nDie Querschnittswerte über die Höhe sind in', querschnitts_excel, 'geschrieben.')
+        print ('Die Querschnittswerte über die Höhe sind in', querschnitts_excel, 'geschrieben.')
 
         #kreis_ring.plot_properties_along_height(['d_achse'], h_absolut=True)
 
@@ -128,6 +127,7 @@ kraft_komponenten = ['Fx [kN]', 'Fy [kN]', 'Mz [kNm]','Mx [kNm]']
 #df_einwirkung_header_list = [[],[],['Fx [kN]', 'eigengewicht [kN]', 'Fy [kN]', 'F_h,ers,imp [kN]' ,'Mz [kNm]','Mx [kNm]'],['ständig','kurz','egal']]
 df_einwirkung_header_list = [[],[],['ständig','kurz','egal'], kraft_komponenten]
 df_einwirkung_typ_header_list = [[],[],['Kopflast [kN]', 'windkraft [kN]', 'eigengewicht [kN]', 'F_h,ers,imp [kN]' ],kraft_komponenten]
+df_vorspannung_header_list = [[],[],['Höhe [m]', 'd_achse [m]', 'P_erf,end [MN]', 'n EX-84', 'n Mono-5', 'n int. Summe', 'P_ist Fuge [MN]']]
 include_tau = True
 include_sigma_M_N = False
 include_sgr = True
@@ -184,10 +184,12 @@ if include_reibung:
 df_results_header = pd.MultiIndex.from_product(df_results_header_list, names=['Nabenhöhe', 'Querschnitt', 'Segment'])
 df_einwirkungs_header = pd.MultiIndex.from_product(df_einwirkung_header_list, names=['Nabenhöhe', 'Querschnitt', 'Ew. Dauer', 'Komponente', ])
 df_einwirkungs_header_typ = pd.MultiIndex.from_product(df_einwirkung_typ_header_list, names=['Nabenhöhe', 'Querschnitt', 'Lasttyp','Komponente', ])
+df_vorspannung_header = pd.MultiIndex.from_product(df_vorspannung_header_list, names=['Nabenhöhe', 'Querschnitt', 'Segment'])
 # Dataframes leer 
 results_df = pd.DataFrame(columns=df_results_header)
 einwirkungs_df = pd.DataFrame(columns=df_einwirkungs_header)
 einwirkungs_df_typ = pd.DataFrame(columns=df_einwirkungs_header_typ)#copy(einwirkungs_df)
+vorpsannungs_df = pd.DataFrame(columns=df_vorspannung_header)
 
 '''
 ÄUßERE BELASTUNG
@@ -375,7 +377,7 @@ SPANNUNGEN UND AUSNUTZUNGEN
 '''
 
 max_ausnutzung = {}
-r_1, r_2, r_3 = 1,2,3 # ziffern zahl
+r_1, r_2, r_3 = 1,2,3 # Rundung: ziffern zahl
 for querschnitt in querschnitte:
   QS_label = querschnitt.name
   nabenhöhe = querschnitt.nabenhöhe
@@ -387,20 +389,17 @@ for querschnitt in querschnitte:
     
   last = utils.parse_schnittgrößen_labels(schnittgrößen_design[QS_label][nabenhöhe])
 
-  querschnitt.spannkraft_berechnung(last, spannglied_parameter, verluste_pauschal = spannkraft_verlust_pauschal,  unit = 'MN') # NOTE muss bisher vor ausnutzung bestimmt werden 
+ # TODO: Achtung: Reihenfolge der hier aufgerufenen Funktionen ist wichtig
+  querschnitt.spannkraft_berechnung(last, spannglieder.suspa_draht_ex, verluste_pauschal = spannkraft_verlust_pauschal,  unit = 'MN') # NOTE muss bisher vor ausnutzung bestimmt werden 
+  n_ext_erf, n_int_pro_segment, n_summe_int, P_ist_fuge = querschnitt.get_spannglied_staffelung(n_oberste_segmente=4, 
+                                                                                    Pd_ext = spannglieder.suspa_draht_ex['St_1570/1770']['Pm0_n'][84], 
+                                                                                    Pd_int = spannglieder.monolitzen['St_1860']['Pmax_n'][5])
+  
   querschnitt.calculate_ausnutzung_normalspannung(last, add_vorspannkraft_grob = True, plot_spannungsverlauf=False)
   querschnitt.reibungs_nachweis_horizontalfugen(last, nachweis_parameter['mu'])
   #TODO das ist nicht gut hier da scheibenschub berechnung zwingend nach allen anderen gemacht werden muss da die Querschnittswerte verändert werden
   querschnitt.calculate_ausnutzung_scheibenschub(last, lamellenbreite=0.13)
   querschnitt.compute_effektive_festigkeiten_design('kurz')
-
-  # einwirkungs_df_typ.loc[:,(nabenhöhe, QS_label, typ, 'Fx [' + einheiten[1] + ']')] =\
-  #               np.around(lasten_dicts_typ[QS_label][nabenhöhe][typ][komponente] * utils.unit_conversion(einheiten[0],einheiten[1]),2)
- #Nebentragrichtung ny
- # querschnitt.nachweis_normalspannung_y(lasten_dicts_lokaleflaeche['kurz'])
- # querschnitt.ausnutzung_Plattenbeanspruchung_Nebentragrichtung(lasten_dicts_lokaleflaeche['kurz'], 3.5)
-
-
 
   # NOTE Syntax: results_df.loc[:, (Level1, Level2, Level3)] = daten
   results_df.loc[:,(nabenhöhe, QS_label, 'Höhe [' + querschnitt.einheiten['Länge'] + ']')] = np.around(querschnitt.section_absolute_heights,r_2)
@@ -453,6 +452,15 @@ for querschnitt in querschnitte:
     results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_N [' + querschnitt.einheiten['Normalspannung'] + ']')] = querschnitt.sigma_N_design
     results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_M [' + querschnitt.einheiten['Normalspannung'] + ']')] = querschnitt.sigma_M_design
   
+#'Segment', 'Höhe [m]', 'd_achse [m]', 'P_erf,end [MN]', 'n EX-84', 'n Monox5', 'P_ist Fuge [MN]'
+
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'Höhe [m]')] = np.around(querschnitt.section_absolute_heights,r_1)
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'd_achse [m]')] = np.around(querschnitt.d_achse,r_1)
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'P_erf,end [MN]')] = np.around(querschnitt.P_m0 * utils.unit_conversion('N', 'MN') ,r_1)
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'n EX-84')] = n_ext_erf
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'n Mono-5')] = n_int_pro_segment
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'n int. Summe')] = n_summe_int
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'P_ist Fuge [MN]')] = np.around(P_ist_fuge * utils.unit_conversion('N', 'MN') ,r_1)
 
 max_results_df = pd.DataFrame(max_ausnutzung)
 print ('Maximale Ausnutzungen')
@@ -475,11 +483,14 @@ with pd.ExcelWriter(results_excel, mode= 'w', engine="openpyxl") as writer:# -->
   einwirkungs_df.to_excel(writer, sheet_name= 'Einwirkung_design', startrow=4, startcol=0)
   einwirkungs_df_typ.to_excel(writer, sheet_name= 'Einwirkung_design', startrow=einwirkungs_df.shape[0]+12, startcol=0)
 
+  vorpsannungs_df.to_excel(writer, sheet_name= 'Vorspannung_Staffelung', startrow=4, startcol=0)
+
   results_df.to_excel(writer, sheet_name= 'Berechnungs_Ergebnisse', startrow=nrows+2, startcol=0, index=True)#, float_format='%.4f')
   grund_parameter_df.to_excel(writer, sheet_name= 'Berechnungs_Ergebnisse', startrow=start_row_ti[int(t)], startcol=0, index=False)
   max_results_df.to_excel(writer, sheet_name= 'Ausnutzungen_max', startrow=start_row_max_ti[t], index=True)
 
 utils.zellen_groeße_formatieren(results_excel, worksheet= 'Einwirkung_design', cell_width=15, n_cols=len(einwirkungs_df.columns)+1)
+utils.zellen_groeße_formatieren(results_excel, worksheet= 'Vorspannung_Staffelung', cell_width=15, n_cols=len(vorpsannungs_df.columns)+1)
 utils.zellen_groeße_formatieren(results_excel, worksheet= 'QS_Werte', cell_width=15, n_cols=len(qs_df.columns)+1)
 utils.zellen_groeße_formatieren(results_excel, worksheet= 'Berechnungs_Ergebnisse', cell_width=17, n_cols=len(results_df.columns)+1)
 utils.zellen_groeße_formatieren(results_excel, worksheet= 'Ausnutzungen_max', cell_width=20, n_cols=len(max_results_df.columns)+1)

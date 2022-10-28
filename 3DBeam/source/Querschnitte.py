@@ -542,48 +542,39 @@ class Querschnitt(object):
 
         self.sigma_druck_P = self.P_m0 / self.wand_stärke / self.U_außen
         
-    def get_spannglied_staffelung(self, überschuss_toleranz = 2):
+    def get_spannglied_staffelung(self, n_oberste_segmente:int, Pd_ext, Pd_int):
         '''
-        P_ext -> externe Vorpsannkraft die alle Fugen von oben bis zum Knick überdrücken muss
-        überschuss_toleranz = Differenz anhand derer die Staffelung der internen vorspannung gewählt wird [MN]. 
-                              ist die Differenz der erfoderderlichen Überdrückkraft zwischen 2 Fugen größer der toleranz wird gestaffelt
-        TODO stimmt noch nicht ganz
+        n_oberste_segmente: Anzahl der oberen Segmente die durch die externe Vorspannung abgedeckt werden sollen 
+        Pd: werte des gewählten spannsystems       
         '''
-        P_m0 = [0] # soll quasi von oben nach unten gefüllt werden und am ende solang wie die anzahl an steffelungen sein
-        if self.hoehen_parameter['d_knick'][0] != None:
-            staffelungs_ebenen = copy(self.hoehen_parameter['knick_ebenen'])
-            #staffelungs_ebenen.insert(0, self.n_ebenen)
-            for ebene in staffelungs_ebenen:
-                P_ext = self.P_erf[ebene] - sum(P_m0) # in dieser Liste kommt erst der obere dann der übergangsknick
-                P_m0.append(P_ext)
-        
-        # Gerader Turm
-        else:
-            staffelungs_ebenen = [self.n_ebenen]
+        from math import ceil
 
-        staffelungs_ebenen.append(staffelungs_ebenen[-1]-1)
-        # # KOMPLIZIERT
-        # 
-        # while staffelungs_ebenen[-1] != 0:
-        #     P_erf_curr = self.P_erf[staffelungs_ebenen[-1]] - sum(P_m0)
-        #     dif = self.P_erf[staffelungs_ebenen[-1]-1] - P_erf_curr
-        #     if self.P_erf[staffelungs_ebenen[-1]-1] - P_erf_curr >= überschuss_toleranz *utils.unit_conversion('MN',self.einheiten['Kraft']):
-        #         staffelungs_ebenen.append(staffelungs_ebenen[-1]-1)
-        #         P_m0.append(P_erf_curr)
-        #         su = sum(P_m0)
-        #     else:
-        #         staffelungs_ebenen[-1] -= 1
+        P_oben = self.P_m0[-n_oberste_segmente]
+        n_ext_erf = ceil(P_oben/Pd_ext)
+        P_ist = n_ext_erf * Pd_ext
+        n_int_pro_segment = [0] * n_oberste_segmente
+        P_ist_fuge = [P_ist]*n_oberste_segmente
 
-        # # JEDE FUGE 
 
-        while staffelungs_ebenen[-1] != 0:
-            P_erf_curr = self.P_erf[staffelungs_ebenen[-1]] - sum(P_m0)
-            P_m0.append(P_erf_curr)
-            staffelungs_ebenen.append(staffelungs_ebenen[-1]-1)
-        
-        sum_P = sum(P_m0)
-        
-        return P_m0
+        for P_erf in self.P_m0[-n_oberste_segmente-1::-1]:
+            n_int_erf = ceil((P_erf-P_ist)/Pd_int)
+            n_int_pro_segment.append(n_int_erf)
+            P_ist += n_int_erf * Pd_int
+            P_ist_fuge.append(P_ist)
+
+        n_int_summe = []
+        n_sum_ist = 0
+        for n in n_int_pro_segment:
+            n_sum_ist += n
+            n_int_summe.append(n_sum_ist)
+
+        P_ist_fuge = np.asarray(list(reversed(P_ist_fuge)))
+        # die differenzen zu Pm0 jetzt noch auf sigma_druck_P drauf rechene
+        P_diff = P_ist_fuge - self.P_m0
+
+        self.sigma_druck_P += P_diff / self.wand_stärke / self.U_außen
+
+        return [n_ext_erf]*self.n_ebenen, list(reversed(n_int_pro_segment)), list(reversed(n_int_summe)), P_ist_fuge
 
 # _________ Schalenbeanspruchung NORMALSPANNUNGEN ny__________________________________
 
