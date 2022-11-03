@@ -64,7 +64,9 @@ if not querschnitts_dateien_laden:
         qs_werte = []
         qs_labels = []
         höhe = 130
-        dicken = [40]#,44]#, 44]#,48,56,64] # key für lagenaufbau dictonaire in holz 
+        dicken = [36]# [40]#,44]#, 44]#,48,56,64] # key für lagenaufbau dictonaire in holz 
+        mit_furnier = werkstoff_parameter['Furnierebene']
+        furnier_dict = {True:'BSP_furnier',False:'BSP_normal'}
         #knicke = {'gerade':[None,10], '1Knick':[4.5,10], 'Knick mit Übergang':[4.5,8]}
         knicke = {'Gerade':[None, 11]}
         for label, knick in knicke.items():
@@ -80,7 +82,7 @@ if not querschnitts_dateien_laden:
                                         'n_sektionen_übergang':1,
                                         } 
 
-                        lagen_aufbau = holz.lagenaufbauten[t]
+                        lagen_aufbau = holz.lagenaufbauten[furnier_dict[mit_furnier]][t]
 
                         einheiten_input = {'Kraft':'N', 'Moment':'Nm', 'Festigkeit':'N/mm²', 'Länge':'m'}
                         
@@ -93,34 +95,23 @@ if not querschnitts_dateien_laden:
                         kreis_ring.name += ' ' + label + ' t' + str(t)
                         qs_labels.append(kreis_ring.name)
                         qs_values_digits = 2
-                        for values in kreis_ring.querschnitts_werte.values():
-                                qs_werte.append(np.around(values, qs_values_digits))
+                        for values in kreis_ring.querschnitts_werte['Ebenen'].values():
+                            qs_werte.append(np.around(values, qs_values_digits))
 
                         querschnitte.append(kreis_ring)
 
-        qs_header = pd.MultiIndex.from_product([qs_labels, list(kreis_ring.querschnitts_werte.keys())])
+        qs_header = pd.MultiIndex.from_product([qs_labels, list(kreis_ring.querschnitts_werte['Ebenen'].keys())])
 
         qs_werte=np.array(qs_werte).transpose()
         qs_df = pd.DataFrame(qs_werte, columns=qs_header)
         holz_df = pd.DataFrame(werkstoff_parameter, index=[0])
         
-        # Querschnitts werte werden im Selben Format auch in einem sheet im 'Berechnungs_Ergebnisse' Excel hinzugefügt
-        with pd.ExcelWriter(querschnitts_excel, mode= 'w', engine="openpyxl") as writer:# --> mode = 'w', if_sheet_exists='overlay'
-                holz_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=0, startcol=0, index=False)
-                qs_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=4, startcol=0)
-        
-        utils.zellen_groeße_formatieren(querschnitts_excel, worksheet= 'QS_Werte', cell_width=15, n_cols=len(holz_df.columns)*2+1)
-
-        print ('Die Querschnittswerte über die Höhe sind in', querschnitts_excel, 'geschrieben.')
-
         #kreis_ring.plot_properties_along_height(['d_achse'], h_absolut=True)
 
 '''
 DATAFRAME
 '''
 # https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
-
-from copy import copy
 
 df_results_header_list = [[],[], []] # 1. Liste = 1. Level usw...
 kraft_komponenten = ['Fx [kN]', 'Fy [kN]', 'Mz [kNm]','Mx [kNm]']
@@ -146,6 +137,7 @@ df_results_header_list[2].append('Höhe [' + qs.einheiten['Länge'] + ']')
 df_results_header_list[2].append('d_achse [' + qs.einheiten['Länge'] + ']') 
 #df_results_header_list[2].append('P_erf [MN]') 
 df_results_header_list[2].append('P_erf,end [MN]') 
+df_results_header_list[2].append('P_ist [MN]') 
 
 if include_sgr:
     df_results_header_list[2].append('M [MNm]') 
@@ -155,7 +147,7 @@ if include_sgr:
 if include_sigma_M_N:
     df_results_header_list[2].append(GD.GREEK_UNICODE['sigma'] + '_N [' + qs.einheiten['Normalspannung'] + ']') 
     df_results_header_list[2].append(GD.GREEK_UNICODE['sigma'] + '_M [' + qs.einheiten['Normalspannung'] + ']')  
-df_results_header_list[2].append(GD.GREEK_UNICODE['sigma'] + '_druck [' + qs.einheiten['Normalspannung'] + ']')  
+df_results_header_list[2].append(GD.GREEK_UNICODE['sigma'] + '_min [' + qs.einheiten['Normalspannung'] + ']')  
 df_results_header_list[2].append('Ausn. druck') 
 
 if include_tau:
@@ -176,7 +168,7 @@ if include_tau:
 if include_reibung:
     df_results_header_list[2].append('nxy_Qy' + ' [kN/m]') 
     df_results_header_list[2].append('nxy_Mx' + ' [kNm/m]') 
-    df_results_header_list[2].append('nxy_P' + ' [kN/m]') 
+    df_results_header_list[2].append('nxy_P,Rd' + ' [kN/m]') 
     df_results_header_list[2].append('Ausn. reibung') 
     
 
@@ -215,7 +207,7 @@ grund_parameter = {'Querschnitt': [q.name for q in querschnitte],
                     't [m]': [q.wand_stärke for q in querschnitte],
                     'Nabenhöhe [m]': [q.nabenhöhe for q in querschnitte],
                     'cd': [q.cd for q in querschnitte],
-                    'Volumen [m³]':[round(sum(q.V),2) for q in querschnitte]
+                    'Volumen [m³]':[round(sum(q.V['Ebenen']),2) for q in querschnitte]
 }
 grund_parameter_df = pd.DataFrame(grund_parameter)
 
@@ -245,13 +237,13 @@ for qs in querschnitte:
     # Lastberechnung für den spezifischen QS
     v_z, Iv_z, qp_z, z = wind_DIN.DIN_potenz_profil(basis_windgeschwindigkeit, terrain_kategorie, qs.nabenhöhe)
    
-    wind_kraft_z, z_coords = wind_DIN.wind_kraft(vb=basis_windgeschwindigkeit, category=terrain_kategorie, height=qs.x_fe, cd = qs.cd, Aref=qs.d_achse_FE) # ergibt N/m
-    knoten_wind_kraft_z = utils.linien_last_to_knoten_last(wind_kraft_z, qs.x_fe, gamma_q = sicherheitsbeiwerte['wind']) # NOTE gamma_q nach IEC DLC 1.3
+    wind_kraft_z, z_coords = wind_DIN.wind_kraft(vb=basis_windgeschwindigkeit, category=terrain_kategorie, height=qs.section_absolute_heights['FE'], cd = qs.cd, Aref=qs.d_achse['FE']) # ergibt N/m
+    knoten_wind_kraft_z = utils.linien_last_to_knoten_last(wind_kraft_z, qs.section_absolute_heights['FE'], gamma_q = sicherheitsbeiwerte['wind']) # NOTE gamma_q nach IEC DLC 1.3
     #ebenen_wind_kraft_z = utils.linien_last_to_knoten_last(wind_kraft_z, qs.section_absolute_heights, gamma_q = sicherheitsbeiwerte['wind']) # NOTE gamma_q nach IEC 
     
     #postprocess.plot_along_height(knoten_wind_kraft_z, z_coords, label='wind_kraft [N]')
 
-    gewichtskraft_FE_design = {k: sicherheitsbeiwerte['g']*v for k,v in qs.gewichtskraft_FE.items()} # im QS ist die charakteristische gespeichert
+    gewichtskraft_FE_design = {k: sicherheitsbeiwerte['g']*v for k,v in qs.gewichtskraft['FE'].items()} # im QS ist die charakteristische gespeichert
 
     #_____Lasten sortiert nach Typ der Last
     lasten_dicts_typ[QS_label][qs.nabenhöhe]['kopflast'] = kopf_lasten_beam['egal']
@@ -265,7 +257,7 @@ for qs in querschnitte:
     lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz'] = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z, kopf_lasten_beam['kurz']])
     lasten_dicts_dauer[QS_label][qs.nabenhöhe]['ständig']  = utils.update_lasten_dict(lasten_dict_base, [gewichtskraft_FE_design, F_h_imp_ers, kopf_lasten_beam['ständig']])
     # das ist der Lastfall für die Spannkraftberechnung und nicht wirklich eine Last
-    lasten_dicts_dauer[QS_label][qs.nabenhöhe]['spannkraft']  = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z, qs.gewichtskraft_FE, F_h_imp_ers, kopf_lasten_beam['spannkraft']])
+    lasten_dicts_dauer[QS_label][qs.nabenhöhe]['spannkraft']  = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z, qs.gewichtskraft['FE'], F_h_imp_ers, kopf_lasten_beam['spannkraft']])
    
     # ____________ LASTEN DATEI GENERIEREN - nur nach dauer sortiert da dies relevant für ausnutzung ist ___________________________
     for dauer in einwirkungsdauer:
@@ -302,13 +294,13 @@ for qs in querschnitte:
                 np.around(lasten_dicts_typ[QS_label][qs.nabenhöhe][typ][komponente] * utils.unit_conversion(einheiten[0],einheiten[1]),2)
 
     if qs.nabenhöhe == 30:
-        postprocess.plot_dict_subplots(lasten_dicts_typ[QS_label][qs.nabenhöhe]['windkraft'], qs.x_fe, title='Windkraft ' + QS_label, unit='kN')
-        postprocess.plot_dict_subplots(lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal'], qs.x_fe, title='Windkraft + Kopflasten gesamt ' + QS_label, unit = 'kN')
+        postprocess.plot_dict_subplots(lasten_dicts_typ[QS_label][qs.nabenhöhe]['windkraft'], qs.x_FE, title='Windkraft ' + QS_label, unit='kN')
+        postprocess.plot_dict_subplots(lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal'], qs.x_FE, title='Windkraft + Kopflasten gesamt ' + QS_label, unit = 'kN')
 
     plot_nach_dauer = False
     if plot_nach_dauer:
         for dauer in einwirkungsdauer:
-            postprocess.plot_dict_subplots(lasten_dicts_dauer[QS_label][qs.nabenhöhe][dauer], qs.x_fe, title='Last ' + dauer +' ' + QS_label, unit = 'kN')
+            postprocess.plot_dict_subplots(lasten_dicts_dauer[QS_label][qs.nabenhöhe][dauer], qs.x_FE, title='Last ' + dauer +' ' + QS_label, unit = 'kN')
 
 
 
@@ -316,20 +308,21 @@ for qs in querschnitte:
 SCHNITTGRÖßEN
 '''
 
-schnittgrößen_design = {}
+schnittgrößen_design = {'Ebenen':{},'FE':{}}
 
 for querschnitt in querschnitte:
     QS_label = querschnitt.name
     nabenhöhe = querschnitt.nabenhöhe
 
-    if QS_label not in schnittgrößen_design:
-        schnittgrößen_design[QS_label] = {}
-    if nabenhöhe not in schnittgrößen_design[QS_label]:
-        schnittgrößen_design[QS_label][nabenhöhe] = {}
+    for knoten_typ in schnittgrößen_design:
+        if QS_label not in schnittgrößen_design[knoten_typ]:
+            schnittgrößen_design[knoten_typ][QS_label] = {}
+        if nabenhöhe not in schnittgrößen_design[knoten_typ][QS_label]:
+            schnittgrößen_design[knoten_typ][QS_label][nabenhöhe] = {}
 
     section_properties = querschnitt.section_parameters 
 
-    parameters = utils.add_model_data_from_dict(section_properties, parameters)
+    parameters = utils.add_model_data_from_dict(section_properties['FE'], parameters)
 
     beam = BeamModel(parameters, adjust_mass_density_for_total = False, optimize_frequencies_init=False , apply_k_geo=False)
     
@@ -347,22 +340,24 @@ for querschnitt in querschnitte:
     for dauer in einwirkungsdauer:
         # NOTE Torsion ist nicht in der Steifigkeitsmatrix, deswegen kann diese brechnung nur händisch ergänzt werden
         lasten_file = lasten_files[QS_label][nabenhöhe][dauer]
-        schnittgrößen_design[QS_label][nabenhöhe][dauer] = {}
+        schnittgrößen_design['FE'][QS_label][nabenhöhe][dauer] = {}
+        schnittgrößen_design['Ebenen'][QS_label][nabenhöhe][dauer] = {}
 
         # TODO für Spannkraft berechnung bracuht man alle SGR ohne sicherheiten der eigengewichte bzw. mit 1.0 da günstig 
-        schnittgrößen_design_fe = beam.static_analysis_solve(load_vector_file=lasten_file, 
-                                                             constant_torsion = lasten_nach_dauer[dauer]['torsion'])
-        for key in schnittgrößen_design_fe:
-            schnittgrößen_design[QS_label][nabenhöhe][dauer][key] = utils.interpolate(z_soll = querschnitt.section_absolute_heights, 
-                                                                                        z_ist=beam.nodal_coordinates['x0'], 
-                                                                                        werte = schnittgrößen_design_fe[key])
+        schnittgrößen_design['FE'][QS_label][nabenhöhe][dauer] = beam.static_analysis_solve(load_vector_file=lasten_file, 
+                                                                constant_torsion = lasten_nach_dauer[dauer]['torsion'])
+
+        for key in schnittgrößen_design['FE'][QS_label][nabenhöhe][dauer]:
+            schnittgrößen_design['Ebenen'][QS_label][nabenhöhe][dauer][key] = utils.interpolate(z_soll = querschnitt.section_absolute_heights['Ebenen'], 
+                                                                                                z_ist=beam.nodal_coordinates['x0'], 
+                                                                                                werte = schnittgrößen_design['FE'][QS_label][nabenhöhe][dauer][key])
 
         lasten_label = os.path.splitext(os.path.basename(lasten_files[QS_label][nabenhöhe][dauer]))[0]
         #postprocess.plot_static_result_forces(beam, 'internal_forces', ['x','y','g','a'], unit='MN', title_suffix='Last:' + lasten_label, figsize_scale = 1.5)
                                                                                         
                 
-    print ('     Maximales Moment [MNm]:', round(max(abs(schnittgrößen_design[QS_label][nabenhöhe]['egal']['g'])) * utils.unit_conversion('Nm', 'MNm'),2))   
-    print ('     Maximales Moment ohne Kopflast [MNm] ~=', round((max(abs(schnittgrößen_design[QS_label][nabenhöhe]['egal']['g'])) - kopf_lasten_IEA['Fx']*nabenhöhe) * utils.unit_conversion('Nm', 'MNm'),2))   
+    print ('     Maximales Moment [MNm]:', round(max(abs(schnittgrößen_design['Ebenen'][QS_label][nabenhöhe]['egal']['g'])) * utils.unit_conversion('Nm', 'MNm'),2))   
+    print ('     Maximales Moment ohne Kopflast [MNm] ~=', round((max(abs(schnittgrößen_design['Ebenen'][QS_label][nabenhöhe]['egal']['g'])) - kopf_lasten_IEA['Fx']*nabenhöhe) * utils.unit_conversion('Nm', 'MNm'),2))   
 
     # Wenn was geplotet werden soll hier mit if angeben für welchen querschnitt aus der liste oder einfach ohne if dann für alle  
     plot_sgr = False                                                            
@@ -375,8 +370,10 @@ for querschnitt in querschnitte:
 '''
 SPANNUNGEN UND AUSNUTZUNGEN
 '''
+print ('\nAnmerkungen zu Annahmen bei der Berechnung:')
 
 max_ausnutzung = {}
+ausgabe_an_knoten = 'FE'# 'Ebenen'#
 r_1, r_2, r_3 = 1,2,3 # Rundung: ziffern zahl
 for querschnitt in querschnitte:
   QS_label = querschnitt.name
@@ -387,93 +384,92 @@ for querschnitt in querschnitte:
   if QS_label not in max_ausnutzung:
     max_ausnutzung[QS_label] = {}
     
-  last = utils.parse_schnittgrößen_labels(schnittgrößen_design[QS_label][nabenhöhe])
+  schnittgrößen = utils.parse_schnittgrößen_labels(schnittgrößen_design)
 
  # TODO: Achtung: Reihenfolge der hier aufgerufenen Funktionen ist wichtig
-  querschnitt.spannkraft_berechnung(last, spannglieder.suspa_draht_ex, verluste_pauschal = spannkraft_verlust_pauschal,  unit = 'MN') # NOTE muss bisher vor ausnutzung bestimmt werden 
+  querschnitt.spannkraft_berechnung(schnittgrößen, spannglieder.suspa_draht_ex, verluste_pauschal = spannkraft_verlust_pauschal,  unit = 'MN') # NOTE muss bisher vor ausnutzung bestimmt werden 
   n_ext_erf, n_int_pro_segment, n_summe_int, P_ist_fuge = querschnitt.get_spannglied_staffelung(n_oberste_segmente=4, 
                                                                                     Pd_ext = spannglieder.suspa_draht_ex['St_1570/1770']['Pm0_n'][84], 
                                                                                     Pd_int = spannglieder.monolitzen['St_1860']['Pmax_n'][5])
   
-  querschnitt.calculate_ausnutzung_normalspannung(last, add_vorspannkraft_grob = True, plot_spannungsverlauf=False)
-  querschnitt.reibungs_nachweis_horizontalfugen(last, nachweis_parameter['mu'])
+  querschnitt.calculate_ausnutzung_normalspannung(schnittgrößen, add_vorspannkraft_grob = True, plot_spannungsverlauf=False)
+  querschnitt.reibungs_nachweis_horizontalfugen(schnittgrößen, nachweis_parameter['mu'])
   #TODO das ist nicht gut hier da scheibenschub berechnung zwingend nach allen anderen gemacht werden muss da die Querschnittswerte verändert werden
-  querschnitt.calculate_ausnutzung_scheibenschub(last, lamellenbreite=0.13)
+  querschnitt.calculate_ausnutzung_scheibenschub(schnittgrößen, lamellenbreite=0.13)
   querschnitt.compute_effektive_festigkeiten_design('kurz')
 
   # NOTE Syntax: results_df.loc[:, (Level1, Level2, Level3)] = daten
-  results_df.loc[:,(nabenhöhe, QS_label, 'Höhe [' + querschnitt.einheiten['Länge'] + ']')] = np.around(querschnitt.section_absolute_heights,r_2)
-  results_df.loc[:,(nabenhöhe, QS_label, 'd_achse [' + querschnitt.einheiten['Länge'] + ']')] = np.around(querschnitt.d_achse,r_2)
+  results_df.loc[:,(nabenhöhe, QS_label, 'Höhe [' + querschnitt.einheiten['Länge'] + ']')] = np.around(querschnitt.section_absolute_heights[ausgabe_an_knoten],r_2)
+  results_df.loc[:,(nabenhöhe, QS_label, 'd_achse [' + querschnitt.einheiten['Länge'] + ']')] = np.around(querschnitt.d_achse[ausgabe_an_knoten],r_2)
   if include_sgr:
-    results_df.loc[:,(nabenhöhe, QS_label, 'M [MNm]')] = np.around(schnittgrößen_design[QS_label][nabenhöhe]['egal']['g']* utils.unit_conversion('Nm', 'MNm') ,r_2)
-    results_df.loc[:,(nabenhöhe, QS_label, 'N [MN]')] = np.around(schnittgrößen_design[QS_label][nabenhöhe]['egal']['x']* utils.unit_conversion('N', 'MN') ,r_2)
-    results_df.loc[:,(nabenhöhe, QS_label, 'Q [MN]')] = np.around(schnittgrößen_design[QS_label][nabenhöhe]['egal']['y']* utils.unit_conversion('N', 'MN') ,r_2)
+    results_df.loc[:,(nabenhöhe, QS_label, 'M [MNm]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['g']* utils.unit_conversion('Nm', 'MNm') ,r_2)
+    results_df.loc[:,(nabenhöhe, QS_label, 'N [MN]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['x']* utils.unit_conversion('N', 'MN') ,r_2)
+    results_df.loc[:,(nabenhöhe, QS_label, 'Q [MN]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['y']* utils.unit_conversion('N', 'MN') ,r_2)
 
   #results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_zug [' + querschnitt.einheiten['Normalspannung'] + ']')] = np.around(querschnitt.sigma_zug_design,r_2)
-  results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_druck [' + querschnitt.einheiten['Normalspannung'] + ']')] = np.around(querschnitt.sigma_druck_design,r_2)
-  results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. druck')] = np.around(querschnitt.ausnutzung_druck,r_3)
-  max_ausnutzung[QS_label][str(nabenhöhe) + ' m'] = max(querschnitt.ausnutzung_druck)
+  results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_min [' + querschnitt.einheiten['Normalspannung'] + ']')] = np.around(querschnitt.sigma_druck_design[ausgabe_an_knoten],r_2)
+  results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. druck')] = np.around(querschnitt.ausnutzung_druck[ausgabe_an_knoten],r_3)
+  max_ausnutzung[QS_label][str(nabenhöhe) + ' m'] = max(querschnitt.ausnutzung_druck[ausgabe_an_knoten])
 
   #results_df.loc[:,(nabenhöhe, QS_label, 'P_erf [MN]')] = np.around(querschnitt.P_erf * utils.unit_conversion('N', 'MN') ,r_2)
-  results_df.loc[:,(nabenhöhe, QS_label, 'P_erf,end [MN]')] = np.around(querschnitt.P_m0 * utils.unit_conversion('N', 'MN') ,r_2)
+  results_df.loc[:,(nabenhöhe, QS_label, 'P_erf,end [MN]')] = np.around(querschnitt.P_m0[ausgabe_an_knoten] * utils.unit_conversion('N', 'MN') ,r_2)
+  results_df.loc[:,(nabenhöhe, QS_label, 'P_ist [MN]')] = np.around(querschnitt.P_ist_fuge[ausgabe_an_knoten] * utils.unit_conversion('N', 'MN') ,r_2)
 
   if include_tau:
     if werkstoff_parameter['Furnierebene']:
-      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Fe' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Fe_design,r_2)    
-      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_längs' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_längs_design,r_2)
+      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Fe' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Fe_design[ausgabe_an_knoten],r_2)    
+      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_längs' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_längs_design[ausgabe_an_knoten],r_2)
          
-      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub Furnier')] = np.around(querschnitt.ausnutzung_schub_Fe,r_3)
-      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub längs')] = np.around(querschnitt.ausnutzung_schub_längs,r_3)
+      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub Furnier')] = np.around(querschnitt.ausnutzung_schub_Fe[ausgabe_an_knoten],r_3)
+      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub längs')] = np.around(querschnitt.ausnutzung_schub_längs[ausgabe_an_knoten],r_3)
 
       results_df.loc[:,(nabenhöhe, QS_label, 'fvd_Fe')] = np.around(querschnitt.fvFed,r_3)
       results_df.loc[:,(nabenhöhe, QS_label, 'fvd_längs')] = np.around(querschnitt.fvd_brutto,r_3)
     else:
-      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Qy' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Qy_design,r_2)
-      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Mx' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Mx_design,r_2)
-      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_xy' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_xy_design,r_2)    
-      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_tor' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_vtor_design,r_2)
+      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Qy' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Qy_design[ausgabe_an_knoten],r_2)
+      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Mx' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Mx_design[ausgabe_an_knoten],r_2)
+      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_xy' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_xy_design[ausgabe_an_knoten],r_2)    
+      results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_tor' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_vtor_design[ausgabe_an_knoten],r_2)
          
-      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub brutto')] = np.around(querschnitt.ausnutzung_schub_brutto,r_3)
-      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub netto')] = np.around(querschnitt.ausnutzung_schub_netto,r_3)
-      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub torsion')] = np.around(querschnitt.ausnutzung_schub_torsion,r_3)
+      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub brutto')] = np.around(querschnitt.ausnutzung_schub_brutto[ausgabe_an_knoten],r_3)
+      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub netto')] = np.around(querschnitt.ausnutzung_schub_netto[ausgabe_an_knoten],r_3)
+      results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. schub torsion')] = np.around(querschnitt.ausnutzung_schub_torsion[ausgabe_an_knoten],r_3)
 
       results_df.loc[:,(nabenhöhe, QS_label, 'fvd_brutto')] = np.around(querschnitt.fvd_brutto,r_3)
       results_df.loc[:,(nabenhöhe, QS_label, 'fvd_netto')] = np.around(querschnitt.fvxyd_netto,r_3)
       results_df.loc[:,(nabenhöhe, QS_label, 'fvd_tor')] = np.around(querschnitt.fvtord,r_3)
 
     if include_reibung:
-        results_df.loc[:,(nabenhöhe, QS_label, 'nxy_Qy' + ' [kN/m]')] = np.around(querschnitt.nxy_Qy * utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_f'], 'kN/m'),r_2)
-        results_df.loc[:,(nabenhöhe, QS_label, 'nxy_Mx' + ' [kNm/m]')] = np.around(querschnitt.nxy_Mx* utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_m'], 'kNm/m'),r_2)
-        results_df.loc[:,(nabenhöhe, QS_label, 'nxy_P' + ' [kN/m]')] = np.around(querschnitt.n_Rd* utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_f'], 'kN/m'),r_2)
-        results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. reibung')] = np.around(querschnitt.ausnutzung_reibung,r_3)
+        results_df.loc[:,(nabenhöhe, QS_label, 'nxy_Qy' + ' [kN/m]')] = np.around(querschnitt.nxy_Qy[ausgabe_an_knoten] * utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_f'], 'kN/m'),r_2)
+        results_df.loc[:,(nabenhöhe, QS_label, 'nxy_Mx' + ' [kNm/m]')] = np.around(querschnitt.nxy_Mx[ausgabe_an_knoten]* utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_m'], 'kNm/m'),r_2)
+        results_df.loc[:,(nabenhöhe, QS_label, 'nxy_P,Rd' + ' [kN/m]')] = np.around(querschnitt.n_Rd[ausgabe_an_knoten]* utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_f'], 'kN/m'),r_2)
+        results_df.loc[:,(nabenhöhe, QS_label, 'Ausn. reibung')] = np.around(querschnitt.ausnutzung_reibung[ausgabe_an_knoten],r_3)
 
   
   if include_sigma_M_N:
-    results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_N [' + querschnitt.einheiten['Normalspannung'] + ']')] = querschnitt.sigma_N_design
-    results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_M [' + querschnitt.einheiten['Normalspannung'] + ']')] = querschnitt.sigma_M_design
+    results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_N [' + querschnitt.einheiten['Normalspannung'] + ']')] = querschnitt.sigma_N_design[ausgabe_an_knoten]
+    results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_M [' + querschnitt.einheiten['Normalspannung'] + ']')] = querschnitt.sigma_M_design[ausgabe_an_knoten]
   
-#'Segment', 'Höhe [m]', 'd_achse [m]', 'P_erf,end [MN]', 'n EX-84', 'n Monox5', 'P_ist Fuge [MN]'
-
-vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'Höhe [m]')] = np.around(querschnitt.section_absolute_heights,r_1)
-vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'd_achse [m]')] = np.around(querschnitt.d_achse,r_1)
-vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'P_erf,end [MN]')] = np.around(querschnitt.P_m0 * utils.unit_conversion('N', 'MN') ,r_1)
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'Höhe [m]')] = np.around(querschnitt.section_absolute_heights['Ebenen'],r_1)
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'd_achse [m]')] = np.around(querschnitt.d_achse['Ebenen'],r_1)
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'P_erf,end [MN]')] = np.around(querschnitt.P_m0['Ebenen']* utils.unit_conversion('N', 'MN') ,r_1)
 vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'n EX-84')] = n_ext_erf
 vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'n Mono-5')] = n_int_pro_segment
 vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'n int. Summe')] = n_summe_int
-vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'P_ist Fuge [MN]')] = np.around(P_ist_fuge * utils.unit_conversion('N', 'MN') ,r_1)
+vorpsannungs_df.loc[:,(nabenhöhe, QS_label, 'P_ist Fuge [MN]')] = np.around(P_ist_fuge['Ebenen'] * utils.unit_conversion('N', 'MN') ,r_1)
 
 max_results_df = pd.DataFrame(max_ausnutzung)
-print ('Maximale Ausnutzungen')
+print ('\nMaximale Ausnutzungen')
 print (max_results_df)
 
 #______________________ ALLES IN EXCEL SPEICHERN _________________________________________________________________________________________
 d_rows = grund_parameter_df.shape[0] + 7 + results_df.shape[0]
 # TODO bisschen arg händisch bisher -> um Ergebnisse verschiedener QS Wandstärken in einer Datei untereinander zu schreiben
-start_row_ti = {36:0, 40:0, 44:0, 48:0, 56:0, 64:0}#d_rows 2*d_rows
-start_row_max_ti = {36:1, 40:1, 44:1, 48:1, 56:1, 64:1}#+8+16
+#start_row_ti = {36:0, 40:0, 44:0, 48:0, 56:0, 64:0}#d_rows 2*d_rows
+#start_row_max_ti = {36:1, 40:1, 44:1, 48:1, 56:1, 64:1}#+8+16
 
 with pd.ExcelWriter(results_excel, mode= 'w', engine="openpyxl") as writer:# --> mode = 'a', if_sheet_exists='overlay'
-  nrows = start_row_ti[int(t)] + grund_parameter_df.shape[0]
+  nrows = grund_parameter_df.shape[0]
   ausnutzungs_cols = utils.get_spalten_ausnutzung(results_df, df_results_header_list, start_row = nrows+2, start_col = 0)
 
   holz_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=0, startcol=0, index=False)#
@@ -486,8 +482,8 @@ with pd.ExcelWriter(results_excel, mode= 'w', engine="openpyxl") as writer:# -->
   vorpsannungs_df.to_excel(writer, sheet_name= 'Vorspannung_Staffelung', startrow=4, startcol=0)
 
   results_df.to_excel(writer, sheet_name= 'Berechnungs_Ergebnisse', startrow=nrows+2, startcol=0, index=True)#, float_format='%.4f')
-  grund_parameter_df.to_excel(writer, sheet_name= 'Berechnungs_Ergebnisse', startrow=start_row_ti[int(t)], startcol=0, index=False)
-  max_results_df.to_excel(writer, sheet_name= 'Ausnutzungen_max', startrow=start_row_max_ti[t], index=True)
+  grund_parameter_df.to_excel(writer, sheet_name= 'Berechnungs_Ergebnisse', startrow=0, startcol=0, index=False)
+  max_results_df.to_excel(writer, sheet_name= 'Ausnutzungen_max', startrow=1, index=True)
 
 utils.zellen_groeße_formatieren(results_excel, worksheet= 'Einwirkung_design', cell_width=15, n_cols=len(einwirkungs_df.columns)+1)
 utils.zellen_groeße_formatieren(results_excel, worksheet= 'Vorspannung_Staffelung', cell_width=15, n_cols=len(vorpsannungs_df.columns)+1)
@@ -497,8 +493,8 @@ utils.zellen_groeße_formatieren(results_excel, worksheet= 'Ausnutzungen_max', c
 
 utils.add_databar_color(results_excel, worksheet = 'Berechnungs_Ergebnisse', columns = ausnutzungs_cols)
 
-utils.zelle_beschriften(results_excel, 'Ausnutzungen_max', 'B' + str(start_row_max_ti[t]), 
-                       't, tX, tY [cm] ' + ', '.join([str(int(t)), str(round(tX,1)), str(round(tY,1))]) ,'B' + str(start_row_max_ti[t])+ ':E'+ str(start_row_max_ti[t]))
+utils.zelle_beschriften(results_excel, 'Ausnutzungen_max',)# 'B' + str(start_row_max_ti[t]), 
+                       #'t, tX, tY [cm] ' + ', '.join([str(int(t)), str(round(tX,1)), str(round(tY,1))]) ,'B' + str(start_row_max_ti[t])+ ':E'+ str(start_row_max_ti[t]))
 
               
 from datetime import datetime

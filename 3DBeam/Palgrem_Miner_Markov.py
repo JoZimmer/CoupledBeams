@@ -93,7 +93,7 @@ def beispiel_züblin_bemessungskonzept():
     N_auf = 9194071900
     N_Markov = 135145
     print()
-    print ('log Züblin:', log10(N_auf))
+    print ('log Züblin:', np.log10(N_auf))
     print ('log elf:', res_lg)
     print ('Züblin - res_N', N_auf - res_N)
 

@@ -66,28 +66,24 @@ charakteristische_werte = {
         'alpha':0.02, # schwindmaß je % Holzfuechteänderung
         'alphaT':4E-06, # K^-1 Temperaturausdehnungskoeffizeint
        
-    },
-    'BSP_RFEM':{
-        'fmk':24,
-        'ft0k':14,
-        'ft90k':0.4,
-        'fc0k':21,
-        'fc90k':2.5,
-        'fvk':4.0,
-        'fvxyk':'nicht definiert', # Standartwert 
-        'rhok':460,
-        'E0mean':12000E+06,
-        'E90mean':370E+06,
-        'alpha':0.02, # schwindmaß je % Holzfuechteänderung
-        'alphaT':4E-06, # K^-1 Temperaturausdehnungskoeffizeint
     }
 }
 
 # Key gibt die gesamt dicke an
 # 'a': ist hier nicht aktuell 
 t_querlagen = 0.04
-t_querlagen = 0.018 # 2 Furnierlagen
+t_furnier = 0.018 # 2 Furnierlagen
 lagenaufbauten = {
+    'BSP_furnier':{
+        36:[{'ortho':'X','ti':0.12, 'a': 0.12},
+        {'ortho':'Y','ti':t_furnier, 'a': 0.05},
+        {'ortho':'X','ti':0.08, 'a': 0},
+        {'ortho':'Y','ti':t_furnier, 'a': 0.05},
+        {'ortho':'X','ti':0.12, 'a': 0.12}],
+
+    },
+
+    'BSP_normal':{
     36:[{'ortho':'X','ti':0.10, 'a': 0.12},
         {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
         {'ortho':'X','ti':0.08, 'a': 0},
@@ -123,4 +119,5 @@ lagenaufbauten = {
         {'ortho':'X','ti':0.16, 'a': 0},
         {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
         {'ortho':'X','ti':0.20, 'a': 0.14}],
+    }
 }

@@ -355,13 +355,16 @@ def linien_last_to_knoten_last(last_vektor, knoten_z, gamma_q=1.5):
 
 def parse_schnittgrößen_labels(lasten_dict):
     '''
-    lasten dict mit ersten keys gleich den einwirkungsdauern
+    lasten dict -> tiefe über knoten_typ, QS_label, nabenhöhe, dauer
     '''
     lasten_dict_parsed = copy.deepcopy(lasten_dict)
-    for dauer, lasten in lasten_dict.items():
-        for direction in lasten:
-            lasten_dict_parsed[dauer][GD.DOF_RESPONSE_MAP[direction]] = lasten[direction]
-            del lasten_dict_parsed[dauer][direction]
+    for knoten in lasten_dict:
+        for QS_label in lasten_dict[knoten]:
+            for nabenhöhe in lasten_dict[knoten][QS_label]:
+                for dauer, lasten in lasten_dict[knoten][QS_label][nabenhöhe].items():
+                    for direction in lasten:
+                        lasten_dict_parsed[knoten][QS_label][nabenhöhe][dauer][GD.DOF_RESPONSE_MAP[direction]] = lasten[direction]
+                        del lasten_dict_parsed[knoten][QS_label][nabenhöhe][dauer][direction]
 
     return lasten_dict_parsed
 
