@@ -4,20 +4,27 @@
 # import matplotlib.pyplot as plt
 import numpy as np
 # import inputs.DIN_Windlasten as windDIN
+import pandas as pd
+from os.path import join as os_join
 
-a =  [87.1, 82.7, 77.2, 71.6, 65.0, 58.3, 49.5, 49.5, 49.5, 49.5,]
-x_eb = np.linspace(0,130, len(a))
-x_fe = np.linspace(0,130, 20)
-P_ist_fuge = np.zeros(20)
+from openpyxl import formatting, styles, Workbook
 
-for i, x in enumerate(x_fe):
-    for j, x_ebene in enumerate(x_eb[1:]):
-        j += 1
-        grenze_unten = x_eb[j-1]
-        if x <= x_ebene and x >= grenze_unten:
-            P_dif_ist = a[j]
-            P_ist_fuge[i] += a[j]
+wb = Workbook()
+ws = wb.active
 
-    print ('an Stelle x_FE', round(x,1), 'ist P', P_dif_ist)
+red_color = 'ffc7ce'
+red_color_font = '9c0103'
 
-print(P_ist_fuge)
+red_font = styles.Font(size=14, bold=True, color=red_color_font)
+red_fill = styles.PatternFill(start_color=red_color, end_color=red_color, fill_type='solid')
+
+for row in range(1,10):            
+    ws.cell(row=row, column=1, value=row-5)
+    ws.cell(row=row, column=2, value=row-5)
+
+rule = formatting.rule.CellIsRule(operator='lessThan', formula=['0'], fill=red_fill)
+
+#ws.conditional_formatting.add('A1:A10', formatting.rule.CellIsRule(operator='lessThan', formula=['0'], fill=red_fill, font=red_font))
+ws.conditional_formatting.add('B1:B10', rule)
+wb.save("test.xlsx")
+    

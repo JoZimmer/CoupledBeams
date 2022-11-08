@@ -15,7 +15,7 @@ HOLZBAU = {
                       'sonst':0.2
             }
     },
-    'gamma_m': 1.2, 
+    'gamma_m': 1.25, 
     'k_sys': 1.2,
     'mu':0.5,  # Reibungsbeiwert
 }
@@ -72,52 +72,52 @@ charakteristische_werte = {
 # Key gibt die gesamt dicke an
 # 'a': ist hier nicht aktuell 
 t_querlagen = 0.04
-t_furnier = 0.018 # 2 Furnierlagen
+t_furnier = 0.009 # 2 Furnierlagen a 4.5 mm -> eine Furnierebene nur 9
 lagenaufbauten = {
     'BSP_furnier':{
-        36:[{'ortho':'X','ti':0.12, 'a': 0.12},
-        {'ortho':'Y','ti':t_furnier, 'a': 0.05},
-        {'ortho':'X','ti':0.08, 'a': 0},
-        {'ortho':'Y','ti':t_furnier, 'a': 0.05},
-        {'ortho':'X','ti':0.12, 'a': 0.12}],
+        36:[{'ortho':'X','ti':0.12,},
+        {'ortho':'Y','ti':t_furnier,},
+        {'ortho':'X','ti':0.12},
+        {'ortho':'Y','ti':t_furnier,},
+        {'ortho':'X','ti':0.12,}],
 
     },
 
     'BSP_normal':{
-    36:[{'ortho':'X','ti':0.10, 'a': 0.12},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.08, 'a': 0},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.10, 'a': 0.12}],
+    36:[{'ortho':'X','ti':0.10,},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.08},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.10,}],
 
-    40:[{'ortho':'X','ti':0.12, 'a': 0.12},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.08, 'a': 0},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.12, 'a': 0.12}],
+    40:[{'ortho':'X','ti':0.12,},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.08},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.12,}],
 
-    44:[{'ortho':'X','ti':0.14, 'a': 0.14},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.08, 'a': 0},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.14, 'a': 0.14}],
+    44:[{'ortho':'X','ti':0.14,},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.08},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.14,}],
 
-    48:[{'ortho':'X','ti':0.16, 'a': 0.14},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.08, 'a': 0},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.16, 'a': 0.14}],
+    48:[{'ortho':'X','ti':0.16,},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.08},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.16,}],
 
-    56:[{'ortho':'X','ti':0.20, 'a': 0.14},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.08, 'a': 0},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.20, 'a': 0.14}],
+    56:[{'ortho':'X','ti':0.20,},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.08},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.20,}],
 
-    64:[{'ortho':'X','ti':0.20, 'a': 0.14},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.16, 'a': 0},
-        {'ortho':'Y','ti':t_querlagen, 'a': 0.05},
-        {'ortho':'X','ti':0.20, 'a': 0.14}],
+    64:[{'ortho':'X','ti':0.20,},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.16},
+        {'ortho':'Y','ti':t_querlagen,},
+        {'ortho':'X','ti':0.20,}],
     }
 }

@@ -392,6 +392,7 @@ class BeamModel(object):
         ''' 
         if load_vector_file != None:
             load_vector = np.load(load_vector_file)
+            load_dict = utils.parse_load_signal(load_vector)
         elif apply_mean_dynamic:
             directions = 'all'
             dyn_load = np.load(self.parameters['dynamic_load_file'])
@@ -453,6 +454,9 @@ class BeamModel(object):
             self.internal_forces['a'] = np.zeros(self.n_nodes) 
 
         #self.load_dict['Mx'] = copy(self.internal_forces['a'])
+        y = np.reshape(self.static_deformation['y'],(self.n_nodes,)) 
+        x = self.nodal_coordinates['x0'] 
+        self.f_h_ers_deform = np.divide(y,x, out=np.zeros_like(y), where=x!=0) * np.reshape(load_dict['y'],(self.n_nodes))
 
         if return_result:
             return self.internal_forces

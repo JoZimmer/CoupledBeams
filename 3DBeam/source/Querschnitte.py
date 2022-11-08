@@ -84,6 +84,8 @@ class Querschnitt(object):
 
         self.initialize_einheiten_umrechnung()
 
+        self.berechnungs_hinweise = []
+
 
     def initialize_einheiten_umrechnung(self):
         self.einheiten_umrechnung = {'Normalspannung':1, 'Schubspannung':1}
@@ -230,7 +232,6 @@ class Querschnitt(object):
                 t_laengslagen+= lage['ti']
                 eigenanteil += (lage['ti']**3)*width*(1/12)
                 steineranteil += lage['ti']*width*(lage['a']**2)
-                #print(lage['ti'])
         self.Iz_eff_platte= eigenanteil+steineranteil
         
     def compute_effektive_moment_of_inertia_platte_z(self):
@@ -243,7 +244,6 @@ class Querschnitt(object):
                 t_laengslagen+= lage['ti']
                 eigenanteil += (lage['ti']**3)*width*(1/12)
                 steineranteil += lage['ti']*width*lage['a']**2
-                #print(lage['ti'])
         self.Iz_eff_platte= eigenanteil+steineranteil
 
     def compute_effektive_moment_of_inertia_platte_Sxz(self):
@@ -344,9 +344,9 @@ class Querschnitt(object):
         '''
         pass
 
-# _________ NORMALSPANNUNGEN nx__________________________________
+# _________ NORMALSPANNUNGEN nx - im Balken cosy nz__________________________________
     
-    def calculate_normalspannung(self, SGR_design, add_vorspannkraft_grob = False, plot = False):
+    def calculate_normalspannung(self, SGR_design, add_vorspannkraft_grob = False, plot = False, ist_bauzustand = False):
         '''
         ergibt dictionaries mit der einwirkungsdauers Dauer als key:
             sigma_druck: Spannung aus Normalkraft und moment
@@ -356,15 +356,25 @@ class Querschnitt(object):
         '''
         self.sigma_druck, self.sigma_zug, self.sigma_N, self.sigma_M, self.sigma_druck_ohne_vorsp = {},{},{},{},{}
         self.sigma_druck_innen, self.sigma_zug_innen, self.sigma_M_innen , self.sigma_M_neg= {},{}, {}, {}
+        self.nz_min, self.nz_max = {},{}
 
-        for knoten in self.d_achse:
-            e = self.d_außen[knoten]/2
+        knoten_typ = list(self.d_achse.keys())
+        knoten_typ_sgr = list(self.d_achse.keys())
+        if ist_bauzustand:
+            knoten_typ = ['Ebenen']
+            knoten_typ_sgr = ['bauzustand']
+
+        for i, knoten in enumerate(knoten_typ):
+            e = self.d_achse[knoten]/2
+            self.berechnungs_hinweise.append('   - Normalspannungen werden als Mittelwert mit Hebelarm e = Radius_achse berechnet')
             e_innen = self.d_innen[knoten]/2
 
             self.sigma_druck[knoten], self.sigma_zug[knoten], self.sigma_N[knoten], self.sigma_M[knoten], self.sigma_druck_ohne_vorsp[knoten] = {},{},{},{},{}
             self.sigma_druck_innen[knoten], self.sigma_zug_innen[knoten], self.sigma_M_innen[knoten] , self.sigma_M_neg[knoten] = {},{}, {}, {}
+            if ist_bauzustand:
+                self.nz_min[knoten], self.nz_max[knoten] = {}, {}
 
-            SGR_design_current = SGR_design[knoten][self.name][self.nabenhöhe]
+            SGR_design_current = SGR_design[knoten_typ_sgr[i]][self.name][self.nabenhöhe]
 
             for dauer in SGR_design_current:
                 # Wirkungsrichtung von M neutralisieren um es dann als Druck und zug aufbringen zu können
@@ -384,10 +394,18 @@ class Querschnitt(object):
                 self.sigma_M_neg[knoten][dauer] = -(SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e 
                 self.sigma_M_innen[knoten][dauer] = (SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e_innen 
 
-            if add_vorspannkraft_grob:
-                self.sigma_druck[knoten]['ständig'] -= self.sigma_druck_P[knoten] # np.negative(self.sigma_zug['egal']) * (1+add_vorspannkraft_grob/100) # für die berechnung der ausnutzung
-                self.sigma_druck[knoten]['egal'] -= self.sigma_druck_P[knoten] # np.negative(self.sigma_zug['egal']) * (1+add_vorspannkraft_grob/100) # für die ergebniss ausgabe
+                if ist_bauzustand:
+                    self.nz_min[knoten][dauer] = self.sigma_druck[knoten][dauer] * self.wand_stärke
+                    self.nz_max[knoten][dauer] = self.sigma_zug[knoten][dauer] * self.wand_stärke
         
+
+            if add_vorspannkraft_grob:
+                self.sigma_druck[knoten]['ständig'] -= self.sigma_druck_P[knoten] # für die berechnung der ausnutzung
+                self.sigma_druck[knoten]['egal'] -= self.sigma_druck_P[knoten] # für die ergebniss ausgabe
+                self.sigma_zug[knoten]['ständig'] -= self.sigma_druck_P[knoten] # für die berechnung der ausnutzung
+                self.sigma_zug[knoten]['egal'] -= self.sigma_druck_P[knoten] # für die ergebniss ausgabe
+
+            
         if plot:
             knoten_typ = 'Ebenen'            
             
@@ -515,7 +533,7 @@ class Querschnitt(object):
         knoten = 'Ebenen'
         self.U_außen[knoten] = self.d_außen[knoten] * np.pi
         #'spannkraft': hat die SGR berechnet mit den für die Spannkraft berechnung relevante einwirkungskombination und sicherheitsbeiwerten
-        print('   - Erforderliche Spannkraft berechnet abzüglich des Eigengewichts mit gamma_m = 1.0')
+        self.berechnungs_hinweise.append('   - Erforderliche Spannkraft berechnet abzüglich des Eigengewichts mit gamma_m = 1.0')
         self.P_erf = self.sigma_zug[knoten]['spannkraft'] * self.wand_stärke * self.U_außen[knoten] # dauer 
 
         n_stunden = n_jahre * 365 * 24
@@ -636,7 +654,6 @@ class Querschnitt(object):
             for j, x_ebene in enumerate(self.section_absolute_heights['Ebenen'][1:]):
                 j += 1
                 if x >= self.section_absolute_heights['Ebenen'][j-1] and x <= x_ebene:
-                    P_diff_ist = P_diff[j-1]
                     self.P_ist_fuge['FE'][i] += self.P_ist_fuge['Ebenen'][j-1]
 
         self.sigma_druck_P['FE'] = self.P_ist_fuge['FE'] / self.wand_stärke / self.U_außen['FE']
@@ -740,7 +757,7 @@ class Querschnitt(object):
         self.tau_Qy_design, self.tau_Mx_design, self.tau_xy_design,  self.tau_vtor_design, self.tau_Fe_design, self.tau_längs_design = {},{},{},{},{},{}
 
         if self.holz_parameter['Furnierebene']:
-            print ('   - Verwende Furnierebenen Ansatz für die Schubspannungsberechnung')
+            self.berechnungs_hinweise.append('   - Verwende Furnierebenen Ansatz für die Schubspannungsberechnung')
 
         for knoten in self.d_achse:
 
@@ -789,6 +806,7 @@ class Querschnitt(object):
                     tl = min(max([lage['ti'] for lage in self.lagen_aufbau]), 0.04)
 
                     self.tau_vtor[knoten][dauer] = 1.5 * self.tau_xy[knoten][dauer] * (tl/lamellenbreite)
+                    self.berechnungs_hinweise.append('   - Torsion im Kreuzungspunkt der Lammellen in Folge Scheibenschub mit Lamellendicke ' + str(tl) + ' und Lamellenbreite ' + str(lamellenbreite) + ' berechnet')
 
             if not self.holz_parameter['Furnierebene']:
                 self.tau_Qy_design[knoten] = self.tau_Qy[knoten]['egal']
@@ -838,7 +856,7 @@ class Querschnitt(object):
                     self.ausnutzung_schub_netto[knoten] += self.tau_xy[knoten][dauer] / self.fvxyd_netto
                     self.ausnutzung_schub_torsion[knoten] += self.tau_vtor[knoten][dauer] / self.fvtord
 
-        print ('   - Schub Brutto Nachweis nur mit Schmalseitenverklebten Aufbauten (laut VO7)!')
+        self.berechnungs_hinweise.append('   - Schub Brutto Nachweis nur mit Schmalseitenverklebten Aufbauten (laut VO7)!')
 
     def calculate_schubkerrekturbeiwert(self, anzahl_lagen):
         '''
@@ -865,15 +883,13 @@ class Querschnitt(object):
         # Vorzeichen werden hier vernachlässigt, da Pm0 ansich negative wirkt aber als absoluter wert gespeichert ist
 
         self.n_Rd, self.nxy_Qy, self.nxy_Mx, self.ausnutzung_reibung = {},{},{},{}
-        for i, knoten in enumerate(self.d_achse):
+        for knoten in self.d_achse:
             try:
                 Pd = self.P_ist_fuge[knoten]
-                if i == 0:
-                    print ('   - Gestaffelte Spannglied Führung für Reibungsberechnung angesetzt')
+                self.berechnungs_hinweise.append('   - Gestaffelte Spannglied Führung für Reibungsberechnung angesetzt')
             except NameError:
                 Pd = self.P_m0[knoten]
-                if i == 0:
-                    print ('\n   Erforderliche Vorspannkraft für Reibungsberechnung angesetzt. Staffelung nicht berücksichtigt')
+                self.berechnungs_hinweise.append('\n   Erforderliche Vorspannkraft für Reibungsberechnung angesetzt. Staffelung nicht berücksichtigt')
 
             self.n_Rd[knoten] = mu * Pd / (np.pi * self.d_achse[knoten])
 

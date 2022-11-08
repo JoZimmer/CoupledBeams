@@ -17,7 +17,7 @@ LOAD_DOF_MAP = {'Fx':'x', 'Fy':'y', 'Fz':'z', 'Mx':'a', 'My':'b', 'Mz':'g'}
 GREEK = {'y':'y','z':'z', 'x':'x','a':r'\alpha', 'b':r'\beta', 'g':r'\gamma'}
 
 # https://pythonforundergradengineers.com/unicode-characters-in-python.html 
-GREEK_UNICODE = {'sigma':'\u03C3', 'mu':'\u03BC', 'delta':'\u03C3', 'eta':'\u03B7', 'tau':'\u03C4'}
+GREEK_UNICODE = {'sigma':'\u03C3', 'mu':'\u03BC', 'delta':'\u03C3', 'eta':'\u03B7', 'tau':'\u03C4', 'gamma':'\u03B3'}
 
 UNITS_LOAD_DIRECTION = {'x':'[N/m]', 'y':'[N/m]', 'z':'[N/m]', 'a':'[Nm/m]', 'b':'[Nm/m]', 'g':'[Nm/m]'}
 

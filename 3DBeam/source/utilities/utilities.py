@@ -278,11 +278,12 @@ def horizontale_ersatzlast(vertikale_lasten:list, theta_x):
 
     return F_h_ers
 
-def update_lasten_dict(lasten_dict_base, lasten_dicts_to_add:list, wind_kraft=None, kopflasten=None):
+def update_lasten_dict(lasten_dict_base, lasten_dicts_to_add:list, wind_kraft=None, kopflasten=None, abminderung_wind = 1.0):
     '''
     merged die Kopflasten und die windkraft nach DIN 
     lasten_dict_base: gibt größe und bezeichnugn der kräfte vor
     wenn windkraft = None wird nur die Kopflast in das richtige format gebracht
+    abminderung_wind: im Bauzustand = 0.5?!
     '''
     lasten_dict_updated = copy.deepcopy(lasten_dict_base)
 
@@ -291,13 +292,40 @@ def update_lasten_dict(lasten_dict_base, lasten_dicts_to_add:list, wind_kraft=No
     # for i, direction in enumerate(lasten_dict_base):
     #     lasten_dict_updated[direction][-1] += kopflasten[direction]
 
-    for last in lasten_dicts_to_add:
-        for i, direction in enumerate(lasten_dict_base):
+    for i, last in enumerate(lasten_dicts_to_add):
+        for direction in lasten_dict_base:
             if direction not in last.keys():
                 continue
             lasten_dict_updated[direction] += last[direction]
+            if i == 0 and abminderung_wind != 1.0:
+                lasten_dict_updated[direction] *= abminderung_wind
 
     return lasten_dict_updated
+
+def lasten_dict_bauzustand(lasten_dict_base, knoten_wind_kraft_z, gewichtskraft_charkteristisch, sicherheitsbeiwerte, QS_obj, abminderung_wind, parameter):
+    '''
+    lasten_dict_end: Lasten dict des Turms über die gesamte Höhe
+    '''
+    # Lasten wenn alle Segmente drauf sind
+    lasten_dict_base_ebenen = {k: np.zeros(QS_obj.n_ebenen) for k in lasten_dict_base}
+    lasten_dict_end = update_lasten_dict(lasten_dict_base_ebenen, [knoten_wind_kraft_z['Ebenen'], gewichtskraft_charkteristisch], abminderung_wind=abminderung_wind)
+    lasten_bauzustand = {}
+
+    # Das Eigengewicht wird nur am unteren Knoten aufgebracht und nicht oben schon 
+    knoten_komponente = {'Fx':0, 'Fy':1, 'Mz':1}
+    for segment in range(1,QS_obj.n_ebenen):
+        seg = 'seg_0-' + str(segment)
+        h_ebene = QS_obj.section_absolute_heights['Ebenen'][segment]
+        relevante_knoten = [j for j, h  in enumerate(QS_obj.section_absolute_heights['Ebenen']) if h <= h_ebene]
+        lasten_bauzustand[seg] = {}
+        for komponente in lasten_dict_end:
+            modfier = np.zeros(len(lasten_dict_end[komponente]))
+            modfier[:relevante_knoten[-1]+knoten_komponente[komponente]] = 1.
+            lasten_bauzustand[seg][komponente] = lasten_dict_end[komponente] * modfier
+        # SCHIEFSTELLUNG -> hierfür wird die Gewichtskraft wieder mit Sicherheitsbeiwert berücksichtigt
+        lasten_bauzustand[seg]['Fy'] += lasten_bauzustand[seg]['Fx'] * parameter['imperfektion'] * sicherheitsbeiwerte['g']
+
+    return lasten_bauzustand
 
 def generate_lasten_file(number_of_nodes, lasten_dict, file_base_name):
     '''
@@ -456,14 +484,15 @@ def add_model_data_from_dict(section_dict, model_parameters,):
     - Jedem Interval wird der Mittelwert der jeweiligen Querschnittswerte zugeordnet 
         (dieser kommt schon aus dem QS dictionary )
     '''
+    model_parameters_updated = copy.deepcopy(model_parameters)
     
-    model_parameters['intervals'] = []
+    model_parameters_updated['intervals'] = []
 
-    model_parameters['lx_total_beam'] = section_dict['section_absolute_heights'][-1]
-    #model_parameters['n_elements'] = section_dict['n_sections']
+    model_parameters_updated['lx_total_beam'] = section_dict['section_absolute_heights'][-1]
+    #model_parameters_updated['n_elements'] = section_dict['n_sections']
     # TODO von section auf ebenen umstellen 
     for section in range(section_dict['n_sections']):
-        model_parameters['intervals'].append(
+        model_parameters_updated['intervals'].append(
             {
             'bounds':[section_dict['section_absolute_heights'][section], section_dict['section_absolute_heights'][section+1]],
             'area': [section_dict['A'][section], section_dict['A'][section+1]],
@@ -472,9 +501,9 @@ def add_model_data_from_dict(section_dict, model_parameters,):
             }
             )
         if section == section_dict['n_ebenen']:
-            model_parameters['intervals']['bounds'][-1] = 'End'
+            model_parameters_updated['intervals']['bounds'][-1] = 'End'
 
-    return model_parameters
+    return model_parameters_updated
 
 def initialize_empty_dict(dict_name, key_to_add):
 
@@ -712,9 +741,13 @@ def zellen_groeße_formatieren(excel_file, worksheet, cell_width, n_cols,  start
     if isinstance(start_col, str):
         start_col = EXCEL_COLUMNS.index(start_col)
 
-    for i in range(start_col, n_cols):
-        excel_col = EXCEL_COLUMNS[i]
-        ws.column_dimensions[excel_col].width = cell_width
+    if start_col == n_cols:
+        ws.column_dimensions[start_col].width = cell_width
+    else:
+        for i in range(start_col, n_cols):
+            excel_col = EXCEL_COLUMNS[i]
+            ws.column_dimensions[excel_col].width = cell_width
+            
     wb.save(excel_file)
     wb.close()
 
@@ -744,28 +777,31 @@ def add_databar_color(excel_file, worksheet, columns):
     wb.save(excel_file)
     wb.close()
 
-def zellen_farbe_formatieren(excel_file, worksheet, n_cols,  start_col = 'A', color = None):
-    ''' 
-    TODO funktioniert nicht
+def add_color_rule(excel_file, worksheet, columns, regel = 'lessThan', farbe = 'rot', value = 0):
+    '''    
     '''
-    from openpyxl import load_workbook
+    from openpyxl import load_workbook, styles
+    from openpyxl.formatting.rule import CellIsRule
 
     wb = load_workbook(excel_file)
     ws = wb[worksheet]
 
-    if isinstance(start_col, str):
-        start_col = EXCEL_COLUMNS.index(start_col)
+    farben = {'rot':'ffc7ce'}#'ffc7ce''00FF0000'
 
-    for i in range(start_col, n_cols):
-        excel_col = EXCEL_COLUMNS[i]
-        c = ws[excel_col].value
-        print()
+    color_fill = styles.PatternFill(start_color=farben[farbe], end_color=farben[farbe], fill_type='solid')
+
+    rule = CellIsRule(operator=regel, formula=[str(value)], fill=color_fill) # Rot:'00FF0000'
+
+    for col in columns:
+        ws.conditional_formatting.add(col, rule)
+    
     wb.save(excel_file)
     wb.close()
 
-def zelle_beschriften(excel_file, worksheet, cell, wert, merge_from_to = None):
+
+def zelle_beschriften(excel_file, worksheet, cell, wert, merge_from_to = None, zelle_färben = False):
     '''
-    merge_from_to: 'A2:D2'
+    merge_from_to: 'A2:D2' Zellen verbinden
     '''
     from openpyxl import load_workbook
     from openpyxl.styles import PatternFill
@@ -773,14 +809,44 @@ def zelle_beschriften(excel_file, worksheet, cell, wert, merge_from_to = None):
     wb = load_workbook(excel_file)
     ws = wb[worksheet]
 
-    ws[cell].value = wert
-    ws[cell].fill = PatternFill(fill_type='solid', fgColor='FFD3D3D3')
+    if not isinstance(cell, list):
+        cell = list(cell)
+
+    for cell_i in cell:
+        ws[cell_i].value = wert
+        if zelle_färben:
+            ws[cell_i].fill = PatternFill(fill_type='solid', fgColor='FFD3D3D3')
+
     if merge_from_to:
         ws.merge_cells(merge_from_to)
     wb.save(excel_file)
     wb.close()
 
-def get_spalten_ausnutzung(df, df_header, start_row, start_col):
+def spalte_beschriften(excel_file, worksheet, start_cell, wert:list, merge_from_to = None, zelle_färben = False):
+    '''
+    merge_from_to: 'A2:D2' Zellen verbinden
+    start_cell in Excel format: A1
+    '''
+    from openpyxl import load_workbook
+    from openpyxl.styles import PatternFill
+
+    wb = load_workbook(excel_file)
+    ws = wb[worksheet]
+
+    for i in wert:
+        i = i.translate(None, '-+=')
+        ws[start_cell].value = i
+        if zelle_färben:
+            ws[start_cell].fill = PatternFill(fill_type='solid', fgColor='FFD3D3D3')
+        
+        start_cell = list(start_cell)[0] + str(int(list(start_cell)[1])+1)
+
+    if merge_from_to:
+        ws.merge_cells(merge_from_to)
+    wb.save(excel_file)
+    wb.close()
+
+def get_spalten_ausnutzung(df, df_header, start_row):
 
     n_rows = df.shape[0]
     end_row = start_row + n_rows + len(df_header) +1
@@ -794,6 +860,30 @@ def get_spalten_ausnutzung(df, df_header, start_row, start_col):
     for j in nth_col:
         for i in range(df.columns.levshape[0]*df.columns.levshape[1]):
             cols.append(j + i*df.columns.levshape[2])
+
+    xl_col = [EXCEL_COLUMNS[i] for i in cols]
+
+    cols_rows = [i + str(start_row) + ':' + i+ str(end_row) for i in xl_col]
+
+    return cols_rows
+
+def get_spalten_nach_name(df, df_header, start_row, name):
+
+    #start_row = len (df_header)
+    n_rows = df.shape[0]
+    start_row += len(df_header) + 1
+    end_row = start_row + n_rows  
+    cols, nth_col = [], []
+    # n-te Spalte je Querschnitt 
+    for i, val in enumerate(df_header[-1]):
+        if name in val:
+            nth_col.append(i+1) # index vom df ist erst spalte
+    
+    # alle Spalten die gesamt
+    for j in nth_col:
+        depth = df.columns.levshape[0]*df.columns.levshape[1]*df.columns.levshape[2]
+        for i in range(depth):
+            cols.append(j + i*df.columns.levshape[3])
 
     xl_col = [EXCEL_COLUMNS[i] for i in cols]
 

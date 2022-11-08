@@ -1133,6 +1133,9 @@ def plot_eigenmodes_3D(beam_model:BeamModel, eigenfrequencies, eigenmodes, numbe
 
 def plot_along_height(wert, z, label):
 
+    plt.plot(np.zeros(len(z)), z, marker = 'o',
+            color = 'grey',
+            linestyle = '--')
     plt.plot(wert, z)
     plt.xlabel(label)
     plt.ylabel('z [m]')
