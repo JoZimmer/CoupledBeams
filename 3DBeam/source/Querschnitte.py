@@ -138,7 +138,7 @@ class Querschnitt(object):
         self.section_heights['Ebenen'] = minimization_result.x
         self.n_sections = int(self.nabenhöhe/self.section_heights['Ebenen'])
         self.n_ebenen = self.n_sections + 1
-        self.section_absolute_heights = {'Ebenen':np.arange(0, self.nabenhöhe, self.section_heights['Ebenen'])}
+        self.section_absolute_heights = {'Ebenen':np.round(np.arange(0, self.nabenhöhe, self.section_heights['Ebenen']),2)}
         #self.section_absolute_heights = np.linspace(0, self.nabenhöhe, self.n_ebenen)
         self.hfract = {'Ebenen':self.section_absolute_heights['Ebenen']/self.section_absolute_heights['Ebenen'][-1]}
 
@@ -194,7 +194,7 @@ class Querschnitt(object):
             self.hoehen_parameter['knick_ebenen'] = knick_ebenen
 
         # ________ JETZT DAS GANZE AUF EBENE DER FE KNOTEN BESTIMMEN
-        self.section_absolute_heights['FE'] = np.linspace(0,self.section_absolute_heights['Ebenen'][-1], self.FE_nodes)
+        self.section_absolute_heights['FE'] = np.round(np.linspace(0,self.section_absolute_heights['Ebenen'][-1], self.FE_nodes),2)
         self.section_heights['FE'] = np.diff(self.section_absolute_heights['FE'])[0]
         
         d_achse_FE = []
@@ -987,21 +987,43 @@ class Querschnitt(object):
         '''
         WICHTIG: uinterschied zu save_section_parameters: die Werte an den Knoten werden gespeichert und nicht die section mittelwerte
         Gedacht um die werte die für einen Bestimmten QS charakterisitisch sind zu speichern um sie dann in ein excel zu packen
-        TODO Wandstärke bisher konstant
+        NOTE Wandstärke bisher konstant
         '''
+        if 'transportbreite_max'  in self.hoehen_parameter:
+            s_max = self.hoehen_parameter['transportbreite_max']
+            bogen_max = self.d_außen['Ebenen'] * np.arcsin(s_max/self.d_außen['Ebenen'])
+            n_ist = self.U_außen['Ebenen'] / bogen_max
+            s_kleiner = self.d_außen['Ebenen'] * np.sin(self.U_außen['Ebenen']/(np.ceil(n_ist) * self.d_außen['Ebenen']))
+            n_kleiner = np.ceil(n_ist)
+            s_größer = self.d_außen['Ebenen'] * np.sin(self.U_außen['Ebenen']/(np.floor(n_ist) * self.d_außen['Ebenen']))
+            n_größer = np.floor(n_ist)
+
+
+            n_segment_info = {'b_max [m]':bogen_max,
+                              's <' + str(self.hoehen_parameter['transportbreite_max']) : s_kleiner,
+                              'n Seg. max':n_kleiner,
+                              's >' + str(self.hoehen_parameter['transportbreite_max']) : s_größer,
+                              'n Seg. min':n_größer
+                             }
+
         self.querschnitts_werte = {}
         for knoten in self.d_achse:
             V_sections = np.append(self.V[knoten], 0)
             self.querschnitts_werte[knoten] = {
                 'Höhe [m]':self.section_absolute_heights[knoten],
                 'd_achse [m]':self.d_achse[knoten],
+                'd_außen [m]':self.d_außen[knoten],
                 'Iz [m^4]': self.Iz[knoten],
                 'A [m²]':self.A[knoten],
                 'U_achse [m]':self.U[knoten],
+                'U_außen [m]':self.U_außen[knoten],
                 't [m]':np.asarray([self.wand_stärke]*len(self.d_achse[knoten])),
                 'V_section [m³]':V_sections
-                
             }
+
+            if 'transportbreite_max'  in self.hoehen_parameter:
+                if knoten == 'Ebenen':
+                    self.querschnitts_werte[knoten].update(n_segment_info)
 
         return self.querschnitts_werte
 

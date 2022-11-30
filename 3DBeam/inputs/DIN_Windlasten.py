@@ -1,5 +1,10 @@
 import numpy as np 
 import matplotlib.pyplot as plt
+from source import Querschnitte
+
+
+vb_windzone = {1: 22.5, 2:25, 3:27.5, 4:30} # NA.A.1
+RHO = 1.225 # nach DIBt 7.3.1
 
 def wind_kraft(vb, category, height, cd, Aref):
     '''
@@ -30,7 +35,7 @@ def DIN_potenz_profil (vb, category, height,   at_height = 100):
     else:
         z = height
 
-    qb = 0.5*1.25*vb**2
+    qb = 0.5*RHO*vb**2
     
     if category == 'I':
         zmin, vmin, Imin, qbmin = 2, 0.97, 0.17, 1.9
@@ -52,63 +57,99 @@ def DIN_potenz_profil (vb, category, height,   at_height = 100):
         a, b = 0.56, 0.30
         aI, bI = 0.43, -0.30
         aq, bq = 1.1, 0.4
+    elif category == 'dibt':
+        #zmin, vmin, Imin, qbmin = 4, 0.86, 0.22, 1.7 aus category II
+        zmin, vmin, Imin, qbmin = 0,0,0,0
+        a, b = 1.15, 0.121
+        aI, bI = 0.128, -0.05
     
     #if z[1] < zmin:
     
-    v_z0 = np.array([vmin*vb for i in z if i < zmin])
+    vm_z0 = np.array([vmin*vb for i in z if i < zmin])
     Iv_z0 = np.array([Imin for i in z if i < zmin])
     qb_z0 = np.array([qbmin*qb for i in z if i < zmin])
-    z1 = z[len(v_z0):]
-    v_z = np.concatenate((v_z0, a*vb*(z1/10)**b), axis = 0)
+    z1 = z[len(vm_z0):]
+    vm_z = np.concatenate((vm_z0, a*vb*(z1/10)**b), axis = 0)
     Iv_z = np.concatenate((Iv_z0, aI*(z1/10)**bI), axis = 0)
-    qp_z = np.concatenate((qb_z0, qb*aq*(z1/10)**bq), axis = 0)
+    if category == 'dibt':
+        Iv_z[Iv_z == np.inf] = 0
+        qp_z = (1+7*Iv_z) * 0.5 * vm_z**2
+    else:
+        qp_z = np.concatenate((qb_z0, qb*aq*(z1/10)**bq), axis = 0)
 
-    return v_z, Iv_z, qp_z, z
+    return vm_z, Iv_z, qp_z, z
 
-def plot_DIN_all (vb, v_ref=1, z_ref=1, categories= ['I','II','III','IV']):
+def plot_DIN_profiles (vb, h_max ,v_ref=1, z_ref=1, categories= ['I','II','III','IV','dibt'], values = ['vm(z)','Iv(z)','qp(z)']):
 
-    # profile functions
-    fig = plt.figure('DIN profiles', figsize=(3,3.8))
-    ax = fig.add_subplot(111)
+    fig, ax = plt.subplots(ncols=len(values),num='DIN profiles')#, figsize=(3,3.8)
+    
     colors = ['tab:blue','tab:orange','tab:green', 'tab:red']
-    z = np.arange(0,160,0.5)
+    untis = {'vm(z)':' [m/s]','Iv(z)':' [-]','qp(z)':' [N/m²]'}
+
     for i, category in enumerate(categories):
-        #TODO: split z array an stelle von z min und erstelle array 0 bis zmin mit vz0 wert--> concatenate them
-        if category == 'I':
-            zmin, vmin, Imin = 2, 0.97, 0.17
-            a, b = 1.18, 0.12
-            aI, bI = 0.14, -0.12
-        elif category == 'II':
-            zmin, vmin, Imin = 4, 0.86, 0.22
-            a, b = 1.0, 0.16
-            aI, bI = 0.19, -0.16
-        elif category == 'III':
-            zmin, vmin, Imin = 8, 0.73, 0.29
-            a, b = 0.77, 0.22
-            aI, bI = 0.28, -0.22
-        elif category == 'IV':
-            zmin, vmin, Imin = 16, 0.64, 0.37
-            a, b = 0.56, 0.30
-            aI, bI = 0.43, -0.30
-        
-        z1 = z[2*zmin+1:]
-        v_z0 = np.full(2*zmin+1, vmin*vb)
-        Iv_z0 = np.full(2*zmin+1, Imin)
-        v_z = np.concatenate((v_z0, a*vb*(z1/10)**b), axis = 0)
-        Iv_z = np.concatenate((Iv_z0, aI*(z1/10)**bI), axis = 0)
+        vm_z, Iv_z, qp_z, z = DIN_potenz_profil (vb, category, h_max)
+        res = {'vm(z)':vm_z,'Iv(z)':Iv_z,'qp(z)':qp_z}
 
 
-        #ax.plot(Iv_z, z/z_ref, color = colors[i])
-        #ax.plot(v_z/v_ref, z/z_ref, label = 'DIN - category '+category, color = colors[i])
-        ax.plot(v_z, z, label = 'DIN - category '+category, color = colors[i])
+        if v_ref != 1:
+            norm_by = v_ref
+        else:
+            norm_by = 1
+        for j, value in enumerate(values):
+            label = 'DIN - category '+category
+            linestyle = '-'
+            if category == 'dibt':
+                label = 'DIBt'
+                linestyle = '--'
+            ax[j].plot(res[value], z, label = label, color = colors[i], linestyle=linestyle)
 
-    ax.set_xlabel('v(z) [m/s]')
-    ax.set_ylabel('z [m]')
-    ax.legend()
-    ax.grid()
+            ax[j].set_xlabel(value + untis[value])
+            ax[j].set_ylabel('z [m]')
+            
+            ax[j].grid(True)
+    ax[0].legend()
+    plt.tight_layout()
     plt.show()
 
 
+#plot_DIN_profiles(vb=16, h_max=130,categories=['I','II', 'dibt'])
 
-#plot_DIN_all(16,20,10)
+class Querschwingung(object):
+    '''
+    Wirbelerreget Querschwingung nach DIN EN 1991-1-4 Anhang E
+    '''
+
+    def __init__(self, querschnitt:Querschnitte.Querschnitt, n_1, vm_z, eigenform):
+
+       
+        self.St = 0.18 # Zylinder
+        self.nu = 15E-06 # kinematische Viskosität Luft m²/s
+        
+        self.v_crit1 = querschnitt.d_außen[-1] * n_1 * self.St # An stelle des Turms der Maximalen modalen auslenkung
+
+        ist_anfällig = False
+        if self.v_crit1 > 1.25* vm_z[-1]:
+            ist_anfällig = True
+
+        self.Re_vcrit1 = querschnitt.d_außen[-1] * self.v_crit1 / self.nu
+
+
+    def get_c_lat(self):
+        '''
+        Nach Tabelle E.3
+        clat0 abschnittsweise konstant angenommen
+        (je größer clat desto größer die Kraft - also auf der sicheren Seite die Linearen Bereich in den größeren clat0 verschieben)
+        '''
+        if self.Re_vcrit1 < 5E+06:
+            c_lat0 = 0.7
+        elif self.Re_vcrit1 > 5E+06 and self.Re_vcrit1 < 5E+07:
+            c_lat0 = 0.2
+        elif self.Re_vcrit1 > 5E+07:
+            c_lat0 = 0.3
+        
+
+
+    
+
+
 

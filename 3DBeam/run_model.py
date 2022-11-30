@@ -1,5 +1,5 @@
 '''
-Jupyter Version vom 26.10.2022
+Das kommt von der Jupyter Version vom 26.10.2022
 '''
 
 import numpy as np
@@ -23,14 +23,14 @@ parameters_init = {
                 'total_mass_tower': 668390,# aus RFEM
                 'nacelle_mass': 267910,# IEA37: Gondel Masse in kg # aus optimierung 287920.5
                 'vorspannkraft':12*2.5E+06, # N
-                'imperfektion':0.008, # m/m Scheifstellung + Fundament schief
+                'imperfektion':0.008, # m/m Schiefstellung + Fundament schief
                 'E_Modul': 12000E+06,# N/m²
                 'nu': 0.1, # querdehnung
                 'damping_coeff': 0.025,
                 'nodes_per_elem': 2,
                 'Iz': 51.0,# Not used if defined on intervals
                 'dofs_of_bc':[0,1,2], # Einspannung
-                'type_of_bc':'clamped',#'clamped',# or 'spring'
+                'type_of_bc':'Feder', #'clamped',#'Eingespannt',# or 
                 'spring_stiffness':[1E+13,2E+13], # Federsteifigkeit am Boden in u und gamma richtung Bögl 40 GNm/rad
                 'dynamic_load_file': os_join(*["inputs","forces","dynamic_force_11_nodes.npy"]),
                 'eigen_freqs_target':[0.133,0.79,3.0], 
@@ -72,6 +72,7 @@ if not querschnitts_dateien_laden:
                                     'd_unten_angepasst':knick[1], # damit ein Übergangsknick entseht muss dieser hier kleiner als 'd_unten' sein
                                     'd_knick_übergang':'automatisch',#7.5,# # bei automatisch nimmt es den schon vorhandenen an dieser Stelle
                                     'n_sektionen_übergang':1,
+                                    'transportbreite_max':3, # past nicht so ganz zur höhe aber mus irgendwo hin
                                     } 
 
                     lagen_aufbau = holz.lagenaufbauten[furnier_dict[mit_furnier]][t]
@@ -101,7 +102,7 @@ if not querschnitts_dateien_laden:
     qs_df = pd.DataFrame(qs_werte, columns=qs_header)
     holz_df = pd.DataFrame(werkstoff_parameter, index=[0])
     lagen_df = pd.DataFrame(lagen_aufbau,  index=list(range(1,len(lagen_aufbau)+1)))
-    lagen_df.rename({'ti': 'ti ' + kreis_ring.einheiten['Länge'], 'di': 'di ' + kreis_ring.einheiten['Länge']}, axis='columns',inplace=True)
+    lagen_df.rename({'ti': 'ti [' + kreis_ring.einheiten['Länge'] +']', 'di': 'di [' + kreis_ring.einheiten['Länge']+']'}, axis='columns',inplace=True)
     
     #kreis_ring.plot_properties_along_height(['d_achse'], h_absolut=True)columns=lagen_header
 
@@ -216,6 +217,7 @@ kopf_lasten_beam = utils.convert_coordinate_system_and_consider_einwirkungsdauer
 import inputs.DIN_Windlasten as wind_DIN
 
 basis_windgeschwindigkeit = 17
+vb_bauzustad = wind_DIN.vb_windzone[2] # Windzone 2 vb = 25 m/s TODO heir extra windlast berechne und für den bauzustand verwenden
 terrain_kategorie = 'II'
 einwirkungs_parameter = {'vb':basis_windgeschwindigkeit,'Terrain Kategorie':terrain_kategorie, 'cd': cd_zylinder, 'Kopflast':'@max Fx', 'DLC':'1.3_seed2_9ms'}
 einwirkungs_parameter.update(sicherheitsbeiwerte)
@@ -361,6 +363,10 @@ for querschnitt in querschnitte:
     parameters = {'FE': utils.add_model_data_from_dict(section_properties['FE'], parameters_init)}
     parameters['Ebenen'] = utils.add_model_data_from_dict(section_properties['Ebenen'], parameters_init)
     parameters['Ebenen']['n_elements'] = querschnitt.n_sections
+    if parameters_init['type_of_bc'] == 'Feder':
+        querschnitt.berechnungs_hinweise.append('   - Einspannung am Fuß mit Federsteifigkeiten u & Drehfder gamma: ' +  str(parameters_init['spring_stiffness']))
+    elif parameters_init['type_of_bc'] == 'Eingespannt':
+        querschnitt.berechnungs_hinweise.append('   - Einspannung am Fuß starr')
 
     beam = BeamModel(parameters['FE'], adjust_mass_density_for_total = False, optimize_frequencies_init=False , apply_k_geo=False)
     beam_ebenen = BeamModel(parameters['Ebenen'], adjust_mass_density_for_total = False, optimize_frequencies_init=False , apply_k_geo=False)
@@ -551,7 +557,7 @@ with pd.ExcelWriter(results_excel, mode= 'w', engine="openpyxl") as writer:# -->
 
   holz_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=0, startcol=0, index=False)#
   qs_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=4, startcol=0)
-  lagen_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=5, startcol=qs_df.shape[1] +2)
+  lagen_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=qs_df.shape[0] + 10, startcol=0)
 
   einwirkungs_parameter_df.to_excel(writer, sheet_name= 'Einwirkung_design', startrow=0, startcol=0, index=False)
   einwirkungs_df.to_excel(writer, sheet_name= 'Einwirkung_design', startrow=4, startcol=0)

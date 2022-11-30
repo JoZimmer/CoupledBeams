@@ -9,7 +9,7 @@ num_zero = 1e-15
 
 class BeamModel(object):
 
-    def __init__(self, parameters, adjust_mass_density_for_total=False, optimize_frequencies_init = True, apply_k_geo = False):
+    def __init__(self, parameters, adjust_mass_density_for_total=False, optimize_frequencies_init = False, apply_k_geo = False):
 
  
         # MATERIAL; GEOMETRIC AND ELEMENT INFORMATION
@@ -19,7 +19,7 @@ class BeamModel(object):
         self.n_dofs_node = GD.DOFS_PER_NODE[self.dim]
         self.dof_labels = GD.DOF_LABELS[self.dim]
         self.dofs_of_bc = self.parameters['dofs_of_bc']
-        if self.parameters['type_of_bc'] == 'spring':
+        if self.parameters['type_of_bc'] == 'Feder':
             self.dofs_of_bc = [0] # nur in längsrichtung einspannen 
         
         self.n_elems = parameters['n_elements']
@@ -85,23 +85,24 @@ class BeamModel(object):
         for i in range(self.n_nodes):
             self.nodal_coordinates['x0'][i] = i * lx_i
 
-        if not self.parameters['intervals']:
+        self.relative_length_ratios = [1.0] * self.n_elems
+        param_elem_length_sum = sum(self.relative_length_ratios)
+        param_elem_length_cumul = [0.0]
+        for idx, el_length in enumerate(self.relative_length_ratios):
+            param_elem_length_cumul.append(sum(self.relative_length_ratios[:idx+1]))
+        param_elem_length_cumul_norm = [
+            x/param_elem_length_sum for x in param_elem_length_cumul]
+
+        self.parameters['x'] = [x * self.parameters['lx_total_beam'] for x in param_elem_length_cumul_norm]
+        self.parameters['x_mid'] = [(a+b)/2 for a, b in zip(self.parameters['x'][:-1], self.parameters['x'][1:])]    
+
+        if 'intervals' not in self.parameters:
             for i in range(self.n_elems):
+                self.parameters['x'] 
                 e = BernoulliElement(self.parameters, elem_length = lx_i , elem_id = i)
                 self.elements.append(e)
         else:
             # MIT INTERVAL WEISE DEFINIERTEN CROSS SECTION PARAMETERN
-            self.relative_length_ratios = [1.0] * self.n_elems
-            param_elem_length_sum = sum(self.relative_length_ratios)
-            param_elem_length_cumul = [0.0]
-            for idx, el_length in enumerate(self.relative_length_ratios):
-                param_elem_length_cumul.append(sum(self.relative_length_ratios[:idx+1]))
-            param_elem_length_cumul_norm = [
-                x/param_elem_length_sum for x in param_elem_length_cumul]
-
-            self.parameters['x'] = [x * self.parameters['lx_total_beam'] for x in param_elem_length_cumul_norm]
-            self.parameters['x_mid'] = [(a+b)/2 for a, b in zip(self.parameters['x'][:-1], self.parameters['x'][1:])]            
-
             for i in range(self.n_elems):
                 element_params = self.initialize_element_geometric_parameters(i,neu)
                 self.parameters.update(element_params)
@@ -157,7 +158,7 @@ class BeamModel(object):
         self.comp_m = self.apply_bc_by_reduction(self.m)
 
         # Muss nach der reduction der restlichen BCs gemacht werden
-        if self.parameters['type_of_bc'] == 'spring':
+        if self.parameters['type_of_bc'] == 'Feder':
             self.comp_k = self.apply_spring_bc(self.comp_k)
         
         # Aus Paper: Beton Turm Strukturoptimierung - masse am letzen knoten hinzufügen
