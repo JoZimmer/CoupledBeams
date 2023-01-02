@@ -196,6 +196,7 @@ class Querschnitt(object):
         # ________ JETZT DAS GANZE AUF EBENE DER FE KNOTEN BESTIMMEN
         self.section_absolute_heights['FE'] = np.round(np.linspace(0,self.section_absolute_heights['Ebenen'][-1], self.FE_nodes),2)
         self.section_heights['FE'] = np.diff(self.section_absolute_heights['FE'])[0]
+        self.hfract['FE'] = self.section_absolute_heights['FE']/self.section_absolute_heights['FE'][-1]
         
         d_achse_FE = []
 
@@ -932,7 +933,7 @@ class Querschnitt(object):
         'Iz','EIz', 'd_achse', 'a_außen', 'a_innen', 'd_außen','M'
         '''
         prop_values = {'Iz':self.Iz[knoten_typ],'EIz':self.Iz[knoten_typ] * E_modul, 'd_achse':self.d_achse[knoten_typ], 'd_außen':self.d_außen[knoten_typ],
-                        'M':self.masse_pro_meter[knoten_typ]}
+                        }
         prop_units_default = {'Iz':'m^4', 'EIz':'Nm²', 'd_achse':'m', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
 
         fg, ax = plt.subplots(ncols = len(properties), figsize=(2,5))
@@ -964,7 +965,6 @@ class Querschnitt(object):
         #     'Iz': self.compute_sectional_mean(self.Iz),
         #     'd_achse':self.compute_sectional_mean(self.d_achse),
         #     'A':self.compute_sectional_mean(self.A),
-        #     'masse_pro_m':self.masse_pro_meter,
         #     'section_absolute_heights':self.section_absolute_heights,
         #     'section_heights':self.section_heights
         # }
@@ -978,7 +978,6 @@ class Querschnitt(object):
                 'Iz': self.Iz[knoten],
                 'd_achse':self.d_achse[knoten],
                 'A':self.A[knoten],
-                'masse_pro_m':self.masse_pro_meter[knoten],
                 'section_absolute_heights':self.section_absolute_heights[knoten],
                 'section_heights':self.section_heights[knoten]
             }
@@ -1009,8 +1008,16 @@ class Querschnitt(object):
         self.querschnitts_werte = {}
         for knoten in self.d_achse:
             V_sections = np.append(self.V[knoten], 0)
+            if self.holz_parameter['Furnierebene']:
+                Iz_lagen = self.compute_flächenträgheitsmoment(self.d_achse[knoten], mit_furnier = True)
+                Iz_eff = np.add(Iz_lagen['längslagen'], Iz_lagen['furnier'])
+            else:
+                # TODO noch nicht getestt ob format passt
+                Iz_lagen = self.compute_flächenträgheitsmoment(self.d_achse[knoten], mit_furnier = False, nur_längs = True)
+                Iz_eff = Iz_lagen['längslagen']
             self.querschnitts_werte[knoten] = {
                 'Höhe [m]':self.section_absolute_heights[knoten],
+                'Hfract':self.hfract[knoten],
                 'd_achse [m]':self.d_achse[knoten],
                 'd_außen [m]':self.d_außen[knoten],
                 'Iz [m^4]': self.Iz[knoten],
@@ -1018,7 +1025,9 @@ class Querschnitt(object):
                 'U_achse [m]':self.U[knoten],
                 'U_außen [m]':self.U_außen[knoten],
                 't [m]':np.asarray([self.wand_stärke]*len(self.d_achse[knoten])),
-                'V_section [m³]':V_sections
+                'V_section [m³]':V_sections,
+                'MassDen [kg/m]':self.mass_density[knoten],
+                'EIz,eff [Nm^2]': self.holz_parameter['E0mean'] * Iz_eff
             }
 
             if 'transportbreite_max'  in self.hoehen_parameter:
@@ -1047,7 +1056,7 @@ class KreisRing(Querschnitt):
         self.name = 'Ring'
         self.nachweis_parameter= nachweis_parameter
 
-        self.A, self.U,self.U_außen, self.V, self.Iz, self.Sy_max, self.Wx, self.masse_pro_meter, self.eigengewicht, self.gewichtskraft = {},{},{},{},{},{},{},{},{},{}
+        self.A, self.U,self.U_außen, self.V, self.Iz, self.Sy_max, self.Wx, self.mass_density, self.eigengewicht, self.gewichtskraft = {},{},{},{},{},{},{},{},{},{}
         for knoten in self.d_achse:
 
             self.A[knoten] = self.compute_area(self.d_außen[knoten]/2)-self.compute_area(self.d_innen[knoten]/2)
@@ -1059,7 +1068,7 @@ class KreisRing(Querschnitt):
             self.Sy_max[knoten] = self.compute_static_moment(self.d_achse[knoten])
             self.Wx[knoten] = self.compute_Wx(self.d_achse[knoten])
 
-            self.masse_pro_meter[knoten] = self.compute_sectional_mean(self.A[knoten]) * self.wichte
+            self.mass_density[knoten] = self.A[knoten] * self.wichte
             self.eigengewicht[knoten] =  - np.append(self.V[knoten] * self.wichte, 0)
             gewichtskraft = -self.V[knoten] * self.wichte * GD.GRAVITY
 
@@ -1078,7 +1087,7 @@ class KreisRing(Querschnitt):
         self.save_QS_parameters_charakteristisch()
 
 
-    def compute_flächenträgheitsmoment(self, d_achse, mit_furnier = False):
+    def compute_flächenträgheitsmoment(self, d_achse, mit_furnier = False, nur_längs=False):
 
         '''
         bisher nur für konstate Wandstärke über die Höhe
@@ -1086,8 +1095,8 @@ class KreisRing(Querschnitt):
         '''
 
         if mit_furnier:
-            if 'di' not in self.lagen_aufbau[0]:
-                utils.get_d_achse_lagen(d_achse, self.lagen_aufbau)
+            #if 'di' not in self.lagen_aufbau[0]:
+            utils.get_d_achse_lagen(d_achse, self.lagen_aufbau)
             Iz = {'furnier':0, 'längslagen':0}
             for i, lage in enumerate(self.lagen_aufbau):
                 d_außen = lage['di'] + lage['ti']/2
@@ -1096,6 +1105,19 @@ class KreisRing(Querschnitt):
                     Iz['längslagen'] += np.pi / 64 * (d_außen**4 - d_innen**4)
                 if lage['ortho'] == 'Y':
                     Iz['furnier'] += np.pi / 64 * (d_außen**4 - d_innen**4)
+            return Iz
+        
+        elif nur_längs:
+            if 'di' not in self.lagen_aufbau[0]:
+                utils.get_d_achse_lagen(d_achse, self.lagen_aufbau)
+            Iz = {'quer':0, 'längslagen':0}
+            for i, lage in enumerate(self.lagen_aufbau):
+                d_außen = lage['di'] + lage['ti']/2
+                d_innen = lage['di'] - lage['ti']/2
+                if lage['ortho'] == 'X':
+                    Iz['längslagen'] += np.pi / 64 * (d_außen**4 - d_innen**4)
+                if lage['ortho'] == 'Y':
+                    Iz['quer'] += 0 / 64 * (d_außen**4 - d_innen**4)
             return Iz
         
         else:
@@ -1256,7 +1278,6 @@ class nEck(Querschnitt):
         self.A_m= self.compute_area_neck(self.d_achse/2)
 
         self.A = self.A_außen-self.A_innen
-        self.masse_pro_meter = self.compute_sectional_mean(self.A) * self.wichte
 
         self.cd = cd
         self.cp_max=cp_max
@@ -1286,7 +1307,6 @@ class nEck(Querschnitt):
 
         self.section_volume = self.compute_sectional_mean(self.A_außen) * self.section_heights
 
-        self.section_mass = self.masse_pro_meter * self.section_heights
         mass_total = np.sum(self.section_mass)
         volume_total = np.sum(self.section_volume)
         self.mass_density = mass_total/volume_total
@@ -1344,7 +1364,7 @@ def plot_properties_along_height_list(geometric_objects:list, properties:list, u
     for e_i, cross_section in enumerate(geometric_objects):
         prop_values = {'Iz':cross_section.Iz,'EIz':cross_section.Iz * E_modul, 'Iz_eff':cross_section.Iz_eff,'EIz_eff':cross_section.Iz_eff * E_modul,
                        'a_außen':cross_section.a_außen, 'a_innen':cross_section.a_innen, 'd_außen':cross_section.d_außen,
-                        'M':cross_section.masse_pro_meter}
+                        }
         prop_units_default = {'Iz':'m^4', 'EIz':'Nm²', 'Iz_eff':'m^4', 'EIz_eff':'Nm²', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
 
         for p_i, prop in enumerate(properties):

@@ -54,7 +54,7 @@ QUERSCHNITTS DEFINITION
 '''
 querschnitts_dateien_laden = False
 if not querschnitts_dateien_laden:
-    querschnitte,qs_werte,qs_labels  = [],[],[]
+    querschnitte,qs_werte, qs_werte_FE, qs_labels  = [],[],[],[]
     höhe = 130
     dicken = [36]# [40]#,44]#, 44]#,48,56,64] # key für lagenaufbau dictonaire in holz 
     mit_furnier = werkstoff_parameter['Furnierebene']
@@ -88,22 +88,31 @@ if not querschnitts_dateien_laden:
                                             FE_elements=parameters_init['n_elements'])
 
                     kreis_ring.name += ' ' + label + ' t' + str(t_ges)
+                    qs_label_openfast = kreis_ring.name + '_h' + str(höhen_parameter['nabenhöhe']) + '_du' + str(höhen_parameter['d_unten_oben'][0]) +\
+                                    '_do' + str(höhen_parameter['d_unten_oben'][1])
                     qs_labels.append(kreis_ring.name)
                     qs_values_digits = 2
                     for values in kreis_ring.querschnitts_werte['Ebenen'].values():
                         qs_werte.append(np.around(values, qs_values_digits))
+                    for values in kreis_ring.querschnitts_werte['FE'].values():
+                        qs_werte_FE.append(values)
 
                     querschnitte.append(kreis_ring)
    
     qs_header = pd.MultiIndex.from_product([qs_labels, list(kreis_ring.querschnitts_werte['Ebenen'].keys())])
+    qs_header_FE = pd.MultiIndex.from_product([qs_labels, list(kreis_ring.querschnitts_werte['FE'].keys())])
     #lagen_header = pd.MultiIndex.from_product([['Lagenaufbau [m]'], list(lagen_aufbau[0].keys())])
 
     qs_werte=np.array(qs_werte).transpose()
+    qs_werte_FE=np.array(qs_werte_FE).transpose()
     qs_df = pd.DataFrame(qs_werte, columns=qs_header)
+    qs_FE_df = pd.DataFrame(qs_werte_FE, columns=qs_header_FE)
     holz_df = pd.DataFrame(werkstoff_parameter, index=[0])
     lagen_df = pd.DataFrame(lagen_aufbau,  index=list(range(1,len(lagen_aufbau)+1)))
     lagen_df.rename({'ti': 'ti [' + kreis_ring.einheiten['Länge'] +']', 'di': 'di [' + kreis_ring.einheiten['Länge']+']'}, axis='columns',inplace=True)
     
+    # Querschnittswerte speichern für openfast einlesen -> NOTE gehe hier davon aus das gerade nur ein QS
+    qs_FE_df.to_pickle(os_join(*['output','Turmwerte_OpenFAST', qs_label_openfast + '.pkl']))
     #kreis_ring.plot_properties_along_height(['d_achse'], h_absolut=True)columns=lagen_header
 
 '''
@@ -544,10 +553,6 @@ print ('\nMaximale Ausnutzungen')
 print (max_results_df)
 
 #______________________ ALLES IN EXCEL SPEICHERN _________________________________________________________________________________________
-d_rows = nachweis_parameter_df.shape[0] + 7 + results_df.shape[0]
-# TODO bisschen arg händisch bisher -> um Ergebnisse verschiedener QS Wandstärken in einer Datei untereinander zu schreiben
-#start_row_ti = {36:0, 40:0, 44:0, 48:0, 56:0, 64:0}#d_rows 2*d_rows
-#start_row_max_ti = {36:1, 40:1, 44:1, 48:1, 56:1, 64:1}#+8+16
 
 with pd.ExcelWriter(results_excel, mode= 'w', engine="openpyxl") as writer:# --> mode = 'a', if_sheet_exists='overlay'
   nrows = nachweis_parameter_df.shape[0]
@@ -587,7 +592,13 @@ utils.add_color_rule(results_excel, worksheet = 'Bauzustand', columns = reibung_
 
 #utils.zelle_beschriften(results_excel, 'Ausnutzungen_max', 'B' + str(start_row_max_ti[t]), 
 #                       't, tX, tY [cm] ' + ', '.join([str(int(t)), str(round(tX,1)), str(round(tY,1))]) ,'B' + str(start_row_max_ti[t])+ ':E'+ str(start_row_max_ti[t]))
-             
+dataframes_doc = {'QS_Werte_holz':holz_df,'QS_Werte_geometrie':qs_df,'QS_Werte_lagen':lagen_df,
+                  'EW_parameter':einwirkungs_parameter_df,'EW_dauer':einwirkungs_df,'EW_typ':einwirkungs_df_typ,
+                  'Vorspannung':vorpsannungs_df,
+                  'Anmerkung':anmerkungs_df, 'Nachweis_parameter':nachweis_parameter_df,
+                  'Ergebnisse':results_df,}
+utils.save_dataframes_to_pkl(dataframes_doc)
+
 from datetime import datetime
 now = datetime.now()
 dt_string = now.strftime("%d/%m/%Y %H:%M")

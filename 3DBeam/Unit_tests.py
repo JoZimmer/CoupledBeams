@@ -8,8 +8,7 @@ import matplotlib.pyplot as plt
 from copy import copy
 
 '''
-Testen des Codes. 
-Am besten so wie das mit python gedacht ist. 
+Vergeleich der Berechnung mit einfachen händischen ergebnissen
 '''
 parameters_init = {
                'dimension': '2D',
@@ -208,5 +207,4 @@ class TestModel(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    #test_element_section_number(beam, kreis_ring)
-    #test_model()
+

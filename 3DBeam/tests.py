@@ -7,6 +7,10 @@ import numpy as np
 import pandas as pd
 from os.path import join as os_join
 
-print(129.99998191*1E+06)
+a = [{'ID': [0, 1, 2, 3]}, {'DLC': [5.1, 5.1, 5.1, 5.1]}]
+b = {'AeroDyn':{}}
 
-
+for i in a:
+    k, v = list(i.items())[0]
+    b['AeroDyn'][k] = v
+print()

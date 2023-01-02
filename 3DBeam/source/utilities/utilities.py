@@ -891,6 +891,19 @@ def get_spalten_nach_name(df, df_header, start_row, name):
 
     return cols_rows
 
+
+def save_dataframes_to_pkl(data:dict, destination:list=['output','dataframes_pkl']):
+    '''
+    keys der data sollten die NAmen der zu speichernden Datei sein
+    '''
+    for name, df in data.items():
+        destination.append(name + '.pkl')
+        dest_file = os_join(*destination)
+        df.to_pickle(dest_file)
+        del destination[-1]
+
+    
+
 #______________________ BERECHNUNGEN __________________________
 
 def twr_poly_eval(x, coeffs):

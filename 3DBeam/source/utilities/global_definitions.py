@@ -37,7 +37,7 @@ MODE_CATEGORIZATION_REVERSE = {'3D':{'x':'longitudinal',
 CAARC_MODE_DIRECTIONS = {'0_deg':{'sway_z':0, 'sway_y':1, 'torsional':2}}
 
 
-class VariableNames():
+class VariableNamesOpenFAST():
     '''
     die verschiedenen Variablen von FAST sortiert
     '''
@@ -48,4 +48,3 @@ class VariableNames():
     control_variables = ['BldPitch1_[deg]','RotSpeed_[rpm]', 'RotTorq_[kN-m]']#,'GenTq_[kN-m]','GenPwr_[kW]','Wind1VelX_[m/s]']
     blade_tip = ['OoPDefl1_[m]']
     tower_aerodyn = ['TwN9DynP_[Pa]']
-
