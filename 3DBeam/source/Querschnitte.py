@@ -292,7 +292,7 @@ class Querschnitt(object):
         Axynet = min(Axnet, Aynet) # "schwächere" Scheibenebene Versagt
 
         self.fvk_brutto = self.holz_parameter['fvk']
-        self.fvxyk_netto = self.holz_parameter['fvxyk'] * (Axynet / self.wand_stärke) # In norm und VO wird diese Abmonderung auf Einwirkungsseite vorgenommen
+        self.fvxyk_netto = self.holz_parameter['fvxyk'] * (Axynet / self.wand_stärke) # In norm und VO wird diese Abminderung auf Einwirkungsseite vorgenommen
         self.fvtork = self.holz_parameter['ftornodek'] * (Axynet / self.wand_stärke)
 
         # Schubfestigkeit einer Furnierebene
@@ -786,7 +786,7 @@ class Querschnitt(object):
                             self.tau_Fe[knoten][dauer] = tau_Mx + tau_Qy
 
                         if lage=='längslagen':
-                            t = self.t_laengslagen #sum([lage['ti'] for lage in self.lagen_aufbau if lage['ortho'] == 'Y']) # ist schon in self.t_querlagen
+                            t = self.t_laengslagen 
                             kraft_aufteilung = self.t_laengslagen / (self.t_laengslagen + n*self.t_querlagen)
                             Qy = SGR_design_current[dauer]['Qy'] * kraft_aufteilung
                             Mx = SGR_design_current[dauer]['Mx'] * kraft_aufteilung
@@ -797,6 +797,7 @@ class Querschnitt(object):
 
                 # _____ NORMALES BSP    
                 else:
+                    # TODO mit wand_stärke richtig? oder sollte das nur mit querlagen sein? -> das wird wieder auf widerstandsseite berücksichtigt?!
                     self.tau_Qy[knoten][dauer] = (SGR_design_current[dauer]['Qy'] * self.Sy_max[knoten]) / (self.Iz[knoten] * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
                     self.tau_Mx[knoten][dauer]  = SGR_design_current[dauer]['Mx'] /self.Wx[knoten]  * self.einheiten_umrechnung['Schubspannung']
 
@@ -1006,13 +1007,13 @@ class Querschnitt(object):
                              }
 
         self.querschnitts_werte = {}
+        self.querschnitts_werte_all = {}
         for knoten in self.d_achse:
             V_sections = np.append(self.V[knoten], 0)
             if self.holz_parameter['Furnierebene']:
                 Iz_lagen = self.compute_flächenträgheitsmoment(self.d_achse[knoten], mit_furnier = True)
                 Iz_eff = np.add(Iz_lagen['längslagen'], Iz_lagen['furnier'])
             else:
-                # TODO noch nicht getestt ob format passt
                 Iz_lagen = self.compute_flächenträgheitsmoment(self.d_achse[knoten], mit_furnier = False, nur_längs = True)
                 Iz_eff = Iz_lagen['längslagen']
             self.querschnitts_werte[knoten] = {
@@ -1025,9 +1026,28 @@ class Querschnitt(object):
                 'U_achse [m]':self.U[knoten],
                 'U_außen [m]':self.U_außen[knoten],
                 't [m]':np.asarray([self.wand_stärke]*len(self.d_achse[knoten])),
-                'V_section [m³]':V_sections,
+                'V_sections [m³]':V_sections,
                 'MassDen [kg/m]':self.mass_density[knoten],
-                'EIz,eff [Nm^2]': self.holz_parameter['E0mean'] * Iz_eff
+                'EIz,eff [Nm^2]': self.holz_parameter['E0mean'] * Iz_eff,
+            }
+
+            self.querschnitts_werte_all[knoten] = {
+                'Höhe [m]':self.section_absolute_heights[knoten],
+                'Hfract':self.hfract[knoten],
+                'd_achse [m]':self.d_achse[knoten],
+                'd_außen [m]':self.d_außen[knoten],
+                'Iz [m^4]': self.Iz[knoten],
+                'A [m²]':self.A[knoten],
+                'U_achse [m]':self.U[knoten],
+                'U_außen [m]':self.U_außen[knoten],
+                't [m]':np.asarray([self.wand_stärke]*len(self.d_achse[knoten])),
+                'V [m³]':self.V[knoten],
+                'MassDen [kg/m]':self.mass_density[knoten],
+                'Eigengewicht [kg]':self.eigengewicht[knoten],
+                'Gewichtskraft [N]':self.gewichtskraft[knoten],
+                'EIz,eff [Nm^2]': self.holz_parameter['E0mean'] * Iz_eff,
+                'Sy_max [m^3]': self.Sy_max[knoten],
+                'cd': np.asarray([self.cd]*len(self.d_achse[knoten]))
             }
 
             if 'transportbreite_max'  in self.hoehen_parameter:
@@ -1043,11 +1063,113 @@ class Querschnitt(object):
 
         print ('\nSaved object in', dest_file)
 
+    # _________ FATIGUE SPEZIFISCH__________________________________
+
+    def calculate_normalspannung_at_knoten(self, SGR, knoten, knoten_typ):
+        '''
+        HIER: SGR sind Zeitreihen 
+
+        ergibt normalspannung an einem Bestimmten knoten i für SGR = {'Mz':float, 'Nx':float}
+        return: sigma_druck, sigma_zug (ansich min und max beide druck da N immer größer)
+        knoten_typ: Ebenen oder FE
+        '''
+   
+        e = self.d_achse[knoten_typ][knoten]/2
+        #self.berechnungs_hinweise.append('   - Normalspannungen werden als Mittelwert mit Hebelarm e = Radius_achse berechnet')
+
+        # Wirkungsrichtung von M neutralisieren um es dann als Druck und zug aufbringen zu können
+
+        SGR['Mz'] = abs(SGR['Mz'])
+
+        sigma_druck = -(SGR['Mz'])/self.Iz[knoten_typ][knoten] * e + SGR['Nx'] / self.A[knoten_typ][knoten]
+        sigma_zug = (SGR['Mz'])/self.Iz[knoten_typ][knoten] * e + SGR['Nx'] / self.A[knoten_typ][knoten]
+
+        return sigma_druck#, sigma_zug
+        
+    def calculate_schubspannung_scheibe_at_knoten(self, SGR, knoten, lamellenbreite=0.13, knoten_typ='Ebenen'):
+        '''
+        HIER: SGR sind Zeitreihen 
+
+        aus Vorlesung 7 und prEN 1995-1-1_v3:
+
+            tau_v,xy,d = nxy,d/A_xy,net
+            n_xy,d = Schubfluss als Integral der Schubspannung von -t/2 bis t/2 oder F/l (VO wenn einzel Last)
+            -> Festigkeit wird analog reduziert 
+      
+            tau_tor,node,d = 3/2 * tau_v,xy,d * (tl/bl)
+                mit: tl = dünnste Lagendicke (bezeichnung in Vorlesung mit d)
+                     bl = Brettbreite/Lamellenbreite bzw. Schwindnutabstand (l steht für Lamelle)
+            ODER mittels Meachnik:
+                Schubkraft * Abstand zur betrachteten Fuge ist maßgebendes Moment das aufgenommen werden muss
+                Anzahl der Kreuzungsfelder -->Hersteller  
+                Anzahl der Klebefugen 
+        '''
+        self.tau_Qy, self.tau_Mx, self.tau_xy, self.tau_vtor, self.tau_Fe, self.tau_längs = {},{},{}, {},{}, {}
+        self.tau_Qy_design, self.tau_Mx_design, self.tau_xy_design,  self.tau_vtor_design, self.tau_Fe_design, self.tau_längs_design = {},{},{},{},{},{}
+
+        if self.holz_parameter['Furnierebene']:
+            self.berechnungs_hinweise.append('   - Verwende Furnierebenen Ansatz für die Schubspannungsberechnung')
+
+        #for knoten in self.d_achse:
+        SGR_design_current = SGR
+
+        self.tau_Qy[knoten_typ], self.tau_Mx[knoten_typ], self.tau_xy[knoten_typ], self.tau_vtor[knoten_typ], self.tau_Fe[knoten_typ], self.tau_längs[knoten_typ] = {},{},{}, {},{}, {}
+        
+        #for dauer in SGR_design_current:
+        if self.holz_parameter['Furnierebene']:
+            self.Sy_max = self.compute_static_moment(d_achse = self.d_achse[knoten_typ], mit_furnier = self.holz_parameter['Furnierebene'])
+            self.Wx = self.compute_Wx(d_achse = self.d_achse[knoten_typ], mit_furnier = self.holz_parameter['Furnierebene'])
+            self.Iz = self.compute_flächenträgheitsmoment(d_achse = self.d_achse[knoten_typ], mit_furnier= True)
+
+            n = self.holz_parameter['G4545']/self.holz_parameter['G0mean']
+            for lage in self.Sy_max:
+                if lage == 'furnier':
+                    t = self.t_querlagen 
+                    kraft_aufteilung = n * t / (self.t_laengslagen + n*t)
+
+                    Qy = SGR_design_current['Qy'] * kraft_aufteilung
+                    Mx = SGR_design_current['Mx'] * kraft_aufteilung
+                    tau_Qy = (Qy * self.Sy_max[lage][knoten]) / (self.Iz[lage][knoten] * t) #* self.einheiten_umrechnung['Schubspannung']
+                    tau_Mx  = Mx /self.Wx[lage][knoten]  #* self.einheiten_umrechnung['Schubspannung']
+
+                    self.tau_Fe[knoten_typ] = tau_Mx + tau_Qy
+
+                if lage=='längslagen':
+                    t = self.t_laengslagen #sum([lage['ti'] for lage in self.lagen_aufbau if lage['ortho'] == 'Y']) # ist schon in self.t_querlagen
+                    kraft_aufteilung = self.t_laengslagen / (self.t_laengslagen + n*self.t_querlagen)
+                    Qy = SGR_design_current['Qy'] * kraft_aufteilung
+                    Mx = SGR_design_current['Mx'] * kraft_aufteilung
+                    tau_Qy = (Qy * self.Sy_max[lage][knoten]) / (self.Iz[lage][knoten] * t) #* self.einheiten_umrechnung['Schubspannung']
+                    tau_Mx  = Mx /self.Wx[lage][knoten]  #* self.einheiten_umrechnung['Schubspannung']
+
+                    self.tau_längs[knoten_typ] = tau_Mx + tau_Qy
+
+        # _____ NORMALES BSP    
+        else:
+            self.tau_Qy[knoten_typ] = (SGR_design_current['Qy'] * self.Sy_max[knoten_typ][knoten]) / (self.Iz[knoten_typ][knoten] * self.wand_stärke) #* self.einheiten_umrechnung['Schubspannung']
+            self.tau_Mx[knoten_typ]  = SGR_design_current['Mx'] /self.Wx[knoten_typ][knoten]  #* self.einheiten_umrechnung['Schubspannung']
+
+            self.tau_xy[knoten_typ] = self.tau_Mx[knoten_typ] + self.tau_Qy[knoten_typ]
             
+            # TODO tl in abhänigkeit bestimmen was dei maßgebende Schicht ist? also wenn Axy,net = Ay,net ist dann nur die querlagen betrachten? 
+            # Maximale Lamellen dicke 6 cm -> 12 cm Lagendicke setzt sich demnach aus 6+6 zusammen
+            tl = min(max([lage['ti'] for lage in self.lagen_aufbau]), 0.04)
+
+            self.tau_vtor[knoten_typ] = 1.5 * self.tau_xy[knoten_typ] * (tl/lamellenbreite)
+            self.berechnungs_hinweise.append('   - Torsion im Kreuzungspunkt der Lammellen in Folge Scheibenschub mit Lamellendicke ' + str(tl) + ' und Lamellenbreite ' + str(lamellenbreite) + ' berechnet')
+
+        if not self.holz_parameter['Furnierebene']:
+            self.tau_Qy_design[knoten_typ] = self.tau_Qy[knoten_typ]
+            self.tau_Mx_design[knoten_typ] = self.tau_Mx[knoten_typ]
+            self.tau_xy_design[knoten_typ] = self.tau_xy[knoten_typ]
+            self.tau_vtor_design[knoten_typ] = self.tau_vtor[knoten_typ]
+        else:
+            self.tau_Fe_design[knoten_typ] = self.tau_Fe[knoten_typ]
+            self.tau_längs_design[knoten_typ] = self.tau_längs[knoten_typ]
 
 class KreisRing(Querschnitt):
 
-    def __init__(self, cd = 1.1, cp_max =1.8 , lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, 
+    def __init__(self, cd = 1.0, cp_max =1.8 , lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, 
                 hoehen_parameter ={}, einheiten = {}, FE_elements=10) -> None:
         
         super().__init__(lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten,FE_elements)
@@ -1108,8 +1230,8 @@ class KreisRing(Querschnitt):
             return Iz
         
         elif nur_längs:
-            if 'di' not in self.lagen_aufbau[0]:
-                utils.get_d_achse_lagen(d_achse, self.lagen_aufbau)
+            #if 'di' not in self.lagen_aufbau[0]:
+            utils.get_d_achse_lagen(d_achse, self.lagen_aufbau)
             Iz = {'quer':0, 'längslagen':0}
             for i, lage in enumerate(self.lagen_aufbau):
                 d_außen = lage['di'] + lage['ti']/2

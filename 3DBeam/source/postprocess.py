@@ -1,12 +1,13 @@
 import matplotlib.pyplot as plt 
 import numpy as np
-from scipy.optimize import curve_fit
-from matplotlib import cm
+import os
 import copy
 from os.path import join as os_join
 from os.path import sep as os_sep
 from matplotlib.ticker import MultipleLocator, AutoMinorLocator
 from source.model import BeamModel
+from matplotlib.colors import TwoSlopeNorm
+
 
 from source.utilities import utilities as utils
 from source.utilities import global_definitions as GD
@@ -1177,3 +1178,138 @@ def plot_dict_subplots(dict, z, title = '', unit = 'N'):
     plt.tight_layout()
     plt.show()
 
+
+def plot_markov(range_bin, mean_bin, rfcmat, show_plots = False, save_plots=False, fig_name_save= '', title = ''):
+    '''
+    '''
+    X, Y = np.meshgrid(range_bin, mean_bin, indexing='ij')
+    step = mean_bin[1] - mean_bin[0]
+    plt.figure(dpi=96, num='markov_matrix')
+    # zmin=rfcmat.min()
+    # zmax=rfcmat.max()
+    # if zmin < 0:
+    #     norm = TwoSlopeNorm(vcenter=0, vmin=zmin,  vmax=zmax)
+    # elif zmin > 0 and zmax > 0:
+    #     norm = TwoSlopeNorm(vcenter=zmin, vmin=0,  vmax=zmax)
+
+    C = plt.pcolormesh(X, Y, rfcmat, cmap='jet')
+    plt.colorbar(C)
+    plt.title("Markov matrix " + title)
+    plt.xlim((0,max(range_bin)+step))
+    plt.ylim((min(mean_bin)-step,max(mean_bin)+step))#(-8000,0)
+    plt.xlabel("Range")
+    plt.ylabel("Mean")
+
+    if save_plots:
+        if not os.path.isdir(os.path.dirname(fig_name_save)):
+            os.makedirs(os.path.dirname(fig_name_save))
+        plt.savefig(fig_name_save)
+        print ('Saved Figure:', fig_name_save)
+
+    if show_plots:
+        plt.show()
+    if save_plots:
+        plt.close()
+
+def plot_markov_3d(range_bin, mean_bin, rfcmat, bin_size, unit_factor, show_plots = False, save_plots=False, fig_name_save= '', title = ''):
+
+    fsize = 12
+    xpos, ypos = np.meshgrid(range_bin, mean_bin, indexing='ij')
+    xpos = xpos.ravel() * unit_factor
+    ypos = ypos.ravel() * unit_factor
+    zpos = 0 #np.zeros(xpos.shape)
+    bin_size *= unit_factor
+    
+    z = rfcmat.ravel() * unit_factor
+    id0 = np.where(z != 0)[0]
+
+    #z_mask = np.ma.masked_equal(z,0)
+
+    colors = plt.cm.jet(z[id0]/z.max())
+
+    scale = 1
+    fig = plt.figure(figsize = (6.4*scale, 4.8*scale),num='markov_matrix3d')
+    ax = fig.add_subplot(projection='3d')
+
+    #ax.bar3d(x=xpos,y=ypos,z=zpos,dx=bin_size,dy=bin_size, dz=z, zsort='average', color=colors)
+    ax.bar3d(x=xpos[id0],y=ypos[id0],z=zpos,dx=bin_size,dy=bin_size, dz=z[id0], zsort='average', color=colors)
+
+    ax.set(title="Markov matrix " + title, ylabel = 'Mean', xlabel='Range', zlabel='N')
+    plt.rcParams['font.size'] = str(fsize)
+    if save_plots:
+        if not os.path.isdir(os.path.dirname(fig_name_save)):
+            os.makedirs(os.path.dirname(fig_name_save))
+        plt.savefig(fig_name_save)
+        print ('Saved Figure:', fig_name_save)
+
+    if show_plots:
+        plt.show()
+    if save_plots:
+        plt.close()
+
+
+def plot_häufigkeit(array, var, show_plots = False, save_plots=False, fig_name_save= '', title = ''):
+    '''
+    Zählt die Häufigkeit der im array vorkommenden Werte
+    '''
+
+    fsize = 12
+    N_total = sum(array)
+    wert, anzahl= np.unique(array, return_counts=True)
+    diff = np.diff(wert)
+    hist, bin_edges = np.histogram(array, bins='auto')
+    bin_size = np.diff(bin_edges)
+
+    width = {'R':np.mean(diff),'N_ist':2000}
+    label = {'R':'bin_size ' + str(round(bin_size[0],3)),'N_ist':'bin_size ' + str(round(bin_size[0]))}
+    xlabel = {'R':'R', 'N_ist':'Anzahl Schwingspiel (N)'}
+
+    if var == 'N_ist':
+        title += '\nN_total: ' + "{:.2E}".format(N_total)
+    #plt.bar(wert, anzahl, width=width[var], label = label[var])
+   
+    plt.hist(array, bins= 'auto', edgecolor= 'black', label = label[var])
+    plt.xlabel(xlabel[var], fontsize=fsize)
+    plt.ylabel('absolute Häufigkeit', fontsize=fsize)
+    plt.title(title, fontsize=fsize)
+    plt.grid()
+    plt.legend()
+
+    if save_plots:
+        if not os.path.isdir(os.path.dirname(fig_name_save)):
+            os.makedirs(os.path.dirname(fig_name_save))
+        plt.savefig(fig_name_save)
+        print ('Saved Figure:', fig_name_save)
+
+    if show_plots:
+        plt.show()
+    if save_plots:
+        plt.close()
+
+def plot_N_von_R(N_R, bin_centers, show_plots = False, save_plots=False, fig_name_save= '', title = ''):
+    '''
+    Zählt die Häufigkeit der im array vorkommenden Werte
+    '''
+
+    fsize = 12
+  
+    bin_size = np.mean(np.diff(bin_centers))
+    #plt.hist(array, bins= 'auto', edgecolor= 'black', label = label[var])
+    plt.bar(bin_centers,N_R, width=bin_size, edgecolor= 'black', label = 'bin_size: '+ str(round(bin_size,2)))
+    plt.xlabel('R', fontsize=fsize)
+    plt.ylabel('N', fontsize=fsize)
+    plt.title(title, fontsize=fsize)
+    plt.grid()
+    plt.legend()
+
+    if save_plots:
+        if not os.path.isdir(os.path.dirname(fig_name_save)):
+            os.makedirs(os.path.dirname(fig_name_save))
+        plt.savefig(fig_name_save)
+        print ('Saved Figure:', fig_name_save)
+
+    if show_plots:
+        plt.show()
+    if save_plots:
+        plt.close()
+    

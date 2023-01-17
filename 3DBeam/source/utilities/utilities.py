@@ -411,6 +411,62 @@ def interpolate(z_soll , z_ist, werte):
 
     return np.asarray(interpolierte_werte)
 
+def kragarm_einflusslinien(nodal_coordinates, load_direction, node_id, response, response_node_id=0):
+    '''
+    for a lever arm this is simple
+    if shear response -> return 1
+    if base moment -> return level* 1
+    '''
+    moment_load = {'y':'Mz', 'z':'My', 'a':'Mx','b':'My', 'g':'Mz'}
+    shear_load = {'y':'Qy', 'z':'Qz'}
+
+    #nodal_coordinates = structure_model.nodal_coordinates['x0']
+
+    if load_direction == 'y':
+        if moment_load[load_direction] == response:
+            # positive
+            if node_id - response_node_id <= 0:
+                return 0.0
+            else:
+                return nodal_coordinates[node_id - response_node_id]
+
+        elif shear_load[load_direction] == response:
+            if node_id >= response_node_id:
+                return 1.0
+            else:
+                return 0.0
+        else:
+            return 0.0
+
+    elif load_direction == 'z':
+        if moment_load[load_direction] == response:
+            # negative
+            if node_id - response_node_id <= 0:
+                return 0.0
+            else:
+                return -nodal_coordinates[node_id - response_node_id]
+        elif shear_load[load_direction] == response:
+            if node_id >= response_node_id:
+                return 1.0
+            else:
+                return 0.0
+
+        else:
+            return 0.0
+
+    elif load_direction == 'x':
+        return 0.0
+
+    elif load_direction in ['a','b','g']:
+        unit = '[Nm]'
+        if moment_load[load_direction] == response:
+            if node_id >= response_node_id:
+                return 1.0
+            else:
+                return 0.0
+        else: # moments don't cause shear forces
+            return 0.0
+
 #____________________DYNAMIC ANALYSIS________________________________
 def get_fft(given_series, sampling_freq):
 
@@ -892,12 +948,17 @@ def get_spalten_nach_name(df, df_header, start_row, name):
     return cols_rows
 
 
-def save_dataframes_to_pkl(data:dict, destination:list=['output','dataframes_pkl']):
+def save_dataframes_to_pkl(data:dict, knoten_typ:str, destination:list=['output','Berechnungs_Ergebnisse_dataframes']):
     '''
     keys der data sollten die NAmen der zu speichernden Datei sein
+    knoten_typ: zeigt an an welchen der Knoten die Ergebnisse ausgegeben sind
     '''
+    from datetime import datetime
+    now = datetime.now()
+    dt_string = now.strftime("%Y%m%d")[2:]
+
     for name, df in data.items():
-        destination.append(name + '.pkl')
+        destination.append(dt_string + '_' + name + '_' + knoten_typ + '.pkl')
         dest_file = os_join(*destination)
         df.to_pickle(dest_file)
         del destination[-1]
@@ -973,34 +1034,6 @@ def save_specific_columns_from_fast_output(cols_to_keep:list, fast_output:pd.Dat
 
     print ('\nsaved', cols_to_keep, 'in', fname)
     
-# # ZÜBLIN 
 
-def lgN_R(kfat, R, lgN_case = 1):
-    '''
-    lgN: erste guess dann wirds berechnet und ggf ne andere Formel genutzt
-    '''
-    def get_case(lgN):
-        if lgN > 0 and lgN <= 5:
-            return 1
-        elif lgN > 5 and lgN <= 6:
-            return 2
-        elif lgN > 6:
-            return 3
 
-    if lgN_case == 1:
-        result_lg_init = (kfat - 1) / (0.01395*R**2 + 0.004765*R - 0.06160)
-    
-    elif lgN_case == 2:
-        result_lg_init = (kfat - (0.05494* R**2 - 0.06043*R + 1.00549)) / (0.0029*R**2 + 0.05974*R -0.0627)
-
-    elif lgN_case == 3:
-        result_lg_init = (kfat - (-0.40735* R**2 + 0.03202*R + 1.37532)) / (0.08333*R**2 + 0.04367*R -0.127)
-
-    case = get_case(result_lg_init)
-    if case == lgN_case:
-        result_N = 10**result_lg_init
-        return result_lg_init, result_N
-
-    else:
-        return lgN_R(kfat, R, case)
 

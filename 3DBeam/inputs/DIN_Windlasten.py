@@ -23,7 +23,7 @@ def flaechen_windkraft(vb, category, height, cp_max):
     return F_flaeche, z
 
 
-def DIN_potenz_profil (vb, category, height,   at_height = 100):
+def DIN_potenz_profil (vb, category, height):
     '''
     height: entweder absoluten wert geben oder diskrete Höhen Punkte als vektor oder liste
     '''
@@ -78,6 +78,26 @@ def DIN_potenz_profil (vb, category, height,   at_height = 100):
         qp_z = np.concatenate((qb_z0, qb*aq*(z1/10)**bq), axis = 0)
 
     return vm_z, Iv_z, qp_z, z
+
+def vb_von_v_nabenhöhe (vh, category, nabenhöhe):
+    '''
+    Rückrechnung der basis Windgeschwidigkeit in 10 m Höhe bie gegebender Windgeschwindigkeit in Nabenhöhe
+    '''
+    
+    if category == 'I':
+        a, b = 1.18, 0.12
+    elif category == 'II':
+        a, b = 1.0, 0.16
+    elif category == 'III':
+        a, b = 0.77, 0.22
+    elif category == 'IV':
+        a, b = 0.56, 0.30
+    elif category == 'dibt':
+        a, b = 1.15, 0.121
+    
+    vb = vh / (a * (nabenhöhe/10)**b)
+
+    return vb
 
 def plot_DIN_profiles (vb, h_max ,v_ref=1, z_ref=1, categories= ['I','II','III','IV','dibt'], values = ['vm(z)','Iv(z)','qp(z)']):
 

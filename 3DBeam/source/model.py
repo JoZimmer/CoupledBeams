@@ -2,10 +2,8 @@ from copy import copy
 import numpy as np 
 from scipy import linalg
 from source.bernoulli_element import BernoulliElement
-from source.utilities import utilities as utils
-from source.utilities import global_definitions as GD
-
-num_zero = 1e-15
+import source.utilities.utilities as utils
+import source.utilities.global_definitions as GD
 
 class BeamModel(object):
 
@@ -461,6 +459,89 @@ class BeamModel(object):
 
         if return_result:
             return self.internal_forces
+
+    def dynamic_analysis_solve(self):
+        '''
+        erstellt die Klasse DynamicAnalysis
+        '''
+        from source.dynamic_analysis import DynamicAnalysis
+
+        dynamic_load_file = self.parameters['dynamic_load_file']
+
+        load = np.load(dynamic_load_file)
+
+        false = False
+        true = True
+
+        dt = self.parameters['time_step_dynamic_load']
+        T = (load.shape[1] -1) * dt
+
+        analysis_params_custom = {
+                    "type" : "dynamic_analysis",
+                    "settings": {
+                        "solver_type": "Linear",
+                        "run_in_modal_coordinates": false,
+                        "time":{
+                            "integration_scheme": "GenAlpha",
+                            "start": 0.0,
+                            "end": T,
+                            "step" : dt},
+                        "intial_conditions": {
+                            "displacement": "None",
+                            "velocity": "None",
+                            "acceleration" : "None"
+                        }},
+                    "input": {
+                        "help":"provide load file in the required format",
+                        "file_path": dynamic_load_file
+                    },
+                    "output":{
+                        "selected_instance": {
+                            "plot_step": [1500, 2361],
+                            "write_step": [3276],
+                            "plot_time": [30.5, 315.25],
+                            "write_time": [450.15]
+                        },
+                        "animate_time_history" : false,
+                        "animate_skin_model_time_history": false,
+                        "kinetic_energy": {
+                            "write": false,
+                            "plot": false
+                        },
+                        "skin_model_animation_parameters":{
+                            "start_record": 160,
+                            "end_record": 200,
+                            "record_step": 10
+                        },
+                        "selected_dof": {
+                            "dof_list": [1, 2, 0, 4, 5, 3,
+                                        -5,
+                                        -4,
+                                        -2,
+                                        -1],
+                            "help": "result type can be a list containing: reaction, ext_force, displacement, velocity, acceleration",
+                            "result_type": [["reaction"], ["reaction"], ["reaction"], ["reaction"], ["reaction"], ["reaction"],
+                                            ["displacement", "velocity", "acceleration"],
+                                            ["displacement", "velocity", "acceleration"],
+                                            ["displacement", "velocity", "acceleration"],
+                                            ["displacement", "velocity", "acceleration"]],
+                            "plot_result": [[true], [true], [true], [true], [true], [true],
+                                            [true, true, true],
+                                            [true, true, true],
+                                            [true, false, true],
+                                            [true, false, true]],
+                            "write_result": [[false],[false],[false],[true],[true],[true],
+                                                [true, false, true],
+                                                [true, false, true],
+                                                [true, false, true],
+                                                [true, false, true]]
+                        }
+                    }
+                }
+
+        dynamic_analysis = DynamicAnalysis(self, analysis_params_custom)
+
+        dynamic_analysis.solve()
 
 # # RETURN OPTIMIZED PARAMETERS
 

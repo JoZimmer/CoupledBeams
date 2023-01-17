@@ -10,7 +10,7 @@ import pandas as pd
 from source.model import BeamModel
 import source.postprocess as postprocess
 import source.utilities.utilities as utils
-from source.Querschnitte import nEck, KreisRing
+from source.Querschnitte import KreisRing
 import source.utilities.global_definitions as GD
 from inputs import holz, spannglieder
 
@@ -32,10 +32,12 @@ parameters_init = {
                 'dofs_of_bc':[0,1,2], # Einspannung
                 'type_of_bc':'Feder', #'clamped',#'Eingespannt',# or 
                 'spring_stiffness':[1E+13,2E+13], # Federsteifigkeit am Boden in u und gamma richtung Bögl 40 GNm/rad
-                'dynamic_load_file': os_join(*["inputs","forces","dynamic_force_11_nodes.npy"]),
+                'dynamic_load_file': os_join(*["inputs","loads","dynamic","dynamic_force_11_nodes.npy"]),
+                'time_step_dynamic_load':0.01, # Time step der simulation
                 'eigen_freqs_target':[0.133,0.79,3.0], 
                 'defined_on_intervals':[] # kann gefüllt werden mit einer pickle datei 
             }
+
 holzgüte = 'C30'
 n_nodes = parameters_init['n_elements']+1
 
@@ -52,12 +54,16 @@ results_excel = os_join(*['output','Berechnungs_Ergebnisse.xlsx'])
 '''
 QUERSCHNITTS DEFINITION
 '''
+knoten_typen = ['Ebenen','FE']
 querschnitts_dateien_laden = False
 if not querschnitts_dateien_laden:
     querschnitte,qs_werte, qs_werte_FE, qs_labels  = [],[],[],[]
     höhe = 130
-    dicken = [36]# [40]#,44]#, 44]#,48,56,64] # key für lagenaufbau dictonaire in holz 
-    mit_furnier = werkstoff_parameter['Furnierebene']
+    mit_furnier = True #werkstoff_parameter['Furnierebene'] t_furnier = 36
+
+    dicken = [36]# [44]#[40]#,, 44]#,48,56,64] # key für lagenaufbau dictonaire in holz 
+
+    werkstoff_parameter['Furnierebene'] = mit_furnier
     furnier_dict = {True:'BSP_furnier',False:'BSP_normal'}
     #knicke = {'gerade':[None,10], '1Knick':[4.5,10], 'Knick mit Übergang':[4.5,8]}
     knicke = {'Gerade':[None, 11]}
@@ -87,7 +93,7 @@ if not querschnitts_dateien_laden:
                                             hoehen_parameter= höhen_parameter, einheiten=einheiten_input,
                                             FE_elements=parameters_init['n_elements'])
 
-                    kreis_ring.name += ' ' + label + ' t' + str(t_ges)
+                    kreis_ring.name += ' ' + label + ' t' + str(t)
                     qs_label_openfast = kreis_ring.name + '_h' + str(höhen_parameter['nabenhöhe']) + '_du' + str(höhen_parameter['d_unten_oben'][0]) +\
                                     '_do' + str(höhen_parameter['d_unten_oben'][1])
                     qs_labels.append(kreis_ring.name)
@@ -113,6 +119,7 @@ if not querschnitts_dateien_laden:
     
     # Querschnittswerte speichern für openfast einlesen -> NOTE gehe hier davon aus das gerade nur ein QS
     qs_FE_df.to_pickle(os_join(*['output','Turmwerte_OpenFAST', qs_label_openfast + '.pkl']))
+    #s. os_join(*['output','Turmwerte_OpenFAST', qs_label_openfast + '_objekt.pkl'])
     #kreis_ring.plot_properties_along_height(['d_achse'], h_absolut=True)columns=lagen_header
 
 '''
@@ -155,6 +162,7 @@ df_results_header_list[2].append('P_ist [MN]')
 if include_sgr:
     df_results_header_list[2].append('M [MNm]') 
     df_results_header_list[2].append('N [MN]') 
+    df_results_header_list[2].append('G [MN]') 
     df_results_header_list[2].append('Q [MN]') 
 #df_results_header_list[2].append(GD.GREEK_UNICODE['sigma'] + '_zug [' + qs.einheiten['Normalspannung'] + ']')
 if include_sigma_M_N:
@@ -218,17 +226,19 @@ einwirkungsdauer = ['ständig', 'kurz', 'egal','spannkraft']
 sicherheitsbeiwerte = {'dlc':1.35, 'wind':1.35, 'g':1.35, 'vorspannung':1.0, 'günstig':1.0} # dlc entsprechend der Kopflasten q diesem entsprechend und g TODO ansich komplexer im IEC
 
 # sind schon designlasten
-kopf_lasten_IEA = {'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':6.81E+06, 'My':3.24E+06, 'Mz':2.31E+06}# NOTE Mx = Mxy #Masse charakt. 2.62E+06
+last_at = '@max_Mz' #'@max_Fxy' # # TODO Vorspannung kommt immer aus @maxFxy
+kopf_lasten_IEA = { '@max_Fxy':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':6.81E+06, 'My':3.24E+06, 'Mz':2.31E+06},# NOTE Mx = Mxy #Masse charakt. 2.62E+06, Fx = Fxy 
+                    '@max_Mz':{'Fx':419925,'Fy':-24468, 'Fz':-3650438, 'Mx':6294993, 'My':-3439939, 'Mz':10811885}}
 kopf_masse = - parameters_init['nacelle_mass'] * GD.GRAVITY * sicherheitsbeiwerte['g'] # -2628197
-# Design lasten schon 
-kopf_lasten_beam = utils.convert_coordinate_system_and_consider_einwirkungsdauer(kopf_lasten_IEA, n_nodes, sicherheitsbeiwerte['g'], kopf_masse = kopf_masse) 
+
+kopf_lasten_beam = utils.convert_coordinate_system_and_consider_einwirkungsdauer(kopf_lasten_IEA[last_at], n_nodes, sicherheitsbeiwerte['g'], kopf_masse = kopf_masse) 
 
 import inputs.DIN_Windlasten as wind_DIN
 
 basis_windgeschwindigkeit = 17
 vb_bauzustad = wind_DIN.vb_windzone[2] # Windzone 2 vb = 25 m/s TODO heir extra windlast berechne und für den bauzustand verwenden
 terrain_kategorie = 'II'
-einwirkungs_parameter = {'vb':basis_windgeschwindigkeit,'Terrain Kategorie':terrain_kategorie, 'cd': cd_zylinder, 'Kopflast':'@max Fx', 'DLC':'1.3_seed2_9ms'}
+einwirkungs_parameter = {'vb':basis_windgeschwindigkeit,'Terrain Kategorie':terrain_kategorie, 'cd': cd_zylinder, 'Kopflast':last_at, 'DLC':'1.3_seed2_9ms'}
 einwirkungs_parameter.update(sicherheitsbeiwerte)
 einwirkungs_parameter_df = pd.DataFrame(einwirkungs_parameter, index=[0])
 
@@ -240,6 +250,7 @@ nachweis_parameter_dict = { GD.GREEK_UNICODE['gamma']+'_m': [nachweis_parameter[
 
 nachweis_parameter_df = pd.DataFrame(nachweis_parameter_dict)
 
+print ('Kopflast von IEA:\n  ', last_at)
 print ('Windbelastung aus:')
 print ('    vb:', basis_windgeschwindigkeit)
 print ('    terrain:', terrain_kategorie)
@@ -287,7 +298,7 @@ for qs in querschnitte:
     lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']  = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], F_h_imp_ers, gewichtskraft_design['FE'], kopf_lasten_beam['egal']]) 
     lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz'] = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], kopf_lasten_beam['kurz']])
     lasten_dicts_dauer[QS_label][qs.nabenhöhe]['ständig']  = utils.update_lasten_dict(lasten_dict_base, [gewichtskraft_design['FE'], F_h_imp_ers, kopf_lasten_beam['ständig']])
-    # das ist der Lastfall spannkraft ist für die Spannkraftberechnung (gamma_m Eigengewicht = 1,0)
+    # das ist der Lastfall spannkraft -> ist für die Spannkraftberechnung (gamma_m Eigengewicht = 1,0)
     lasten_dicts_dauer[QS_label][qs.nabenhöhe]['spannkraft']  = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], qs.gewichtskraft['FE'], F_h_imp_ers, kopf_lasten_beam['spannkraft']])
    
     # ____________ LASTEN DATEI GENERIEREN - nur nach dauer sortiert da dies relevant für ausnutzung ist ___________________________
@@ -297,9 +308,9 @@ for qs in querschnitte:
     
     # Händische Konstante Torsion dazu 
     qs.berechnungs_hinweise.append('   - Torsion konstant über die Höhe nur aus Kopflast')
-    lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA['Mz'])
-    lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA['Mz'])
-    lasten_dicts_typ[QS_label][qs.nabenhöhe]['kopflast']['Mx'] = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA['Mz'])
+    lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
+    lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
+    lasten_dicts_typ[QS_label][qs.nabenhöhe]['kopflast']['Mx'] = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
 
     for dauer in einwirkungsdauer:
         if dauer == 'spannkraft':
@@ -380,17 +391,18 @@ for querschnitt in querschnitte:
     beam = BeamModel(parameters['FE'], adjust_mass_density_for_total = False, optimize_frequencies_init=False , apply_k_geo=False)
     beam_ebenen = BeamModel(parameters['Ebenen'], adjust_mass_density_for_total = False, optimize_frequencies_init=False , apply_k_geo=False)
     
-    
     print ('N_nodes', querschnitt.n_ebenen)
     print (QS_label, nabenhöhe, 'm')
     print ('     Gesamt Volumen des Querschnitts [m³]:', round(beam.volume,2))
     print ('     Gesamt Gewichtskraft Turm am Fuß [MN]:',round(sum(beam.eigengewicht * GD.UNIT_SCALE['MN']),2))
     print ('     Frequenzen [Hz]:', [round(beam.eigenfrequencies[i],3) for i in range(3)])
 
+    #beam.dynamic_analysis_solve()
+
     lasten_nach_dauer = {'ständig':{'torsion':False},
-                         'egal':{'torsion':kopf_lasten_IEA['Mz']},
-                         'kurz':{'torsion':kopf_lasten_IEA['Mz']},
-                         'spannkraft':{'torsion':kopf_lasten_IEA['Mz']}}
+                         'egal':{'torsion':kopf_lasten_IEA[last_at]['Mz']},
+                         'kurz':{'torsion':kopf_lasten_IEA[last_at]['Mz']},
+                         'spannkraft':{'torsion':kopf_lasten_IEA[last_at]['Mz']}}
 
     for dauer in einwirkungsdauer:
         # NOTE Torsion ist nicht in der Steifigkeitsmatrix, deswegen kann diese brechnung nur händisch ergänzt werden
@@ -414,7 +426,7 @@ for querschnitt in querschnitte:
         lasten_label = os.path.splitext(os.path.basename(lasten_files[QS_label][nabenhöhe][dauer]))[0]                                                                                        
                 
     print ('     Maximales Moment [MNm]:', round(max(abs(schnittgrößen_design['Ebenen'][QS_label][nabenhöhe]['egal']['g'])) * utils.unit_conversion('Nm', 'MNm'),2))   
-    print ('     Maximales Moment ohne Kopflast [MNm] ~=', round((max(abs(schnittgrößen_design['Ebenen'][QS_label][nabenhöhe]['egal']['g'])) - kopf_lasten_IEA['Fx']*nabenhöhe) * utils.unit_conversion('Nm', 'MNm'),2))   
+    print ('     Maximales Moment ohne Kopflast [MNm] ~=', round((max(abs(schnittgrößen_design['Ebenen'][QS_label][nabenhöhe]['egal']['g'])) - kopf_lasten_IEA[last_at]['Fx']*nabenhöhe) * utils.unit_conversion('Nm', 'MNm'),2))   
 
     # BAUZUSTAND 
     for segment in lasten_files[QS_label][nabenhöhe]['bauzustand']:
@@ -440,7 +452,7 @@ SPANNUNGEN UND AUSNUTZUNGEN
 '''
 
 max_ausnutzung = {}
-ausgabe_an_knoten = 'FE'# 'Ebenen'#
+ausgabe_an_knoten = 'Ebenen'#'FE'# 
 r_1, r_2, r_3 = 1,2,3 # Rundung: ziffern zahl
 for querschnitt in querschnitte:
     QS_label = querschnitt.name
@@ -461,7 +473,7 @@ for querschnitt in querschnitte:
     querschnitt.spannkraft_berechnung(schnittgrößen, spannglieder.suspa_draht_ex['Stahlparameter'], verluste_pauschal = spannkraft_verlust_pauschal,  unit = 'MN') # NOTE muss bisher vor ausnutzung bestimmt werden 
     n_ext_erf, n_int_pro_segment, n_summe_int, P_ist_fuge = querschnitt.get_spannglied_staffelung(n_oberste_segmente=4, 
                                                                                     Pd_ext = spannglieder.suspa_draht_ex['St_1570/1770']['Pm0_n'][84], 
-                                                                                    Pd_int = spannglieder.monolitzen['St_1860']['Pmax_n'][5])
+                                                                                    Pd_int = spannglieder.monolitzen['St_1860']['Pmax_n'][5])                                                                         
 
     querschnitt.calculate_ausnutzung_normalspannung(schnittgrößen, add_vorspannkraft_grob = True, plot_spannungsverlauf=False)
     querschnitt.reibungs_nachweis_horizontalfugen(schnittgrößen, nachweis_parameter['mu'])
@@ -469,12 +481,19 @@ for querschnitt in querschnitte:
     querschnitt.calculate_ausnutzung_scheibenschub(schnittgrößen, lamellenbreite=0.13)
     querschnitt.compute_effektive_festigkeiten_design('kurz')
 
+    # Für die Ausgabe (NOTE ist etwas verwirrend, da die Ausnutzen der Drcukspannung die Vorspannung intern beachtet und nicht als externe Schnittgröße)
+    for knoten_typ in knoten_typen:
+        for dauer in ['egal','ständig']:
+            schnittgrößen_design[knoten_typ][QS_label][nabenhöhe][dauer]['G'] = np.copy(schnittgrößen_design[knoten_typ][QS_label][nabenhöhe][dauer]['x'])
+            schnittgrößen_design[knoten_typ][QS_label][nabenhöhe][dauer]['x'] -= P_ist_fuge[knoten_typ]     
+
     # NOTE Syntax: results_df.loc[:, (Level1, Level2, Level3)] = daten
     results_df.loc[:,(nabenhöhe, QS_label, 'Höhe [' + querschnitt.einheiten['Länge'] + ']')] = np.around(querschnitt.section_absolute_heights[ausgabe_an_knoten],r_2)
     results_df.loc[:,(nabenhöhe, QS_label, 'd_achse [' + querschnitt.einheiten['Länge'] + ']')] = np.around(querschnitt.d_achse[ausgabe_an_knoten],r_2)
     if include_sgr:
         results_df.loc[:,(nabenhöhe, QS_label, 'M [MNm]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['g']* utils.unit_conversion('Nm', 'MNm') ,r_2)
         results_df.loc[:,(nabenhöhe, QS_label, 'N [MN]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['x']* utils.unit_conversion('N', 'MN') ,r_2)
+        results_df.loc[:,(nabenhöhe, QS_label, 'G [MN]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['G']* utils.unit_conversion('N', 'MN') ,r_2)
         results_df.loc[:,(nabenhöhe, QS_label, 'Q [MN]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['y']* utils.unit_conversion('N', 'MN') ,r_2)
 
         results_df.loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_max [' + querschnitt.einheiten['Normalspannung'] + ']')] = np.around(querschnitt.sigma_zug_design[ausgabe_an_knoten],r_2)
@@ -593,11 +612,11 @@ utils.add_color_rule(results_excel, worksheet = 'Bauzustand', columns = reibung_
 #utils.zelle_beschriften(results_excel, 'Ausnutzungen_max', 'B' + str(start_row_max_ti[t]), 
 #                       't, tX, tY [cm] ' + ', '.join([str(int(t)), str(round(tX,1)), str(round(tY,1))]) ,'B' + str(start_row_max_ti[t])+ ':E'+ str(start_row_max_ti[t]))
 dataframes_doc = {'QS_Werte_holz':holz_df,'QS_Werte_geometrie':qs_df,'QS_Werte_lagen':lagen_df,
-                  'EW_parameter':einwirkungs_parameter_df,'EW_dauer':einwirkungs_df,'EW_typ':einwirkungs_df_typ,
+                  'Einwirkungs_parameter':einwirkungs_parameter_df,'Einwirkung_nach_dauer':einwirkungs_df,'Einwirkung_nach_typ':einwirkungs_df_typ,
                   'Vorspannung':vorpsannungs_df,
-                  'Anmerkung':anmerkungs_df, 'Nachweis_parameter':nachweis_parameter_df,
-                  'Ergebnisse':results_df,}
-utils.save_dataframes_to_pkl(dataframes_doc)
+                  'Anmerkungen':anmerkungs_df, 'Nachweis_parameter':nachweis_parameter_df,
+                  'SGR_Spannungen':results_df,}
+utils.save_dataframes_to_pkl(dataframes_doc, ausgabe_an_knoten)
 
 from datetime import datetime
 now = datetime.now()

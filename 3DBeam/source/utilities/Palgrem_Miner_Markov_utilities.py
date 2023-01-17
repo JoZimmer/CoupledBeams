@@ -5,35 +5,60 @@ import matplotlib.pyplot as plt
 class holz():
     HOLZBAU = {'k_mod':{'kurz':0.9, 'mittel':0.8, 'ständig':0.6}}
 
-def lgN_R_zü(kfat, R, lgN_case = 1):
+def lgN_R_zü(kfat, R, last, lgN_case = 1):
     '''
     Formeln von Züblin
     lgN: erst guess dann wirds berechnet und ggf ne andere Formel genutzt
+    N_ertragbar aus Züblin Versuchen für LVL 
+    Dokument: "\Relevanteste Daten von Züblin aus 16-G-015\02-Gutachten-Versuche\01-MPA-Stuttgart_LVL_QS_Vertikalfuge\01_LENO_LVL\Gutachten 902 6504 000_3-Ai Merk Timber_12.05.2014.pdf" 
     '''
-    def get_case(lgN):
-        if lgN > 0 and lgN <= 5:
-            return 1
-        elif lgN > 5 and lgN <= 6:
-            return 2
-        elif lgN > 6:
-            return 3
+    if last == 'druck':
+        def get_case(lgN):
+                if lgN > 0 and lgN <= 5:
+                    return 1
+                elif lgN > 5 and lgN <= 6:
+                    return 2
+                elif lgN > 6:
+                    return 3
 
-    if lgN_case == 1:
-        result_lg_init = (kfat - 1) / (0.01395*R**2 + 0.004765*R - 0.06160)
-    
-    elif lgN_case == 2:
-        result_lg_init = (kfat - (0.05494* R**2 - 0.06043*R + 1.00549)) / (0.0029*R**2 + 0.05974*R -0.0627)
+        if lgN_case == 1:
+            result_lg_init = (kfat - 1) / (0.01395*R**2 + 0.004765*R - 0.06160)
+        
+        elif lgN_case == 2:
+            result_lg_init = (kfat - (0.05494* R**2 - 0.06043*R + 1.00549)) / (0.00296*R**2 + 0.05974*R -0.0627)
 
-    elif lgN_case == 3:
-        result_lg_init = (kfat - (-0.40735* R**2 + 0.03202*R + 1.37532)) / (0.08333*R**2 + 0.04367*R -0.127)
+        elif lgN_case == 3:
+            result_lg_init = (kfat - (-0.40735* R**2 + 0.03202*R + 1.37532)) / (0.08333*R**2 + 0.04367*R -0.127)
 
-    case = get_case(result_lg_init)
-    if case == lgN_case:
-        result_N = 10**result_lg_init
-        return result_lg_init, result_N
+        case = get_case(result_lg_init)
+        if case == lgN_case:
+            result_N = 10**result_lg_init
+            return result_lg_init, result_N
 
-    else:
-        return lgN_R_zü(kfat, R, case)
+        else:
+            return lgN_R_zü(kfat, R, case)
+
+    elif last == 'schub':
+        def get_case(lgN):
+                if lgN > 0 and lgN <= 6:
+                    return 1
+                elif lgN > 6:
+                    return 2
+             
+
+        if lgN_case == 1:
+            result_lg_init = (kfat - 1) / (0.009135*R**2 + 0.05962*R - 0.06875)
+        
+        elif lgN_case == 2:
+            result_lg_init = (kfat - (-0.27049* R**2 +0.05410*R + 1.21640)) / (0.05358*R**2 + 0.05073*R -0.10431)
+
+        case = get_case(result_lg_init)
+        if case == lgN_case:
+            result_N = 10**result_lg_init
+            return result_lg_init, result_N
+
+        else:
+            return lgN_R_zü(kfat, R, case)
 
 def kfat_din(last=None,R= 0.01,N= 1E+07):
 
@@ -50,7 +75,7 @@ def kfat_din(last=None,R= 0.01,N= 1E+07):
 
 def lgN_R_kfat_din(kfat, R, last):
     '''
-    lgN als Funktion von kfat und R (Din Gleichung mit a,b einfach umgestellt)
+    lgN und N als Funktion von kfat und R (Din Gleichung mit a,b einfach umgestellt)
     '''
 
     a = {'druck':2.0, 'zug':9.5, 'schub':6.7}
@@ -82,7 +107,6 @@ def X_N_R(R,N,dauer):
 
     return X
     
-
 def beispiel_züblin_bemessungskonzept():
     lgN = 5.5
     kfat = 0.018 # --> berechnet aus oberspannung / fik
@@ -220,6 +244,4 @@ def plot_kfat_N():
     plt.tight_layout()
     plt.show()
 
-plot_kfat_N()
-#plot_N_ertragbar_X()
 

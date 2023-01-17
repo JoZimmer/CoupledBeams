@@ -66,7 +66,7 @@ class DynamicAnalysis(object):
             raise Exception(err_msg)
 
         # of nodes-dofs
-        n_dofs_model = structure_model.n_nodes * GD.n_dofs_node['3D']
+        n_dofs_model = structure_model.n_nodes * GD.n_dofs_node['2D']
         n_dofs_force = len(self.force)
 
         if n_dofs_model != n_dofs_force:
@@ -134,6 +134,7 @@ class DynamicAnalysis(object):
         self.comp_k = np.copy(self.structure_model.comp_k)
         #self.comp_b = np.zeros(self.comp_k.shape)
         self.comp_b = np.copy(self.structure_model.comp_b)
+        
         # tranformation to the modal coordinates
         if self.transform_into_modal:
             self.comp_m = transform_into_modal_coordinates(
@@ -161,6 +162,7 @@ class DynamicAnalysis(object):
                                        [self.comp_m, self.comp_b,self.comp_k],
                                        initial_conditions, force,
                                        self.structure_model)
+
         elif self.parameters["settings"]["solver_type"] == "Picard":
             from source.solving_strategies.strategies.residual_based_picard_solver import ResidualBasedPicardSolver
             self.solver = ResidualBasedPicardSolver(self.array_time, time_integration_scheme, self.dt,
