@@ -16,7 +16,7 @@ HOLZBAU = {
             }
     },
     'gamma_m': 1.25, 
-    'k_sys': 1.2,
+    'k_sys': 1.0,
     'mu':0.5,  # Reibungsbeiwert
 }
 #
@@ -30,7 +30,7 @@ HOLZBAU = {
 
 
 charakteristische_werte = {
-    'units':{'Festigkeit':'N/mm²', 'Steifigkeit':'N/m²', 'Rohdichte':'kg/m³'},
+    'units':{'Festigkeit':['N/mm²'], 'Steifigkeit':['N/m²'], 'Rohdichte':['kg/m³'], 'Temp. Dehnung':['K^-1']},
     'C24':{
         'fmk':24,
         'ft0k':14,
@@ -71,53 +71,115 @@ charakteristische_werte = {
 
 # Key gibt die gesamt dicke an
 # 'a': ist hier nicht aktuell 
-t_querlagen = 0.04
-t_furnier = 0.009 # 2 Furnierlagen a 4.5 mm -> eine Furnierebene nur 9
-lagenaufbauten = {
-    'BSP_furnier':{
-        36:[{'ortho':'X','ti':0.12,},
-        {'ortho':'Y','ti':t_furnier,},
-        {'ortho':'X','ti':0.12},
-        {'ortho':'Y','ti':t_furnier,},
-        {'ortho':'X','ti':0.12,}],
+class Lagenaufbauten():
 
-    },
+    def __init__(self, typ:str, gesamtstärke:int):
+        self.typ = typ # ob BSP_furnier oder BSP_normal
+        self.tges = gesamtstärke
+        self.t_querlagen = 0.04
 
-    'BSP_normal':{
-    36:[{'ortho':'X','ti':0.10,},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.08},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.10,}],
+        self.t_furnier = 0.009 # 2 Furnierlagen a 4.5 mm -> eine Furnierebene nur 9
+        self.lagenaufbauten = {
+            'BSP_furnier':{
+                13:[{'ortho':'X','ti':0.04,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.03},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.04,}],
 
-    40:[{'ortho':'X','ti':0.12,},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.08},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.12,}],
+                15:[{'ortho':'X','ti':0.05,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.03},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.05,}],
 
-    44:[{'ortho':'X','ti':0.14,},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.08},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.14,}],
+                18:[{'ortho':'X','ti':0.06,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.04},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.06,}],
 
-    48:[{'ortho':'X','ti':0.16,},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.08},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.16,}],
+                20:[{'ortho':'X','ti':0.07,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.04},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.07,}],
 
-    56:[{'ortho':'X','ti':0.20,},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.08},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.20,}],
+                22:[{'ortho':'X','ti':0.08,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.04},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.08,}],
 
-    64:[{'ortho':'X','ti':0.20,},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.16},
-        {'ortho':'Y','ti':t_querlagen,},
-        {'ortho':'X','ti':0.20,}],
-    }
-}
+                26:[{'ortho':'X','ti':0.08,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.08},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.08,}],
+
+                30:[{'ortho':'X','ti':0.10,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.08},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.10,}],
+
+                38:[{'ortho':'X','ti':0.12,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.12},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.12,}],
+
+                40:[{'ortho':'X','ti':0.14,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.10},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.14,}],
+
+                44:[{'ortho':'X','ti':0.16,},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.10},
+                {'ortho':'Y','ti':self.t_furnier,},
+                {'ortho':'X','ti':0.16,}],
+
+            },
+
+            'BSP_normal':{
+            36:[{'ortho':'X','ti':0.10,},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.08},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.10,}],
+
+            40:[{'ortho':'X','ti':0.12,},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.08},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.12,}],
+
+            44:[{'ortho':'X','ti':0.14,},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.08},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.14,}],
+
+            48:[{'ortho':'X','ti':0.16,},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.08},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.16,}],
+
+            56:[{'ortho':'X','ti':0.20,},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.08},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.20,}],
+
+            64:[{'ortho':'X','ti':0.20,},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.16},
+                {'ortho':'Y','ti':self.t_querlagen,},
+                {'ortho':'X','ti':0.20,}],
+            }
+        }
+    def get(self):
+        return self.lagenaufbauten[self.typ][self.tges]

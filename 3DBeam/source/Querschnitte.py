@@ -17,16 +17,12 @@ Nachweisführung
            - in Nebentragrichtung  
        - aus Schub 
            - in Haupttragrichtung
-               benötigt: 
-               äquivalente Schubflächen für BSP
                statisches Moment des Brettsperrholzelements in Haupttragrichtung                 
                Rollschubfestigkeit in schwerpunktsnächsten Querlage maßgebend 
                Schubfestigkeit der Längslagen  
            - in Nebentragrichtung
                statisches Moment des Brettsperrholzelements in Nebntragrichtung
        - Torsion bei Plattenbeanspruchung 
-
-  
 
    Scheibenbeanspruchung 
        Spannungen und Nachweise für
@@ -40,7 +36,6 @@ Nachweisführung
                    polares Trägheitsmoment/Brettbreite/ Mt im Brettsperrholzelement 
                    Anzahl der Klebeflächen/Anzahl der Klebefugen/ Kreuzungsfelder
            - Schubversagen der gesamten Scheibe --> Überschreitung der Rollschubfestigkeit
-
 
        - Knicken? 
        - Beulen? 
@@ -603,15 +598,13 @@ class Querschnitt(object):
                 j += 1
                 if x >= self.section_absolute_heights['Ebenen'][j-1] and x <= x_ebene:
                     self.P_m0['FE'][i] += self.P_m0['Ebenen'][j-1]
-
-        # NOTE NormalSpannung durch Vorspannung wird erst in spannglied_staffelung berechnet
-        #self.sigma_druck_P = {'Ebenen': self.P_m0 / self.wand_stärke / self.U_außen[knoten]}
         
-    def get_spannglied_staffelung(self, n_oberste_segmente:int, Pd_ext, Pd_int):
+    def get_spannglied_staffelung(self, n_oberste_segmente:int, Pd_ext, Pd_int,last):
         '''
         n_oberste_segmente: Anzahl der oberen Segmente die durch die externe Vorspannung abgedeckt werden sollen 
         Pd: werte des gewählten spannsystems   
         das wird hier alles in abhängigkeit der Ebenen definition gemacht und dann für die FE definition interpoliert 
+        last: max_druck -> damit die tatsächliche Spannkraft immer anhand der maximalen Zug Belastung bestimmt wird
         return: Werte über Spanngliedanzahlen werden nur an den Ebenen Knoten zurück gegebn. Spannkraft werte an beiden Knotenebenen 
         '''
         from math import ceil
@@ -625,6 +618,8 @@ class Querschnitt(object):
 
         for P_erf in self.P_m0['Ebenen'][-n_oberste_segmente-1::-1]:
             n_int_erf = ceil((P_erf-P_ist)/Pd_int)
+            if n_int_erf < 0:
+                n_int_erf = 0
             n_int_pro_segment.append(n_int_erf)
             P_ist += n_int_erf * Pd_int
             P_ist_fuge['Ebenen'].append(P_ist)
@@ -767,21 +762,22 @@ class Querschnitt(object):
             self.tau_Qy[knoten], self.tau_Mx[knoten], self.tau_xy[knoten], self.tau_vtor[knoten], self.tau_Fe[knoten], self.tau_längs[knoten] = {},{},{}, {},{}, {}
             
             for dauer in SGR_design_current:
+                # Für den Fall, das mit einer Extra ebene gerechnet werden soll
                 if self.holz_parameter['Furnierebene']:
-                    self.Sy_max = self.compute_static_moment(d_achse = self.d_achse[knoten], mit_furnier = self.holz_parameter['Furnierebene'])
-                    self.Wx = self.compute_Wx(d_achse = self.d_achse[knoten], mit_furnier = self.holz_parameter['Furnierebene'])
-                    self.Iz = self.compute_flächenträgheitsmoment(d_achse = self.d_achse[knoten], mit_furnier= True)
+                    self.Sy_max_lagen = self.compute_static_moment(d_achse = self.d_achse[knoten], mit_furnier = self.holz_parameter['Furnierebene'])
+                    self.Wx_lagen = self.compute_Wx(d_achse = self.d_achse[knoten], mit_furnier = self.holz_parameter['Furnierebene'])
+                    self.Iz_lagen = self.compute_flächenträgheitsmoment(d_achse = self.d_achse[knoten], mit_furnier= True)
 
                     n = self.holz_parameter['G4545']/self.holz_parameter['G0mean']
-                    for lage in self.Sy_max:
+                    for lage in self.Sy_max_lagen:
                         if lage == 'furnier':
                             t = self.t_querlagen 
                             kraft_aufteilung = n * t / (self.t_laengslagen + n*t)
 
                             Qy = SGR_design_current[dauer]['Qy'] * kraft_aufteilung
                             Mx = SGR_design_current[dauer]['Mx'] * kraft_aufteilung
-                            tau_Qy = (Qy * self.Sy_max[lage]) / (self.Iz[lage] * t) * self.einheiten_umrechnung['Schubspannung']
-                            tau_Mx  = Mx /self.Wx[lage]  * self.einheiten_umrechnung['Schubspannung']
+                            tau_Qy = (Qy * self.Sy_max_lagen[lage]) / (self.Iz_lagen[lage] * t) * self.einheiten_umrechnung['Schubspannung']
+                            tau_Mx  = Mx /self.Wx_lagen[lage]  * self.einheiten_umrechnung['Schubspannung']
 
                             self.tau_Fe[knoten][dauer] = tau_Mx + tau_Qy
 
@@ -790,8 +786,8 @@ class Querschnitt(object):
                             kraft_aufteilung = self.t_laengslagen / (self.t_laengslagen + n*self.t_querlagen)
                             Qy = SGR_design_current[dauer]['Qy'] * kraft_aufteilung
                             Mx = SGR_design_current[dauer]['Mx'] * kraft_aufteilung
-                            tau_Qy = (Qy * self.Sy_max[lage]) / (self.Iz[lage] * t) * self.einheiten_umrechnung['Schubspannung']
-                            tau_Mx  = Mx /self.Wx[lage]  * self.einheiten_umrechnung['Schubspannung']
+                            tau_Qy = (Qy * self.Sy_max_lagen[lage]) / (self.Iz_lagen[lage] * t) * self.einheiten_umrechnung['Schubspannung']
+                            tau_Mx  = Mx /self.Wx_lagen[lage]  * self.einheiten_umrechnung['Schubspannung']
 
                             self.tau_längs[knoten][dauer] = tau_Mx + tau_Qy
 
@@ -822,7 +818,6 @@ class Querschnitt(object):
     def calculate_ausnutzung_scheibenschub(self, SGR_design, lamellenbreite=0.08):
         '''
         SGR_design = Schnittgrößen
-        NOTE/TODO Einwirkungsdauer ist hier manuell auf 'kurz' gesetz
         lamellenbreite: Standartwert 0.08 -> TODO teste auswirkung
 
         Nachweis beinhaltet 3 Versagensmechanismen
@@ -858,7 +853,8 @@ class Querschnitt(object):
                     self.ausnutzung_schub_netto[knoten] += self.tau_xy[knoten][dauer] / self.fvxyd_netto
                     self.ausnutzung_schub_torsion[knoten] += self.tau_vtor[knoten][dauer] / self.fvtord
 
-        self.berechnungs_hinweise.append('   - Schub Brutto Nachweis nur mit Schmalseitenverklebten Aufbauten (laut VO7)!')
+                    self.berechnungs_hinweise.append('   - Schub Brutto Nachweis nur mit Schmalseitenverklebten Aufbauten (laut VO7)')
+                    self.berechnungs_hinweise.append('   - Schub Netto: fxy,netto,d mit Festigkeit bezogen auf kleinere Querschnittsfläche, tau_xy,d bezogen auf Gesamtquerschnitt')
 
     def calculate_schubkerrekturbeiwert(self, anzahl_lagen):
         '''
@@ -873,22 +869,28 @@ class Querschnitt(object):
     #def calculate_rollschubnachweis(self):
 
 
-# _________ KOMBINIERTE AUSNUTZUNG __________________________________
+# _________ REIBUNG __________________________________
 
-    def reibungs_nachweis_horizontalfugen(self, SGR_design, mu):
+    def reibungs_nachweis_horizontalfugen(self, SGR_design, mu, P = 0):
         '''
         aus Beton Kalender 2011 Kapitel 4.7.4
         Als vertikale, die Reibung aktivierende Kraft wird die gesamt Vorspannkraft je Fuge angenommen = Pm0
+        TODO: darf hier noch das Eigengewicht mitgenommen werden oder ist das schon alles in der Vorspannung drinnen 
         Einwirkung sind die Schnittgrößen gesamt unabhängig der Einwirkungsdauer
-        TODO: Oberste Fuge ist der Übergang von Holz zu Stahl
+        TODO: Oberste Fuge ist der Übergang von Holz zu Stahl -> Reibungsbeiwert?
         '''
         # Vorzeichen werden hier vernachlässigt, da Pm0 ansich negative wirkt aber als absoluter wert gespeichert ist
 
         self.n_Rd, self.nxy_Qy, self.nxy_Mx, self.ausnutzung_reibung = {},{},{},{}
         for knoten in self.d_achse:
             try:
-                Pd = self.P_ist_fuge[knoten]
+                if not P:
+                    Pd = self.P_ist_fuge[knoten]
+                else:
+                    Pd = P[knoten]
+                    self.berechnungs_hinweise.append('   - Für Reibung: P_ist_Fuge aus Berechnungen mit max Druck angesetzt')
                 self.berechnungs_hinweise.append('   - Gestaffelte Spannglied Führung für Reibungsberechnung angesetzt')
+                #self.berechnungs_hinweise.append('   - Gestaffelte Spannglied Führung für Reibungsberechnung angesetzt')
             except NameError:
                 Pd = self.P_m0[knoten]
                 self.berechnungs_hinweise.append('\n   Erforderliche Vorspannkraft für Reibungsberechnung angesetzt. Staffelung nicht berücksichtigt')
@@ -1082,9 +1084,11 @@ class Querschnitt(object):
         SGR['Mz'] = abs(SGR['Mz'])
 
         sigma_druck = -(SGR['Mz'])/self.Iz[knoten_typ][knoten] * e + SGR['Nx'] / self.A[knoten_typ][knoten]
+        sigma_Mz = -(SGR['Mz'])/self.Iz[knoten_typ][knoten] * e 
+        sigma_Nx = SGR['Nx'] / self.A[knoten_typ][knoten]
         sigma_zug = (SGR['Mz'])/self.Iz[knoten_typ][knoten] * e + SGR['Nx'] / self.A[knoten_typ][knoten]
 
-        return sigma_druck#, sigma_zug
+        return sigma_druck, sigma_Mz, sigma_Nx#, sigma_zug
         
     def calculate_schubspannung_scheibe_at_knoten(self, SGR, knoten, lamellenbreite=0.13, knoten_typ='Ebenen'):
         '''

@@ -1211,9 +1211,8 @@ def plot_markov(range_bin, mean_bin, rfcmat, show_plots = False, save_plots=Fals
     if save_plots:
         plt.close()
 
-def plot_markov_3d(range_bin, mean_bin, rfcmat, bin_size, unit_factor, show_plots = False, save_plots=False, fig_name_save= '', title = ''):
+def plot_markov_3d(range_bin, mean_bin, rfcmat, bin_size, unit_factor, fsize =12, show_plots = False, save_plots=False, fig_name_save= '', title = ''):
 
-    fsize = 12
     xpos, ypos = np.meshgrid(range_bin, mean_bin, indexing='ij')
     xpos = xpos.ravel() * unit_factor
     ypos = ypos.ravel() * unit_factor
@@ -1234,7 +1233,7 @@ def plot_markov_3d(range_bin, mean_bin, rfcmat, bin_size, unit_factor, show_plot
     #ax.bar3d(x=xpos,y=ypos,z=zpos,dx=bin_size,dy=bin_size, dz=z, zsort='average', color=colors)
     ax.bar3d(x=xpos[id0],y=ypos[id0],z=zpos,dx=bin_size,dy=bin_size, dz=z[id0], zsort='average', color=colors)
 
-    ax.set(title="Markov matrix " + title, ylabel = 'Mean', xlabel='Range', zlabel='N')
+    ax.set(title="Markov matrix " + title, ylabel = 'Mean', xlabel='Range', zlabel='N')#, fontsize=fsize)
     plt.rcParams['font.size'] = str(fsize)
     if save_plots:
         if not os.path.isdir(os.path.dirname(fig_name_save)):

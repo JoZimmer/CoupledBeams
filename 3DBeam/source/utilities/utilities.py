@@ -522,6 +522,28 @@ def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of
 
 #______________________SONSTIGES_____________________________________
 
+def add_defaults(params_dict:dict):
+    '''
+    Im run sind nur die tatsächlich relevanten werte zu definieren. Weitere Werte die aufgrund von älteren Versionen gebruacht werden werden dann hier ergäntz
+    '''
+    parameters = {
+                'lx_total_beam': 130, # wird mit der Querschnitts definition ergänzt
+                'material_density': 904,# für dynamische Berechnung äquivalenter Wert - nicht relevant
+                'total_mass_tower': 668390,# aus RFEM - nicht relevant
+                'E_Modul': 12000E+06,# N/m²
+                'nu': 0.1, # querdehnung
+                'damping_coeff': 0.025,
+                'nodes_per_elem': 2,
+                'Iz': 51.0,# Not used if defined on intervals
+                'dofs_of_bc':[0,1,2], # Einspannung
+                'dynamic_load_file': os_join(*["inputs","loads","dynamic","dynamic_force_11_nodes.npy"]),
+                'time_step_dynamic_load':0.01, # Time step der simulation
+                'eigen_freqs_target':[0.133,0.79,3.0], 
+            }
+    params_dict.update(parameters)
+
+    return params_dict
+
 def load_object_from_pkl(pkl_file):
     '''full path mit datei name zum jobejt file'''
     with open(pkl_file, 'rb') as handle:
@@ -570,6 +592,40 @@ def initialize_empty_dict(dict_name, key_to_add):
     else:
         dict_name
 
+def collect_max_ausn(results_df, max_ausnutzung:dict, lastfall):
+    '''
+    sucht in dem results_df in der dritten ebene (nach nabenhöhe und QS_label) nach variablen die die Ausnutzung ausgeben 
+    diese updaten das max_ausnutzungsdict
+    '''
+    if not max_ausnutzung:
+        lastfall0 = True
+        for key in ['Wert', 'at_Höhe [m]', 'Ausn. max', 'Lastfall']:
+            max_ausnutzung[key] = []
+    else:
+        lastfall0 = False
+
+    df = results_df[lastfall]
+    cols = df.columns
+    for var in cols:
+        if 'Ausn.' in var[-1]:
+            col = df.loc[:,(var[0], var[1], var[2])].values
+            h = df.loc[:,(var[0], var[1], 'Höhe [m]')].values
+            
+            if lastfall0:
+                max_ausnutzung['Wert'].append(var[-1])
+                max_ausnutzung['Ausn. max'].append(max(col))
+                max_ausnutzung['at_Höhe [m]'].append(h[np.where(col == max(col))][0])
+                max_ausnutzung['Lastfall'].append(lastfall)
+            else:
+                row = max_ausnutzung['Wert'].index(var[-1])
+                if max_ausnutzung['Ausn. max'][row] < max(col):
+                    max_ausnutzung['Ausn. max'][row] = max(col)
+                    max_ausnutzung['at_Höhe [m]'][row] = h[np.where(col == max(col))][0]
+                    max_ausnutzung['Lastfall'][row] = lastfall
+
+
+    return max_ausnutzung
+
 #_____________________OPENFAST / RFEM_______________________________________
 
 def convert_coordinate_system_and_consider_einwirkungsdauer(loads, n_nodes, gamma_g = 1.35, kopf_masse = 0, direction = 'fore-aft'):
@@ -580,14 +636,14 @@ def convert_coordinate_system_and_consider_einwirkungsdauer(loads, n_nodes, gamm
     gamma_g: sicherheitsbeiwert für gewichtskraft wird aus den ständig wirkenden eigengewichten für die dauer "spannkraft" rausgerechnet 
             da Druckspannungen günstig beid er Berechnung der erforderlichen Sapnnkraft wirken
     kopf_masse: design gewichtskraft der Analgen masse wird für aufteilung in ständig und kurz rausgerechnet 
-    TODO manueller Vorzeichen Wechsel des Moments ist in der Theorie falsch
+    TODO manueller Vorzeichen Wechsel des Moments ist in der Theorie falsch -> Achtung Lasten sind SGR also passt das alles?
     '''
     einwirkungsdauer = {'ständig':{'Fy':0, 'Fx':1, 'Mz':0}, 'kurz':{'Fy':1, 'Fx':1, 'Mz':1}, 'egal':{'Fy':1, 'Fx':1, 'Mz':1}}#, 'spannkraft':{'Fy':1, 'Fx':1, 'Mz':1}}
     directions_beam = ['Fy', 'Fx', 'Mz']
     loads_beam = {'ständig':{}, 'kurz':{}, 'egal':{},'spannkraft':{}}
     if isinstance(loads, dict):
         converter_beam_fast = {'Fy':'Fx','Fx':'Fz', 'Mz':'My'}
-        # TODO rein theoretisch ist dieser Vorzeichen wechsel hier falsch 
+        # TODO rein theoretisch ist dieser Vorzeichen wechsel hier falsch -> Lasten sind SGR ?! 
         sign_beam_fast = {'Fy':1,'Fx':1, 'Mz':-1}
         for dauer in einwirkungsdauer:
             for direction in directions_beam:
@@ -595,13 +651,15 @@ def convert_coordinate_system_and_consider_einwirkungsdauer(loads, n_nodes, gamm
                 factor = einwirkungsdauer[dauer][direction]
                 kopflast_IEA = loads[converter_beam_fast[direction]]
                 if direction == 'Fx' and dauer == 'ständig':
+                    # die ständige Last in Turm richtung ist nur die Kopfmasse
                     kopflast_IEA = kopf_masse
                 if direction == 'Fx' and dauer == 'kurz':
+                    # Die kurzzeitig wirkende Kraft in Turmrichtung ist die differenz der gemessenen zur 
                     kopflast_IEA -= kopf_masse
 
                 loads_beam[dauer][direction][-1] += kopflast_IEA * factor * sign_beam_fast[direction] 
 
-    #for direction in directions_beam:
+    # Für die Berechnung der Spannkraft 
     loads_beam['spannkraft']['Fx'] = loads_beam['ständig']['Fx'] / gamma_g #ohne sicherheitsbeiwert
     loads_beam['spannkraft']['Fy'] = loads_beam['egal']['Fy']
     loads_beam['spannkraft']['Mz'] = loads_beam['egal']['Mz']
@@ -657,6 +715,14 @@ def unit_conversion(unit_in:str, unit_out:str) -> float:
                 'mm':{'m':1E-02, 'cm':1E-01}}
 
     return converter[unit_in][unit_out]
+
+def scale_dict_of_dicts(dd:dict, faktor):
+
+    for k, subdict in dd.items():
+        for k1 in subdict.keys():
+            dd[k][k1] *= faktor
+    
+    return dd
 
 
 #________________________ EXCEL STUFF ________________________
@@ -781,10 +847,11 @@ def write_stats_to_excel(excel_file, worksheet, start_cell, statistics_to_write,
         ws[start_cell[0], col].value = value 
     wb.save()
 
-def zellen_groeße_formatieren(excel_file, worksheet, cell_width, n_cols,  start_col = 'A', cell_height = None):
+def zellen_groeße_formatieren(excel_file, worksheet, df=None, cell_width=15, n_cols=1,  start_col = 'A', cell_height = None):
     ''' 
     excel_file: datei pfad
     Worksheet: sheet name
+    df: der dataframe der geschrieben wird -> cell_width wird angepasst wenn vorhanden
     cell_width: breite der zell
     n_cols: anzahl der spalten die formatiert werden sollen 
     start_col: erste Spalte ab der das formatieren los gehen soll (als Excel Buschtabe oder nummer)
@@ -796,6 +863,9 @@ def zellen_groeße_formatieren(excel_file, worksheet, cell_width, n_cols,  start
 
     if isinstance(start_col, str):
         start_col = EXCEL_COLUMNS.index(start_col)
+
+    if isinstance(df, pd.DataFrame):
+        cell_width = max([len(x) for x in df.columns])
 
     if start_col == n_cols:
         ws.column_dimensions[start_col].width = cell_width
@@ -815,7 +885,7 @@ def add_databar_color(excel_file, worksheet, columns):
 
     from openpyxl import load_workbook
     from openpyxl.formatting.rule import DataBarRule
-    from openpyxl.styles import colors
+    #from openpyxl.styles import colors
 
     wb = load_workbook(excel_file)
     ws = wb[worksheet]

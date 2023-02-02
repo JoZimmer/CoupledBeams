@@ -20,6 +20,7 @@ Input:
 Berechnung:
     - Mit Einflusslinien werden die Schnittgrößen im Turm anhand der Kopflasten Zeitreihen durch eine zustäzliche, konstante Windbelastung
       des Turms and n (hier den defierten Ebenen) bestimmt
+      TODO -> die konstante Belastung wirkt sich nicht unbeding ungünstig auf die Ermüdungs berechnung aus (Höherer Mittelwert bei gleich bleibenden ranges)
     - Die Windlast wird auf Basis der Input Windgeschwindigkeit der entsprechenden Simulation nach DIN berechnet  
 
     - Querkraft und  Torsion werden schon auf Zeitreihen ebene in eine Schubspannungszeitreihe umgerechnet 
@@ -41,6 +42,7 @@ Plots:
 '''
 lokal = os_join(*['C:\\','Users','jz','Documents','WEA_lokal'])
 server = 'output'
+base_dir = server
 
 # Allgemeine Informationen
 jahre = 20
@@ -55,15 +57,25 @@ T_vorhanden = (T_simulation - ramp_up_time)/60 * n_seeds # minuten
 zeitreihen_file = os_join(*['..','..','OpenFAST','1_Simulations','Referenz_modelle','IEAWindTask37','IEA-3.4-130-RWT_fastv3.1.0',
                         'openfast', 'output', 'DLCs', 'pickles', 'Zeitreihen','dlc12.pkl'])
 
-zeitreihen_file = os_join(*[lokal, 'Zeitreihen','dlc12.pkl'])
+#zeitreihen_file = os_join(*[base_dir, 'Zeitreihen','dlc12.pkl'])
 with open(zeitreihen_file, 'rb') as handle:
     kopflasten_zeitreihen = pickle.load(handle)
 
 fatigue_excel = os_join(*['output','Berechnungs_Ergebnisse_Rainflow.xlsx'])
 
 SGR_zeitreihen_vorhanden = True
-save_outfile = True
+add_windkraft_konst = False
+zeitreihen_file_name = 'schnittgrößen_all_furnier_ohne_wind.pkl'
+save_outfile = False
 mit_furnier = True
+# Markov Zählung
+markov = True
+v_list_custom = [9,14.5,20,25] # oder False 
+plot2d = False
+plot3d = True
+show_plots = True
+save_plots = False
+to_excel = False # nur die Querschnitts und Skalierungsinformationen werden geschrieben
 
 if not SGR_zeitreihen_vorhanden:
 
@@ -103,7 +115,7 @@ if not SGR_zeitreihen_vorhanden:
 
     querschnitte,qs_werte, qs_werte_FE, qs_labels  = [],[],[],[]
     höhe = 130
-    dicken = [36]#[44]#[40]# ,, 44]#,48,56,64] # key für lagenaufbau dictonaire in holz 
+    dicken = [44]#[44]#[40]# ,, 44]#,48,56,64] # key für lagenaufbau dictonaire in holz 
     
     #mit_furnier = True # dicke 36 sonst 44
 
@@ -177,11 +189,12 @@ if not SGR_zeitreihen_vorhanden:
     gamma_q_fatigue = 1.0 # TODO
 
     # NOTE Achtung: OpenFASt Last kommt in kN hier ist alles in N
-    knoten_wind_kraft_z = {}
-    for v_in in v_in_simuliert:
-        vb_10m = wind_DIN.vb_von_v_nabenhöhe(v_in, terrain_kategorie, kreis_ring.nabenhöhe)
-        wind_kraft_z, z_coords = wind_DIN.wind_kraft(vb=vb_10m, category=terrain_kategorie, height=qs.section_absolute_heights[knoten_typ], cd = qs.cd, Aref=qs.d_achse[knoten_typ]) # ergibt N/m
-        knoten_wind_kraft_z[v_in] = utils.linien_last_to_knoten_last(wind_kraft_z, qs.section_absolute_heights[knoten_typ], gamma_q = gamma_q_fatigue)
+    if add_windkraft_konst:
+        knoten_wind_kraft_z = {}
+        for v_in in v_in_simuliert:
+            vb_10m = wind_DIN.vb_von_v_nabenhöhe(v_in, terrain_kategorie, kreis_ring.nabenhöhe)
+            wind_kraft_z, z_coords = wind_DIN.wind_kraft(vb=vb_10m, category=terrain_kategorie, height=qs.section_absolute_heights[knoten_typ], cd = qs.cd, Aref=qs.d_achse[knoten_typ]) # ergibt N/m
+            knoten_wind_kraft_z[v_in] = utils.linien_last_to_knoten_last(wind_kraft_z, qs.section_absolute_heights[knoten_typ], gamma_q = gamma_q_fatigue)
             
     einfluss_funktion =  {}
     # Einfluss Funktion der Last in "last_richtung" auf die Schnittgröße "reaktion" am knoten "at_node"
@@ -217,7 +230,7 @@ if not SGR_zeitreihen_vorhanden:
                     einfluss= einfluss_funktion[reaktion][last_richtung][at_node] 
                     kopflast_t = kopflasten_zeitreihen[last_openFAST[last_richtung]][v_in]['time_series']
                     sgr_kopf_t = einfluss[-1] * kopflast_t# kopflast ist der oberste knoten
-                    if last_richtung == 'y': #knoten windkraft nur in y-Richtung
+                    if add_windkraft_konst and last_richtung == 'y': #knoten windkraft nur in y-Richtung
                         sgr_konst = sum(einfluss * knoten_wind_kraft_z[v_in][GD.DOF_LOAD_MAP[last_richtung]] * utils.unit_conversion('N', 'kN'))
                     else:
                         sgr_konst = 0.
@@ -247,14 +260,14 @@ if not SGR_zeitreihen_vorhanden:
 
     output_folder = os_join(*['output', 'Zeitreihen'])
     if save_outfile:
-        outfile = os_join(*[output_folder, 'schnittgrößen_all_furnier.pkl'])
+        outfile = os_join(*[output_folder, zeitreihen_file_name])
         with open(outfile, 'wb') as handle:
             pickle.dump(schnittgrößen_zeitreihen, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         print ('\nSaved', outfile)
 
 if SGR_zeitreihen_vorhanden:
-    zeitreihen_sgr_file = os_join(*[lokal,'Zeitreihen','schnittgrößen_all_furnier.pkl']) # server: 'output'
+    zeitreihen_sgr_file = os_join(*[base_dir,'Zeitreihen',zeitreihen_file_name]) # server: 'output'
     with open(zeitreihen_sgr_file, 'rb') as handle:
         schnittgrößen_zeitreihen = pickle.load(handle)
     v_in_simuliert = list(kopflasten_zeitreihen[list(kopflasten_zeitreihen.keys())[0]])
@@ -266,23 +279,18 @@ output_folder = os_join(*['output', 'Markov'])
 
 einheiten = {'Mz':'_[MNm]', 'Mx':'_[kNm]', 'Qy':'_[kN]', 'tau':'_[kN/m²]','tau_Fe':'_[kN/m²]','tau_längs':'_[kN/m²]', 'YawBrFxyp_[kN]':''}
 
-markov = True
-save_outfile = True
-plot2d = False
-plot3d = True
-
-to_excel = False # nur die Querschnitts und Skalierungsinformationen werden geschrieben
-
 # ----- Die eigentliche rainflow Zählung und generierung der Markov Matritzen für die weiter verwendung
 # -----------------------------------------------------------------------------------------------------
 if markov:
+    if v_list_custom:
+        v_in_simuliert = v_list_custom
     markov_gesamt, markov_sammlung = {}, {}
 
     step_size_reaktion = {'Mz':600, 'Mx':100, 'Qy':10, 'tau':1, 'tau_Fe':10, 'tau_längs':1, 'YawBrFxyp_[kN]':10}#* utils.unit_conversion('kN/m²', 'N/mm²')
     
-    for reaktion in ['tau_längs']:#['tau_Fe']:#,['YawBrFxyp_[kN]']:#['Mz']:#['Mx', 'Qy']:# , 
+    for reaktion in ['Mz']:#['tau_längs']:#['tau_Fe']:#,['YawBrFxyp_[kN]']:#['Mx', 'Qy']:# , 
         markov_sammlung[reaktion], markov_gesamt[reaktion] = {}, {}
-        for at_node in range(10):#range(kreis_ring.n_ebenen):#[9]:# 
+        for at_node in [3]:# range(10):#range(kreis_ring.n_ebenen):#
             markov_sammlung[reaktion][at_node], markov_gesamt[reaktion][at_node] = {}, {}
 
             skalierung = {  'v_in-[m/s]':v_in_simuliert, 'ramp_up-[s]':[ramp_up_time]*len(v_in_simuliert), 'T_seed-[s]':[T_simulation]*len(v_in_simuliert),
@@ -337,7 +345,7 @@ if markov:
                     markov_sammlung[reaktion][at_node]['N'].append(rfcmat)
 
             # kombinieren der einzelenen Markovs je v_in
-            markov_gesamt[reaktion][at_node] = utils.combine_markovs(markov_sammlung[reaktion][at_node], step_size)
+            markov_gesamt[reaktion][at_node] = fat.combine_markovs(markov_sammlung[reaktion][at_node], step_size)
 
             if reaktion == 'Mz':
                 unit_factor = utils.unit_conversion('kNm','MNm')
@@ -347,7 +355,7 @@ if markov:
                 postprocess.plot_markov(markov_gesamt[reaktion][at_node]['range'], 
                                         markov_gesamt[reaktion][at_node]['mean'], 
                                         markov_gesamt[reaktion][at_node]['N'], 
-                                        show_plots = False, save_plots = True, 
+                                        show_plots = show_plots, save_plots = save_plots, 
                                         fig_name_save=os_join(*['output', 'plots','Markov_Matrizen', reaktion + '_at_node' + str(at_node) + '_v_all.png']), 
                                         title= 'bin size ' + str(step_size)+ '\n'+ reaktion + einheiten[reaktion] + ' at node' + str(at_node) + ' v all')
             if plot3d:
@@ -356,7 +364,8 @@ if markov:
                                             markov_gesamt[reaktion][at_node]['N'], 
                                             bin_size= step_size,
                                             unit_factor = unit_factor,
-                                            show_plots = True, save_plots = True, 
+                                            show_plots = show_plots, save_plots = save_plots, 
+                                            fsize = 16,
                                             fig_name_save=os_join(*['output', 'plots','Markov_Matrizen', '3d_' + reaktion + '_at_node' + str(at_node) + '_v_all.png']), 
                                             title= 'bin size ' + str(step_size)+ '\n'+ reaktion + einheiten[reaktion] + ' at node' + str(at_node) + ' v all')
 

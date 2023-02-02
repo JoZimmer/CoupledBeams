@@ -11,7 +11,7 @@ Input:
 wichtigeste Optionen: 
     - case: 'druck' oder 'schub' markov daten sind seperat gespeichert und hier erst berechnung der druckspannung aus Schnittgrößen
 
-Berechnung:
+Berechnung und outputs:
     - Teilschädigung für jeden Eintrag aus der Markov Matrix mit kfat nach DIN oder Züblin (Eingabe)
     - Für jede Ebene werden die Zwischen ergebnisse für jeden Eintrag in ein dictionary geschrieben und dieses mittels dataframe in eine Excel
 
@@ -60,14 +60,16 @@ parameters_init['E_Modul'] = werkstoff_parameter['E0mean']
 
 nachweis_parameter = holz.HOLZBAU
 
+PC = 'server' # 'lokal
+
 case = 'druck'#  'schub' #'schub_längs'# 'schub_Fe'# 
 
 fatigue_excel = os_join(*['output','Berechnungs_Ergebnisse_Fatigue_DIN_'+ case + '.xlsx'])
 
-to_excel = False
+to_excel = True
 to_pickle = False
 plot_häufigkeit = False
-plot_N_R = True
+plot_N_R = False
 mit_furnier = False
 
 '''
@@ -156,10 +158,10 @@ NOTE: hier wird jetzt mal einfach nur von einem Querschnitt ausgegangen und nich
 Einheiten handling hier nicht so eindeutig 
 '''
 # Datei die der output aus rainflow_FAST_beam.py ist
-lokal = os_join(*['C:\\','Users','jz','Documents','WEA_lokal','Markov'])
+source_base = {'server':os_join(*['output','Markov']), 'lokal':os_join(*['C:\\','Users','jz','Documents','WEA_lokal','Markov'])}
 
-#markov_file = os_join(*['output','Markov','markov_matrix_'+case+'_DLC12.pkl'])
-markov_file = os_join(*[lokal,'markov_matrix_'+case+'_DLC12.pkl'])
+#markov_file = 
+markov_file = os_join(*[source_base[PC],'markov_matrix_'+case+'_DLC12.pkl'])
 SGR_statisch_file = os_join(*['output','Berechnungs_Ergebnisse_dataframes','230105_SGR_Spannungen_Ebenen.pkl']) # für vorspannng etc.
 output_folder = os_join(*['output','Palmgren_Miner'])
 
@@ -203,7 +205,12 @@ for reaktion in [case_dict[case]]: #['Mz']:#['tau']:#, 'Mx', 'Qy']:
     s = spannung_greek[reaktion]
     fatigue_dicts[reaktion] = {}
     for at_node in range(kreis_ring.n_ebenen):#range(1)[9]:# 
-        fatigue_dicts[reaktion][at_node] = {
+        if case == 'druck':
+            fatigue_dicts[reaktion][at_node] = {
+            s + '_mean_Mz-[N/mm²]':np.zeros((markov_matrix_z[reaktion][at_node]['N'].size)),
+            s + '_mean_Nx-[N/mm²]':np.zeros((markov_matrix_z[reaktion][at_node]['N'].size))}
+
+        fatigue_dicts[reaktion][at_node].update({
             s + '_mean-[N/mm²]':np.zeros((markov_matrix_z[reaktion][at_node]['N'].size)),
             s + '_range-[N/mm²]':np.zeros((markov_matrix_z[reaktion][at_node]['N'].size)),
             s + '_max-[N/mm²]':np.zeros((markov_matrix_z[reaktion][at_node]['N'].size)),
@@ -213,7 +220,8 @@ for reaktion in [case_dict[case]]: #['Mz']:#['tau']:#, 'Mx', 'Qy']:
             'N_ist':np.zeros((markov_matrix_z[reaktion][at_node]['N'].size)),
             'N_ertragbar':np.zeros((markov_matrix_z[reaktion][at_node]['N'].size)),
             'Di':np.zeros((markov_matrix_z[reaktion][at_node]['N'].size)),
-        }
+        })
+
         n_mean = len(markov_matrix_z[reaktion][at_node]['mean'])
         n_range = len(markov_matrix_z[reaktion][at_node]['range'])
 
@@ -223,16 +231,16 @@ for reaktion in [case_dict[case]]: #['Mz']:#['tau']:#, 'Mx', 'Qy']:
         for i, mean_val in enumerate(markov_matrix_z[reaktion][at_node]['mean']):
             if reaktion == 'Mz':
                 # Umrechnung der SGR in Sannunge - gibt nur die druckspannung zurück
-                mean_val = kreis_ring.calculate_normalspannung_at_knoten({'Mz':mean_val, 'Nx':Nx_ständig[at_node]}, at_node, knoten_typ= 'Ebenen') 
+                mean_val, sigma_Mz, sigma_Nx = kreis_ring.calculate_normalspannung_at_knoten({'Mz':mean_val, 'Nx':Nx_ständig[at_node]}, at_node, knoten_typ= 'Ebenen') 
             for j, range_val in enumerate(markov_matrix_z[reaktion][at_node]['range']):
                 Nij = markov_matrix_z[reaktion][at_node]['N'][j,i]
                 if Nij == 0:
                     continue
                 if reaktion == 'Mz':
-                    range_val= abs(kreis_ring.calculate_normalspannung_at_knoten({'Mz':range_val, 'Nx':0}, at_node, knoten_typ= 'Ebenen'))
+                    range_val, range_Mz, range_Nx = kreis_ring.calculate_normalspannung_at_knoten({'Mz':range_val, 'Nx':0}, at_node, knoten_typ= 'Ebenen')
 
-                sigma_1 = (mean_val - range_val/2) * einheit_spannung # beide negative daher der wahre maximale wert 
-                sigma_2 = (mean_val + range_val/2) * einheit_spannung # bei druck der absolute maximale werte
+                sigma_1 = (mean_val - abs(range_val)/2) * einheit_spannung # beide negative daher der wahre maximale wert 
+                sigma_2 = (mean_val + abs(range_val)/2) * einheit_spannung # bei druck der absolute maximale werte
                 if sigma_1 == 0 and sigma_2 == 0:
                     continue
                 # Maximal ist der größere wert unter Berücksichtigung des Vorzeichens
@@ -245,8 +253,12 @@ for reaktion in [case_dict[case]]: #['Mz']:#['tau']:#, 'Mx', 'Qy']:
                 Di = Nij/N_ertragbar
                 D_ges += Di
 
+                if case == 'druck':
+                    fatigue_dicts[reaktion][at_node][s + '_mean_Mz-[N/mm²]'][zeile] = round(sigma_Mz * einheit_spannung, r_2)
+                    fatigue_dicts[reaktion][at_node][s + '_mean_Nx-[N/mm²]'][zeile] = round(sigma_Nx * einheit_spannung, r_2)
+
                 fatigue_dicts[reaktion][at_node][s + '_mean-[N/mm²]'][zeile] = round(mean_val * einheit_spannung, r_2)
-                fatigue_dicts[reaktion][at_node][s + '_range-[N/mm²]'][zeile] = round(range_val * einheit_spannung, r_2)
+                fatigue_dicts[reaktion][at_node][s + '_range-[N/mm²]'][zeile] = round(abs(range_val) * einheit_spannung, r_2)
                 fatigue_dicts[reaktion][at_node]['N_ist'][zeile] = Nij
 
                 fatigue_dicts[reaktion][at_node][s + '_max-[N/mm²]'][zeile] = round(sigma_max, r_2)
@@ -286,7 +298,7 @@ for reaktion in [case_dict[case]]: #['Mz']:#['tau']:#, 'Mx', 'Qy']:
             with pd.ExcelWriter(fatigue_excel, mode= 'a', engine="openpyxl", if_sheet_exists='replace') as writer:
                 df.to_excel(writer, sheet_name= case + '_Ebene' + str(at_node)  , startrow=0, startcol=0, index=False)#
 
-            utils.zellen_groeße_formatieren(fatigue_excel, worksheet= case + '_Ebene' + str(at_node)  , cell_width=16, n_cols=len(df.columns)+1)
+            utils.zellen_groeße_formatieren(fatigue_excel, worksheet= case + '_Ebene' + str(at_node), df=df, n_cols=len(df.columns)+1)
 
         print('Auf Höhe:', kreis_ring.section_absolute_heights['Ebenen'][at_node], 'm beträgt die gesamt Schädigung für', case, D_ges)
         gesamt_ergebniss['Höhe [m]'].append(kreis_ring.section_absolute_heights['Ebenen'][at_node])
@@ -297,7 +309,7 @@ for reaktion in [case_dict[case]]: #['Mz']:#['tau']:#, 'Mx', 'Qy']:
         with pd.ExcelWriter(fatigue_excel, mode= 'a', engine="openpyxl", if_sheet_exists='replace') as writer:
             gesamt_df.to_excel(writer, sheet_name= case + '_D_gesamt', startrow=0, startcol=0, index=False)#
 
-        utils.zellen_groeße_formatieren(fatigue_excel, worksheet= case + '_D_gesamt', cell_width=16, n_cols=len(df.columns)+1)
+        utils.zellen_groeße_formatieren(fatigue_excel, worksheet= case + '_D_gesamt', df=df, n_cols=len(df.columns)+1)
 
         from datetime import datetime
         now = datetime.now()
