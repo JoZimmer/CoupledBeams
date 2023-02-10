@@ -1,5 +1,13 @@
 
-
+'''
+TODO alles in eine Klasse Holz überführen
+    - Attribute:
+        Lagenaufbau
+        chrakteristische Werte
+        Holzbau sachen 
+        Einheiten
+    - Lagenstärken anhand der gesamt dicke automatische generieren mit ein paar vorzugsstärken der Bretter
+'''
 
 HOLZBAU = {
     'k_mod':{'kurz': 0.9, 'mittel':0.8, 'lang': 0.7, 'ständig':0.6},

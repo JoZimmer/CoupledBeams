@@ -712,7 +712,8 @@ def unit_conversion(unit_in:str, unit_out:str) -> float:
                 'MNm':{'Nm':1E+06, 'kNm':1E+03},
                 'm':{'cm':1E+02, 'mm':1E+03},
                 'cm':{'m':1E-02, 'mm':1E+01},
-                'mm':{'m':1E-02, 'cm':1E-01}}
+                'mm':{'m':1E-02, 'cm':1E-01},
+                'kWh':{'MWh':1/1000}}
 
     return converter[unit_in][unit_out]
 
@@ -847,11 +848,11 @@ def write_stats_to_excel(excel_file, worksheet, start_cell, statistics_to_write,
         ws[start_cell[0], col].value = value 
     wb.save()
 
-def zellen_groeße_formatieren(excel_file, worksheet, df=None, cell_width=15, n_cols=1,  start_col = 'A', cell_height = None):
+def zellen_groeße_formatieren(excel_file, worksheet:str, df:pd.DataFrame=None, cell_width:int=15, n_cols:int=1,  start_col:str = 'A', cell_height = None):
     ''' 
     excel_file: datei pfad
     Worksheet: sheet name
-    df: der dataframe der geschrieben wird -> cell_width wird angepasst wenn vorhanden
+    df: der dataframe der geschrieben wird -> cell_width und n_cols wird angepasst wenn vorhanden NOTE funktioniert nicht für Multiindex df
     cell_width: breite der zell
     n_cols: anzahl der spalten die formatiert werden sollen 
     start_col: erste Spalte ab der das formatieren los gehen soll (als Excel Buschtabe oder nummer)
@@ -865,7 +866,10 @@ def zellen_groeße_formatieren(excel_file, worksheet, df=None, cell_width=15, n_
         start_col = EXCEL_COLUMNS.index(start_col)
 
     if isinstance(df, pd.DataFrame):
+        c =  df.columns
+        b = [len(x) for x in df.columns]
         cell_width = max([len(x) for x in df.columns])
+        n_cols = len(df.columns) + 1
 
     if start_col == n_cols:
         ws.column_dimensions[start_col].width = cell_width

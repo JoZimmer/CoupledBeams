@@ -4,6 +4,8 @@ DOF_LABELS = {'2D': ['x','y','g'], '3D':['x', 'y', 'z', 'a', 'b', 'g']}
 
 GRAVITY = 9.81 
 
+RHO_AIR = 1.225
+
 DOFS_PER_NODE = {'2D':3, '3D':6}
 
 RESPONSE_DOF_MAP = {'Nx':'x', 'Qy':'y', 'Qz':'z', 'Mx':'a', 'My':'b', 'Mz':'g'}

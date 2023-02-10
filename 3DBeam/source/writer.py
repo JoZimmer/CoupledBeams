@@ -3,10 +3,12 @@ import numpy as np
 import source.utilities.global_definitions as GD
 import source.utilities.utilities as utils
 
-def from_nested_dict(dictonary:dict):
+def df_from_nested_dict(dictonary:dict, append_short_cols:bool = True) -> pd.DataFrame:
     '''
     soll aus mehrstufigem Dictonary ein multiindex dataframe erstellen -> muss rekursiv sein
+    append_short_cols: in dem dictionary werden alle spalten auf die gleich länge gebracht mit None werden
     '''
+
     reform = {}
     for outerKey, innerDict in dictonary.items():
         for innerKey, values in innerDict.items():
@@ -23,6 +25,16 @@ def from_nested_dict(dictonary:dict):
                         reform[(outerKey, innerKey, innerKey1)] = values1
             else:
                 reform[(outerKey, innerKey)] = values
+
+    if append_short_cols:
+        max_len = max([len(x) for x in reform.values()])
+        for key, vals in reform.items():
+            if len(vals) < max_len:
+                diff = int(max_len - len(vals))
+                if isinstance(vals, np.ndarray):
+                    reform[key] = np.append(vals, [None] * diff)
+                elif isinstance(vals,list):
+                    reform[key].extend([None]*diff)
 
     return pd.DataFrame(reform)
 

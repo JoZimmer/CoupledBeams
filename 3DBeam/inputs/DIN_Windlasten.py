@@ -1,9 +1,8 @@
 import numpy as np 
 import matplotlib.pyplot as plt
-from source import Querschnitte
 
 
-vb_windzone = {1: 22.5, 2:25, 3:27.5, 4:30} # NA.A.1
+VB_WINDZONEN = {1: 22.5, 2:25, 3:27.5, 4:30} # NA.A.1
 RHO = 1.225 # nach DIBt 7.3.1
 
 def wind_kraft(vb, category, height, cd, Aref):
@@ -21,7 +20,6 @@ def flaechen_windkraft(vb, category, height, cp_max):
     
     F_flaeche= qp_z*cp_max
     return F_flaeche, z
-
 
 def DIN_potenz_profil (vb, category, height, return_at = None):
     '''
@@ -80,8 +78,11 @@ def DIN_potenz_profil (vb, category, height, return_at = None):
 
     if return_at:
         v_at = vm_z[list(z).index(return_at)]
+        I_at = Iv_z[list(z).index(return_at)]
         print ('Windgeschwindigkeit auf Höhe', return_at, 'm beträgt', round(v_at,2), 'm/s')
-    return vm_z, Iv_z, qp_z, z
+        return v_at, I_at, vm_z, Iv_z, qp_z, z
+    else:
+        return vm_z, Iv_z, qp_z, z
 
 def vb_von_v_nabenhöhe (vh, category, nabenhöhe):
     '''
@@ -103,7 +104,7 @@ def vb_von_v_nabenhöhe (vh, category, nabenhöhe):
 
     return vb
 
-def plot_DIN_profiles (vb, h_max ,v_ref=1, z_ref=1, categories= ['I','II','III','IV','dibt'], values = ['vm(z)','Iv(z)','qp(z)']):
+def plot_DIN_profiles (vb, h_max ,v_ref=1, z_ref=1, categories= ['I','II','III','IV','dibt'], values = ['vm(z)','Iv(z)','qp(z)'], hline = 0):
 
     fig, ax = plt.subplots(ncols=len(values),num='DIN profiles')#, figsize=(3,3.8)
     
@@ -128,10 +129,16 @@ def plot_DIN_profiles (vb, h_max ,v_ref=1, z_ref=1, categories= ['I','II','III',
             ax[j].plot(res[value], z, label = label, color = colors[i], linestyle=linestyle)
 
             ax[j].set_xlabel(value + untis[value])
-            ax[j].set_ylabel('z [m]')
             
             ax[j].grid(True)
+    if hline:
+        val_at = DIN_potenz_profil(vb, category, h_max, hline)
+        ax[0].hlines(hline, min(res['vm(z)']), max(res['vm(z)']), label='Nabenhöhe v = ' + str(round(val_at[0],2)), color = colors[i+1])
+        ax[1].hlines(hline, min(res['Iv(z)']), max(res['Iv(z)']), label='Nabenhöhe Iv = ' + str(round(val_at[1],2)), color = colors[i+1])
+
     ax[0].legend()
+    ax[1].legend()
+    ax[0].set_ylabel('z [m]')
     plt.tight_layout()
     plt.show()
 
@@ -142,20 +149,20 @@ class Querschwingung(object):
     '''
     Wirbelerreget Querschwingung nach DIN EN 1991-1-4 Anhang E
     '''
-
-    def __init__(self, querschnitt:Querschnitte.Querschnitt, n_1, vm_z, eigenform):
+    #from source import Querschnitte 
+    # def __init__(self, querschnitt:Querschnitte.Querschnitt, n_1, vm_z, eigenform):
 
        
-        self.St = 0.18 # Zylinder
-        self.nu = 15E-06 # kinematische Viskosität Luft m²/s
+    #     self.St = 0.18 # Zylinder
+    #     self.nu = 15E-06 # kinematische Viskosität Luft m²/s
         
-        self.v_crit1 = querschnitt.d_außen[-1] * n_1 * self.St # An stelle des Turms der Maximalen modalen auslenkung
+    #     self.v_crit1 = querschnitt.d_außen[-1] * n_1 * self.St # An stelle des Turms der Maximalen modalen auslenkung
 
-        ist_anfällig = False
-        if self.v_crit1 > 1.25* vm_z[-1]:
-            ist_anfällig = True
+    #     ist_anfällig = False
+    #     if self.v_crit1 > 1.25* vm_z[-1]:
+    #         ist_anfällig = True
 
-        self.Re_vcrit1 = querschnitt.d_außen[-1] * self.v_crit1 / self.nu
+    #     self.Re_vcrit1 = querschnitt.d_außen[-1] * self.v_crit1 / self.nu
 
 
     def get_c_lat(self):
@@ -172,8 +179,14 @@ class Querschwingung(object):
             c_lat0 = 0.3
         
 
-
+if __name__ == '__main__':
+    vb =  VB_WINDZONEN[2] #3.7
+    cat = 'II'
+    nabenhöhe = 50
     
+    DIN_potenz_profil(vb, cat, 100, nabenhöhe)
+    plot_DIN_profiles(vb, 80, categories=[cat], hline=nabenhöhe, values=['vm(z)','Iv(z)'])
+
 
 
 

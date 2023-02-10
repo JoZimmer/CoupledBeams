@@ -33,6 +33,19 @@ def A_1(z_hub):
     else:
         return 42
 
+def rayleigh(v_hub, v_ave):
+    '''
+    CDF
+    mittelwert der Windgeschwindigkeitsverteilung über 10 min muss als so eine Rayleigh Verteilung angenommen werden 
+    Gl. (8)
+    v_ave ist das Jahres mittel der Windgeschwindigkeit auf Nabenhöhe
+    v_hub sind sämtliche Windgeschwindigkeiten auf Nabenhöhe
+    -> somit ist P_R die Wahrscheinlichkeit, dass v_hub gemessen wird
+    '''
+
+    P_R = 1 - np.exp(-np.pi*(v_hub/(2*v_ave))**2)
+
+    return P_R
 
 class normale_windbedinungen():
 
@@ -40,6 +53,10 @@ class normale_windbedinungen():
         '''
         mittelwert der Windgeschwindigkeitsverteilung über 10 min muss als so eine Rayleigh Verteilung angenommen werden 
         Gl. (8)
+        anhand der WEA Klasse wird v_ave, das Jahres mittel der Windgeschwindigkeit auf Nabenhöhe gewählt 
+        NOTE für einen spezifischen Standort kann somit das tatsächliche v_ave genutzt werden
+        v_hub sind sämtliche Windgeschwindigkeiten auf Nabenhöhe
+        -> somit ist P_R die Wahrscheinlichkeit, dass v_hub gemessen wird
         '''
 
         P_R = 1 - np.exp(-np.pi*(v_hub/(2*WEA_KLASSEN[wea_klasse]['v_ave']))**2)

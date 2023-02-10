@@ -1,5 +1,11 @@
 '''
 Das kommt von der Jupyter Version vom 26.10.2022
+TODO:
+    - run ausdünnen und übersichtlichere, am Anfang stehende Parameter Eingabe
+    - dataframe und in excel ausgabe sachen in einen writer
+    - Lastenfiles erzeugung auslagern -> Lasten Klasse
+    - Querschnitt und Höhen ggf. besser trennen
+    - ...
 '''
 
 import numpy as np
@@ -236,11 +242,13 @@ vorpsannungs_df = pd.DataFrame(columns=df_vorspannung_header)
 einwirkungsdauer = ['ständig', 'kurz', 'egal','spannkraft']
 sicherheitsbeiwerte = {'dlc':1.35, 'wind':1.35, 'g':1.35, 'vorspannung':1.0, 'günstig':1.0} # dlc entsprechend der Kopflasten q diesem entsprechend und g TODO ansich komplexer im IEC
 
-lastfälle = {'max_druck': '@max_Fxy','max_schub':'@max_Mz' } 
+# TODO lastfall anzahl variabel halten siehe schon bei der erstellung der dfs sehr händisch nur 2 verschiedene!!
+lastfälle = {'max_druck': '@max_Fxy','max_schub':'@max_all'}#'@max_Mz', 'max_all':} 
 
-# sind schon designlasten
+# sind schon designlasten Cosy noch IEA
 kopf_lasten_IEA = { '@max_Fxy':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':6.81E+06, 'My':3.24E+06, 'Mz':2.31E+06},# NOTE Mx = Mxy #Masse charakt. 2.62E+06, Fx = Fxy 
-                    '@max_Mz':{'Fx':419925,'Fy':-24468, 'Fz':-3650438, 'Mx':6294993, 'My':-3439939, 'Mz':10811885}} # Fx = Fxy, Mx = Mxy
+                    '@max_Mz':{'Fx':419925,'Fy':-24468, 'Fz':-3650438, 'Mx':6294993, 'My':-3439939, 'Mz':10811885}, # Fx = Fxy, Mx = Mxy
+                    '@max_all':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':6.81E+06, 'My':3.24E+06, 'Mz':10811885}} # bisher max Fx und max Mz 
 
 skalierung_IEA_kleinwind = 707 / 13273 *2# Rotorflächen x2
 kopf_lasten_IEA = utils.scale_dict_of_dicts(kopf_lasten_IEA, skalierung_IEA_kleinwind)
@@ -252,10 +260,11 @@ kopf_masse_design = - parameters_init['nacelle_mass'] * GD.GRAVITY * sicherheits
 import inputs.DIN_Windlasten as wind_DIN
 
 terrain_kategorie = 'II'
+windzone = 2
 # 25 m/s = cutout windspeed
 basis_windgeschwindigkeit = wind_DIN.vb_von_v_nabenhöhe(25, terrain_kategorie, qs.nabenhöhe) #17
 
-vb_bauzustad = wind_DIN.vb_windzone[2] # Windzone 2 vb = 25 m/s TODO heir extra windlast berechne und für den bauzustand verwenden
+vb_bauzustad = wind_DIN.VB_WINDZONEN[windzone] # Windzone 2 vb = 25 m/s TODO heir extra windlast berechne und für den bauzustand verwenden
 
 nachweis_parameter_dict = { GD.GREEK_UNICODE['gamma']+'_m': [nachweis_parameter['gamma_m']],
                             'kmod Ew. kurz': [nachweis_parameter['k_mod']['kurz']],

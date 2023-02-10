@@ -4,6 +4,10 @@ T:\Projekte\Projekte 2022\(E) Entwicklung\22-E-001 - Studie Windraeder\Literatur
         2021_Zulassung_Spannverfahren2 ABG für SUSPA Draht für Windenergieanlagen.pdf
         ETA-07_0186_GER_Spannsystem.pdf
 
+TODO hier eine Ordentliche Klasse draus machen 
+    - mit Spanngliedtypen als child klasse
+    - gemeinsame Stahlparameter als Parentklass
+
 '''
 import source.utilities.utilities as utils
 
