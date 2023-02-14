@@ -23,14 +23,13 @@ from inputs.spannglieder import Spannglieder
 
 
 parameters_init = {
-                'dimension': '2D',
+                'dimension': '3D',
                 'n_elements': 10, #
-                'nacelle_mass': 14400, # kg Kleinwind 267910,# IEA37: Gondel Masse in kg # aus optimierung 287920.5 
+                'nacelle_mass': 14400, # kg Kleinwind,# IEA37:267910,#  Gondel Masse in kg # aus optimierung 287920.5 
                 'imperfektion':0.008, # m/m Schiefstellung + Fundament schief
                 'E_Modul': 12000E+06,# N/m²
-                'type_of_bc':'Feder', #'clamped',#'Eingespannt',# or 
+                'type_of_bc':'Eingespannt',#'Feder', #'clamped',# TODO Feder evlt falsch gemacht
                 'spring_stiffness':[1E+13,2E+13], # Federsteifigkeit am Boden in u und gamma richtung Bögl 40 GNm/rad
-                'defined_on_intervals':[] # kann gefüllt werden mit einer pickle datei 
             }
 
 parameters_init = utils.add_defaults(parameters_init)
@@ -130,17 +129,15 @@ if not querschnitts_dateien_laden:
     # Querschnittswerte speichern für openfast einlesen -> NOTE gehe hier davon aus das gerade nur ein QS
     qs_FE_df.to_pickle(os_join(*['output','Turmwerte_OpenFAST', qs_label_openfast + '.pkl']))
     print ('  Querschnittswerte in dictionary als pickle gespeichert in:', os_join(*['output','Turmwerte_OpenFAST', qs_label_openfast + '.pkl']))
-    #s. os_join(*['output','Turmwerte_OpenFAST', qs_label_openfast + '_objekt.pkl'])
-    #kreis_ring.plot_properties_along_height(['d_achse'], h_absolut=True)columns=lagen_header
-
 
 '''
 DATAFRAME
 '''
 # https://pandas.pydata.org/pandas-docs/stable/user_guide/indexing.html#returning-a-view-versus-a-copy
 
+einheiten_out = {'Kraft':'kN','Moment':'kNm','Spannung':'N/mm²'} # TODO das als einheiten rechner von berechnung und ausgabe nutzen
 df_results_header_list = [[],[], []] # 1. Liste = 1. Level usw...
-kraft_komponenten = ['Fx [kN]', 'Fy [kN]', 'Mz [kNm]','Mx [kNm]']
+kraft_komponenten =  []#['Fx [kN]', 'Fy [kN]', 'Mz [kNm]','Mx [kNm]'] #TODO hier auch die einheiten zentraler steuern
 df_einwirkung_header_list = [[],[],['ständig','kurz','egal'], kraft_komponenten]
 df_einwirkung_typ_header_list = [[],[],['Kopflast [kN]', 'windkraft [kN]', 'eigengewicht [kN]', 'F_h,ers,imp [kN]' ],kraft_komponenten]
 df_vorspannung_header_list = [[],[],['Höhe [m]', 'd_achse [m]', 'P_erf,end [MN]', 'n EX-'+str(n_draht_suspa_ex), 'n Mono-'+str(n_mono_litzen), 'n int. Summe', 'P_ist Fuge [MN]']]
@@ -165,9 +162,7 @@ for qs in querschnitte:
 
 # Berechnungsergebnisse - dritte Ebene:
 df_results_header_list[2].append('Höhe [' + qs.einheiten['Länge'] + ']') 
-#df_bauzustand_header_list[2].append('Höhe [' + qs.einheiten['Länge'] + ']') 
 df_results_header_list[2].append('d_achse [' + qs.einheiten['Länge'] + ']') 
-#df_results_header_list[2].append('P_erf [MN]') 
 df_results_header_list[2].append('P_erf,end [MN]') 
 df_results_header_list[2].append('P_ist [MN]') 
 
@@ -177,7 +172,6 @@ if include_sgr:
     df_results_header_list[2].append('G [MN]') 
     df_results_header_list[2].append('Q [MN]') 
     df_results_header_list[2].append('Mx [MNm]') 
-#df_results_header_list[2].append(GD.GREEK_UNICODE['sigma'] + '_zug [' + qs.einheiten['Normalspannung'] + ']')
 if include_sigma_M_N:
     df_results_header_list[2].append(GD.GREEK_UNICODE['sigma'] + '_N [' + qs.einheiten['Normalspannung'] + ']') 
     df_results_header_list[2].append(GD.GREEK_UNICODE['sigma'] + '_M [' + qs.einheiten['Normalspannung'] + ']')  
@@ -242,18 +236,21 @@ vorpsannungs_df = pd.DataFrame(columns=df_vorspannung_header)
 einwirkungsdauer = ['ständig', 'kurz', 'egal','spannkraft']
 sicherheitsbeiwerte = {'dlc':1.35, 'wind':1.35, 'g':1.35, 'vorspannung':1.0, 'günstig':1.0} # dlc entsprechend der Kopflasten q diesem entsprechend und g TODO ansich komplexer im IEC
 
-# TODO lastfall anzahl variabel halten siehe schon bei der erstellung der dfs sehr händisch nur 2 verschiedene!!
+# TODO lastfall anzahl variabel halten siehe schon bei der erstellung der dfs sehr händisch und abhängig von key wörtern verschiedene!!
 lastfälle = {'max_druck': '@max_Fxy','max_schub':'@max_all'}#'@max_Mz', 'max_all':} 
 
 # sind schon designlasten Cosy noch IEA
-kopf_lasten_IEA = { '@max_Fxy':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':6.81E+06, 'My':3.24E+06, 'Mz':2.31E+06},# NOTE Mx = Mxy #Masse charakt. 2.62E+06, Fx = Fxy 
-                    '@max_Mz':{'Fx':419925,'Fy':-24468, 'Fz':-3650438, 'Mx':6294993, 'My':-3439939, 'Mz':10811885}, # Fx = Fxy, Mx = Mxy
-                    '@max_all':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':6.81E+06, 'My':3.24E+06, 'Mz':10811885}} # bisher max Fx und max Mz 
+kopf_lasten_IEA = { '@max_Fxy':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':5.98E+06, 'My':6.81E+06, 'Mz':2.31E+06},# NOTE My = Mxy #Masse charakt. 2.62E+06, Fx = Fxy 
+                    '@max_Mz':{'Fx':419925,'Fy':-24468, 'Fz':-3650438, 'Mx':6294993, 'My':-3439939, 'Mz':10811885}, # Fx = Fxy, My = Mxy
+                    '@max_all':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':5.98E+06, 'My':6.81E+06, 'Mz':10811885}} # bisher max Fx und max Mz 
+
+qs.berechnungs_hinweise.append('   - Kopflast Fy (beam cosy) entspricht der resultierenden Fxy aus den IEA Lasten')
+qs.berechnungs_hinweise.append('   - Kopflast Mz (beam cosy) entspricht der resultierenden Mxy aus den IEA Lasten')
 
 skalierung_IEA_kleinwind = 707 / 13273 *2# Rotorflächen x2
 kopf_lasten_IEA = utils.scale_dict_of_dicts(kopf_lasten_IEA, skalierung_IEA_kleinwind)
 
-qs.berechnungs_hinweise.append('   - Koflasten IEA skaliert anhand der Rotorflächen mit  (und dann x 2)' + str(round(skalierung_IEA_kleinwind,5)))
+qs.berechnungs_hinweise.append('   - Kopflasten IEA skaliert anhand der Rotorflächen mit  (und dann x 2)' + str(round(skalierung_IEA_kleinwind,5)))
 
 kopf_masse_design = - parameters_init['nacelle_mass'] * GD.GRAVITY * sicherheitsbeiwerte['g'] # -2628197
 
@@ -294,13 +291,13 @@ for lastfall in lastfälle:
     einwirkungs_parameter_df[lastfall] = pd.DataFrame(einwirkungs_parameter, index=[0])
 
     kopf_lasten_beam = utils.convert_coordinate_system_and_consider_einwirkungsdauer(kopf_lasten_IEA[last_at], n_nodes, sicherheitsbeiwerte['g'], 
-                                                                                    kopf_masse = kopf_masse_design) 
+                                                                                    kopf_masse = kopf_masse_design, dimension=parameters_init['dimension']) 
 
     wind_kraft_z = {}
     lasten_files, lasten_dicts_dauer, lasten_dicts_typ = {}, {}, {}
     for qs in querschnitte:
         QS_label = qs.name
-        lasten_dict_base = {'Fx':np.zeros(n_nodes), 'Fy':np.zeros(n_nodes), 'Mz':np.zeros(n_nodes)}
+        lasten_dict_base = {fi:np.zeros(n_nodes) for fi in GD.FORCES[parameters_init['dimension']]}
 
         # Ergebniss Daten vorbereiten -> leer initialisieren nur wenn noch nicht leer 
         if QS_label not in lasten_files:
@@ -335,8 +332,10 @@ for lastfall in lastfälle:
                                                                                             QS_obj=qs, abminderung_wind=0.5, parameter = parameters_init)
 
         # _____Sortieren nach Einwirkungsdauer
-        lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']  = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], F_h_imp_ers, gewichtskraft_design['FE'], kopf_lasten_beam['egal']]) 
+        lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']  = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], F_h_imp_ers, 
+                                                                                                         gewichtskraft_design['FE'], kopf_lasten_beam['egal']]) 
         lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz'] = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], kopf_lasten_beam['kurz']])
+        # TODO Ein Teil es Kopfmoments Mz (beam) ist auch ständig!
         lasten_dicts_dauer[QS_label][qs.nabenhöhe]['ständig']  = utils.update_lasten_dict(lasten_dict_base, [gewichtskraft_design['FE'], F_h_imp_ers, kopf_lasten_beam['ständig']])
         # das ist der Lastfall spannkraft -> ist für die Spannkraftberechnung (gamma_m Eigengewicht = 1,0)
         lasten_dicts_dauer[QS_label][qs.nabenhöhe]['spannkraft']  = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], qs.gewichtskraft['FE'], F_h_imp_ers, kopf_lasten_beam['spannkraft']])
@@ -344,26 +343,26 @@ for lastfall in lastfälle:
         # ____________ LASTEN DATEI GENERIEREN - nur nach dauer sortiert da dies relevant für ausnutzung ist ___________________________
         for dauer in einwirkungsdauer:
             filename = 'K-IEA'+ last_at + '_W-v' +str(round(basis_windgeschwindigkeit,1)) + 'cd' + str(qs.cd) + '_D-' + dauer
-            lasten_files[QS_label][qs.nabenhöhe][dauer] = utils.generate_lasten_file(n_nodes, lasten_dicts_dauer[QS_label][qs.nabenhöhe][dauer], file_base_name=filename)
+            lasten_files[QS_label][qs.nabenhöhe][dauer] = utils.generate_lasten_file(n_nodes, lasten_dicts_dauer[QS_label][qs.nabenhöhe][dauer], 
+                                                                                     file_base_name=filename, dimension=parameters_init['dimension'])
         
-        # Händische Konstante Torsion dazu 
-        qs.berechnungs_hinweise.append('   - Torsion konstant über die Höhe nur aus Kopflast')
-        lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
-        lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
-        lasten_dicts_typ[QS_label][qs.nabenhöhe]['kopflast']['Mx'] = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
+        # Händische Konstante Torsion dazu wird auch bei den schnittgrößen seperat betrachtet
+        if parameters_init['dimension'] == '2D':
+            qs.berechnungs_hinweise.append('   - Torsion konstant über die Höhe nur aus Kopflast')
+            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
+            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
+            lasten_dicts_typ[QS_label][qs.nabenhöhe]['kopflast']['Mx'] = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
 
         # LASTEN NACH DAUER SORTIERT
         for dauer in einwirkungsdauer:
             if dauer == 'spannkraft':
                 continue
             for komponente in lasten_dicts_dauer[QS_label][qs.nabenhöhe][dauer]:
-                if komponente in ['Mz','Mx']:
-                    einheiten = ['Nm','kNm']
-                else:
-                    einheiten = ['N','kN']
+                kategorie = GD.FORCE_CATEGORY[komponente]
                 
-                einwirkungs_df[lastfall].loc[:,(qs.nabenhöhe, QS_label, dauer, komponente + ' [' + einheiten[1] + ']')] =\
-                    np.around(lasten_dicts_dauer[QS_label][qs.nabenhöhe][dauer][komponente] * utils.unit_conversion(einheiten[0],einheiten[1]),2)
+                einwirkungs_df[lastfall].loc[:,(qs.nabenhöhe, QS_label, dauer, komponente + ' [' + einheiten_out[kategorie] + ']')] =\
+                    np.around(lasten_dicts_dauer[QS_label][qs.nabenhöhe][dauer][komponente] *\
+                        utils.unit_conversion(qs.einheiten[kategorie],einheiten_out[kategorie]),2)
 
         # NACH LASTTYP SORTIERT
         for typ in lasten_dicts_typ[QS_label][qs.nabenhöhe]:
@@ -373,19 +372,19 @@ for lastfall in lastfälle:
                 lasten_files[QS_label][qs.nabenhöhe][typ] = {}
                 for segment in lasten_dicts_typ[QS_label][qs.nabenhöhe][typ]:
                     filename = 'K-IEA'+ last_at + '_W-v' +str(round(basis_windgeschwindigkeit,1)) +'cd' + str(qs.cd) + '_D-' + typ + '_' + segment
-                    lasten_files[QS_label][qs.nabenhöhe][typ][segment] = utils.generate_lasten_file(qs.n_ebenen, lasten_dicts_typ[QS_label][qs.nabenhöhe][typ][segment], file_base_name=filename)
+                    lasten_files[QS_label][qs.nabenhöhe][typ][segment] = utils.generate_lasten_file(qs.n_ebenen, lasten_dicts_typ[QS_label][qs.nabenhöhe][typ][segment], 
+                                                                                                    file_base_name=filename, dimension=parameters_init['dimension'])
             
             else:
                 filename = 'K-IEA'+ last_at + '_W-v' +str(round(basis_windgeschwindigkeit,1)) + 'cd' + str(qs.cd) + '_D-' + typ
-                lasten_files[QS_label][qs.nabenhöhe][typ] = utils.generate_lasten_file(n_nodes, lasten_dicts_typ[QS_label][qs.nabenhöhe][typ], file_base_name=filename)
+                lasten_files[QS_label][qs.nabenhöhe][typ] = utils.generate_lasten_file(n_nodes, lasten_dicts_typ[QS_label][qs.nabenhöhe][typ], 
+                                                                                        file_base_name=filename, dimension=parameters_init['dimension'])
                 for komponente in lasten_dicts_typ[QS_label][qs.nabenhöhe][typ]:
-                    if komponente in ['Mz','Mx']:
-                        einheiten = ['Nm','kNm']
-                    else:
-                        einheiten = ['N','kN']
+                    kategorie = GD.FORCE_CATEGORY[komponente]
 
-                    einwirkungs_df_typ[lastfall].loc[:,(qs.nabenhöhe, QS_label, typ, komponente + ' [' + einheiten[1] + ']')] =\
-                        np.around(lasten_dicts_typ[QS_label][qs.nabenhöhe][typ][komponente] * utils.unit_conversion(einheiten[0],einheiten[1]),2)
+                    einwirkungs_df_typ[lastfall].loc[:,(qs.nabenhöhe, QS_label, typ, komponente + ' [' + einheiten_out[kategorie] + ']')] =\
+                        np.around(lasten_dicts_typ[QS_label][qs.nabenhöhe][typ][komponente] *\
+                            utils.unit_conversion(qs.einheiten[kategorie],einheiten_out[kategorie]),2)
 
         if qs.nabenhöhe == 30:
             postprocess.plot_dict_subplots(lasten_dicts_typ[QS_label][qs.nabenhöhe]['windkraft'], qs.x_FE, title='Windkraft ' + QS_label, unit='kN')
@@ -438,12 +437,10 @@ for lastfall in lastfälle:
         print ('     Gesamt Gewichtskraft Turm am Fuß [MN]:',round(sum(beam.eigengewicht * GD.UNIT_SCALE['MN']),2))
         print ('     Frequenzen [Hz]:', [round(beam.eigenfrequencies[i],3) for i in range(3)])
 
-        #beam.dynamic_analysis_solve()
-
         lasten_nach_dauer = {'ständig':{'torsion':False},
-                            'egal':{'torsion':kopf_lasten_IEA[last_at]['Mz']},
-                            'kurz':{'torsion':kopf_lasten_IEA[last_at]['Mz']},
-                            'spannkraft':{'torsion':kopf_lasten_IEA[last_at]['Mz']}}
+                             'egal':{'torsion':kopf_lasten_IEA[last_at]['Mz']},
+                             'kurz':{'torsion':kopf_lasten_IEA[last_at]['Mz']},
+                             'spannkraft':{'torsion':kopf_lasten_IEA[last_at]['Mz']}}
 
         for dauer in einwirkungsdauer:
             # NOTE Torsion ist nicht in der Steifigkeitsmatrix, deswegen kann diese brechnung nur händisch ergänzt werden
@@ -453,10 +450,6 @@ for lastfall in lastfälle:
 
             schnittgrößen_design['FE'][QS_label][nabenhöhe][dauer] = beam.static_analysis_solve(load_vector_file=lasten_file, 
                                                                         constant_torsion = lasten_nach_dauer[dauer]['torsion'])
-
-            if dauer == 'egal':
-                fh_ers_deform = beam.f_h_ers_deform  * utils.unit_conversion(qs.einheiten['Kraft'], 'kN')
-                #postprocess.plot_along_height(fh_ers_deform, beam.nodal_coordinates['x0'], 'Fh_ers_deform [kN]')                                                      
 
             # SGR werte auch an Ebenen knoten bekommen -> Linear interpolieren 
             for key in schnittgrößen_design['FE'][QS_label][nabenhöhe][dauer]:
@@ -491,6 +484,7 @@ for lastfall in lastfälle:
 
     '''
     SPANNUNGEN UND AUSNUTZUNGEN
+    NOTE: Spannungen werden quasi 2D berechnet wenn für die entpsrechenden Lasten die resultierenden Angegebn sind passt das auch so 
     '''    
     ausgabe_an_knoten = 'FE'# 'Ebenen'#
     r_1, r_2, r_3 = 1,2,3 # Rundung: ziffern zahl
@@ -499,10 +493,7 @@ for lastfall in lastfälle:
         nabenhöhe = querschnitt.nabenhöhe
         t = round(querschnitt.wand_stärke * utils.unit_conversion(querschnitt.einheiten['Länge'], 'cm')) # cm
         tX = querschnitt.t_laengslagen * utils.unit_conversion(querschnitt.einheiten['Länge'], 'cm')
-        tY = querschnitt.t_querlagen * utils.unit_conversion(querschnitt.einheiten['Länge'], 'cm')
-        # if QS_label not in max_ausnutzung:
-        #     max_ausnutzung[QS_label] = {}
-        
+        tY = querschnitt.t_querlagen * utils.unit_conversion(querschnitt.einheiten['Länge'], 'cm')       
 
         schnittgrößen = utils.parse_schnittgrößen_labels(schnittgrößen_design)
 

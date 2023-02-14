@@ -156,6 +156,7 @@ class BeamModel(object):
         self.comp_m = self.apply_bc_by_reduction(self.m)
 
         # Muss nach der reduction der restlichen BCs gemacht werden
+        # TODO kann sein das das falsch ist? die Federteifigkeiten sollen ja quasi das apply BC by reduction ersetzen, comp_k hat also die einträge noch nur eben mit den feder werten ?!
         if self.parameters['type_of_bc'] == 'Feder':
             self.comp_k = self.apply_spring_bc(self.comp_k)
         
@@ -174,7 +175,9 @@ class BeamModel(object):
         element_params['A'] = self.evaluate_characteristic_on_interval(x, 'area', neu)
         element_params['Iz'] = self.evaluate_characteristic_on_interval(x, 'Iz', neu)
         element_params['D'] = self.evaluate_characteristic_on_interval(x, 'D', neu)
-       
+        if self.dim == '3D':
+            element_params['Iy'] = self.evaluate_characteristic_on_interval(x, 'Iy', neu)
+            
         return element_params
 
     def evaluate_characteristic_on_interval(self, x_mid, characteristic_identifier, neu = True):
@@ -321,9 +324,10 @@ class BeamModel(object):
         '''
         if self.dim == '3D':
             raise Exception('Spring stiffness Boundary condition not impelemnted for 3D')
-         
-        k[0,0] = self.parameters['spring_stiffness'][0]
-        k[1,1] = self.parameters['spring_stiffness'][1]
+        
+        elif self.dim == '2D':
+            k[0,0] = self.parameters['spring_stiffness'][0]
+            k[1,1] = self.parameters['spring_stiffness'][1]
 
         return k
 
@@ -381,7 +385,7 @@ class BeamModel(object):
         self.eig_freqs_sorted_indices = np.argsort(self.eigenfrequencies)
         
     def static_analysis_solve(self, load_vector_file = None, apply_mean_dynamic = False, 
-                                    return_result = True, constant_torsion = None,):
+                                    return_result = True, constant_torsion = None):
         ''' 
         load_vector_file: Last datei mit design Lasten 
         if apply_mean_dynamic: the dynamic load file is taken and at each point the mean magnitude
@@ -391,7 +395,8 @@ class BeamModel(object):
         ''' 
         if load_vector_file != None:
             load_vector = np.load(load_vector_file)
-            load_dict = utils.parse_load_signal(load_vector)
+            load_dict = utils.parse_load_signal(load_vector, dimension=self.dim)
+
         elif apply_mean_dynamic:
             directions = 'all'
             dyn_load = np.load(self.parameters['dynamic_load_file'])
@@ -399,9 +404,9 @@ class BeamModel(object):
                 load_vector = np.apply_along_axis(np.mean, 1, dyn_load)
             else:
                 for direction in directions:
-                    dir_id = GD.DOF_LABELS['3D'].index(direction)
-                    mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node['3D']]
-                    load_vector[dir_id::GD.n_dofs_node['3D']] = mean_load
+                    dir_id = GD.DOF_LABELS[self.dim].index(direction)
+                    mean_load = np.apply_along_axis(np.mean, 1, dyn_load)[dir_id::GD.n_dofs_node[self.dim]]
+                    load_vector[dir_id::GD.n_dofs_node[self.dim]] = mean_load
         else:
             raise Exception('No load vector file provided')
 
@@ -424,6 +429,7 @@ class BeamModel(object):
         for i, element in enumerate(self.elements):
             # schnittgröße am ground node ist gleich der resisting force
             if i == 0:
+                lagerreaktion = self.resisting_force[:self.n_dofs_node][:,0]
                 internal_forces_list.append(self.resisting_force[:self.n_dofs_node][:,0])
 
             start = i*self.n_dofs_node
@@ -434,9 +440,6 @@ class BeamModel(object):
             
             # negatives Schnittufer sind die hinteren einträge diese müssen mit den äußeren Lasten im Gleichgewicht stehen
             internal_forces_list.append(f_i[self.n_dofs_node:][:,0])
-
-            # So fehlt der letzte Knoten und das Vorzeichen ist Falsch rum
-            #internal_forces_list.append(f_i[:self.n_dofs_node][:,0])
     
         internal_forces_arr = np.array(internal_forces_list)
         for i, label in enumerate(self.dof_labels):
@@ -447,15 +450,11 @@ class BeamModel(object):
         #     gamma_f_g = utils.teilsicherheitsbeiwert_gravity_IEC(1.3, self.internal_forces['nur_g']['x'] , self.internal_forces['ohne_g']['x'])
         # self.internal_forces = self.internal_forces['gesamt']
 
-        if constant_torsion: # Fall einwirkung kurz
-            self.internal_forces['a'] = np.array([constant_torsion]*self.n_nodes)
-        else:
-            self.internal_forces['a'] = np.zeros(self.n_nodes) 
-
-        #self.load_dict['Mx'] = copy(self.internal_forces['a'])
-        y = np.reshape(self.static_deformation['y'],(self.n_nodes,)) 
-        x = self.nodal_coordinates['x0'] 
-        self.f_h_ers_deform = np.divide(y,x, out=np.zeros_like(y), where=x!=0) * np.reshape(load_dict['y'],(self.n_nodes))
+        if self.dim == '2D':
+            if constant_torsion: # Fall einwirkung kurz
+                self.internal_forces['a'] = np.array([constant_torsion]*self.n_nodes)
+            else:
+                self.internal_forces['a'] = np.zeros(self.n_nodes) 
 
         if return_result:
             return self.internal_forces

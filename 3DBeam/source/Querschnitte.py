@@ -300,11 +300,10 @@ class Querschnitt(object):
         f = {'charakterisitsch':{'v':..., 'c0':...},
              'design':{'v':..., 'c0':...}}
         '''
-
-
+        
         self.compute_effektive_festigkeiten_charakteristisch()
 
-        sicherheits_faktor = self.nachweis_parameter['k_mod'][einwirkungsdauer]*(1/self.nachweis_parameter['gamma_m'])* self.nachweis_parameter['k_sys']
+        sicherheits_faktor = self.nachweis_parameter['k_mod'][einwirkungsdauer]/self.nachweis_parameter['gamma_m']* self.nachweis_parameter['k_sys']
 
         #effektive Festigkeite laengs
         self.fmd_eff_laengs = self.fmk_eff_laengs * sicherheits_faktor
@@ -394,7 +393,6 @@ class Querschnitt(object):
                     self.nz_min[knoten][dauer] = self.sigma_druck[knoten][dauer] * self.wand_stärke
                     self.nz_max[knoten][dauer] = self.sigma_zug[knoten][dauer] * self.wand_stärke
         
-
             if add_vorspannkraft_grob:
                 self.sigma_druck[knoten]['ständig'] -= self.sigma_druck_P[knoten] # für die berechnung der ausnutzung
                 self.sigma_druck[knoten]['egal'] -= self.sigma_druck_P[knoten] # für die ergebniss ausgabe
@@ -762,7 +760,7 @@ class Querschnitt(object):
             self.tau_Qy[knoten], self.tau_Mx[knoten], self.tau_xy[knoten], self.tau_vtor[knoten], self.tau_Fe[knoten], self.tau_längs[knoten] = {},{},{}, {},{}, {}
             
             for dauer in SGR_design_current:
-                # Für den Fall, das mit einer Extra ebene gerechnet werden soll
+                # ________ mit Frunierebene
                 if self.holz_parameter['Furnierebene']:
                     self.Sy_max_lagen = self.compute_static_moment(d_achse = self.d_achse[knoten], mit_furnier = self.holz_parameter['Furnierebene'])
                     self.Wx_lagen = self.compute_Wx(d_achse = self.d_achse[knoten], mit_furnier = self.holz_parameter['Furnierebene'])
@@ -847,6 +845,8 @@ class Querschnitt(object):
                 if self.holz_parameter['Furnierebene']:
                     self.ausnutzung_schub_Fe[knoten] += self.tau_Fe[knoten][dauer] / self.fvFed
                     self.ausnutzung_schub_längs[knoten] += self.tau_längs[knoten][dauer] / self.fvd_brutto
+                    self.berechnungs_hinweise.append('   - Schub Nachweis Furnier mit fv,Fe (Versuch)')
+                    self.berechnungs_hinweise.append('   - Schub Nachweis Längslage mit fv (Scherfestigkeit Vollholz)')
 
                 else:
                     self.ausnutzung_schub_brutto[knoten] += self.tau_xy[knoten][dauer] / self.fvd_brutto

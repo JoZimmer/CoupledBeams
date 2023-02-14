@@ -22,10 +22,11 @@ class BernoulliElement(object):
 
         if self.dim == '3D':
             self.Iy = parameters['Iy']
-            self.I_param = parameters['I_param']
-            self.It = parameters['It']
+             # siehe https://de.wikipedia.org/wiki/Torsion_(Mechanik) 
             self.evaluate_torsional_inertia() # -> gives Ip
-
+            self.It = parameters['Iz'] + parameters['Iz']
+            #self.I_param = parameters['I_param'] # nur für torsion coupling
+            
         self.number_of_nodes = parameters['nodes_per_elem']
     
         self.evaluate_relative_importance_of_shear() # gives G, Py, Pz = 0 if Bernoulli here 
@@ -65,10 +66,10 @@ class BernoulliElement(object):
 
         # Wie man sie meist im Internet findet
         # https://link.springer.com/content/pdf/bbm%3A978-3-319-56493-7%2F1.pdf 
-        k_el_yg_2 = np.array([[ k_yy_11, akyg,    k_yy_12, akyg],
-                            [akyg,     k_gg_11, -akyg,     k_gg_12],
-                            [ k_yy_12,  -akyg,    k_yy_11,  -akyg],
-                            [akyg,     k_gg_12, -akyg,     k_gg_11]])
+        # k_el_yg_2 = np.array([[ k_yy_11, akyg,    k_yy_12, akyg],
+        #                     [akyg,     k_gg_11, -akyg,     k_gg_12],
+        #                     [ k_yy_12,  -akyg,    k_yy_11,  -akyg],
+        #                     [akyg,     k_gg_12, -akyg,     k_gg_11]])
 
         k_el_yg = k_el_yg_1
 
@@ -93,12 +94,10 @@ class BernoulliElement(object):
         # ===========================
 
             k_aa = self.G * self.It / self.L 
-            k_ya = omega *  self.E * self.I_param / self.L**3 # from eccentricity approach to have reasonable scales of start e * k_yy_1112.0 *
+            k_ya = 0. # omega *  self.E * self.I_param / self.L**3 # from eccentricity approach to have reasonable scales of start e * k_yy_1112.0 *
 
             k_aa_11 = k_aa
-            
-
-            k_ga = omega1 * 6.0 * self.E * self.I_param  / self.L**2 
+            k_ga = 0. # omega1 * 6.0 * self.E * self.I_param  / self.L**2 
 
         if self.dim == '3D':
             k_el = np.array([[k_el_x[0][0], 0., 0., 0., 0., 0., k_el_x[0][1], 0., 0., 0., 0., 0.],

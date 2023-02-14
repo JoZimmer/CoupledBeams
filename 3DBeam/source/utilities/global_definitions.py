@@ -2,6 +2,9 @@
 
 DOF_LABELS = {'2D': ['x','y','g'], '3D':['x', 'y', 'z', 'a', 'b', 'g']}
 
+FORCES = {   '2D':['Fx', 'Fy', 'Mz'], '3D':['Fx', 'Fy', 'Fz', 'Mx', 'My', 'Mz']}
+RESPONSES = {'2D':['Nx', 'Qy', 'Mz'], '3D':['Nx', 'Qy', 'Qz', 'Mx', 'My', 'Mz']}
+
 GRAVITY = 9.81 
 
 RHO_AIR = 1.225
@@ -25,8 +28,14 @@ UNITS_LOAD_DIRECTION = {'x':'[N/m]', 'y':'[N/m]', 'z':'[N/m]', 'a':'[Nm/m]', 'b'
 
 UNITS_POINT_LOAD_DIRECTION = {'x':'[N]', 'y':'[N]', 'z':'[N]', 'a':'[Nm]', 'b':'[Nm]', 'g':'[Nm]'}
 
+UNITS_FORCE_CATEGORY  = {'Kraft':'[N]', 'Moment':'[Nm]'}
+
+FORCE_CATEGORY = {  'Fx':'Kraft', 'Fy':'Kraft', 'Fz':'Kraft', 'Mx':'Moment', 'My':'Moment', 'Mz':'Moment',
+                    'Nx':'Kraft', 'Qy':'Kraft', 'Qz':'Kraft', 'Mx':'Moment', 'My':'Moment', 'Mz':'Moment'}
+
 # Basis einheiten Kraft: N, Distanz: m, Druck: N/m²
 # Umrechnung von basis in "key" vom dict
+
 UNIT_SCALE = {'N':1.0,'kN':1e-3,'MN':1e-6, 'm':1, 'cm':100, 'mm':1000, 'N/mm²':1/1E+06}
 
 MODE_CATEGORIZATION_REVERSE = {'3D':{'x':'longitudinal',
