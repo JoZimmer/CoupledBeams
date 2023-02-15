@@ -41,6 +41,7 @@ class BeamModel(object):
             mass_opt.adjust_density_for_target_total_mass(target_total_mass=self.parameters['total_mass_tower'],
                                                           print_to_console=True)
 
+        # NOTE Optimizations noch nicht mit geändertem COSY
         if optimize_frequencies_init:
             from source.optimizations import Optimizations
 
@@ -77,7 +78,7 @@ class BeamModel(object):
         self.nodal_coordinates = {}
         self.elements = []
 
-        lx_i = self.parameters['lx_total_beam'] / self.n_elems
+        lx_i = self.parameters['lz_total_beam'] / self.n_elems
         self.nodal_coordinates['x0'] = np.zeros(self.n_nodes)
         self.nodal_coordinates['y0'] = np.zeros(self.n_nodes)
         for i in range(self.n_nodes):
@@ -91,7 +92,7 @@ class BeamModel(object):
         param_elem_length_cumul_norm = [
             x/param_elem_length_sum for x in param_elem_length_cumul]
 
-        self.parameters['x'] = [x * self.parameters['lx_total_beam'] for x in param_elem_length_cumul_norm]
+        self.parameters['x'] = [x * self.parameters['lz_total_beam'] for x in param_elem_length_cumul_norm]
         self.parameters['x_mid'] = [(a+b)/2 for a, b in zip(self.parameters['x'][:-1], self.parameters['x'][1:])]    
 
         if 'intervals' not in self.parameters:
@@ -173,10 +174,10 @@ class BeamModel(object):
         x = self.parameters['x_mid'][i]
 
         element_params['A'] = self.evaluate_characteristic_on_interval(x, 'area', neu)
-        element_params['Iz'] = self.evaluate_characteristic_on_interval(x, 'Iz', neu)
+        element_params['Iy'] = self.evaluate_characteristic_on_interval(x, 'Iy', neu)
         element_params['D'] = self.evaluate_characteristic_on_interval(x, 'D', neu)
         if self.dim == '3D':
-            element_params['Iy'] = self.evaluate_characteristic_on_interval(x, 'Iy', neu)
+            element_params['Iz'] = self.evaluate_characteristic_on_interval(x, 'Iz', neu)
             
         return element_params
 

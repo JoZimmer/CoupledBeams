@@ -2,8 +2,8 @@
 
 DOF_LABELS = {'2D': ['x','y','g'], '3D':['x', 'y', 'z', 'a', 'b', 'g']}
 
-FORCES = {   '2D':['Fx', 'Fy', 'Mz'], '3D':['Fx', 'Fy', 'Fz', 'Mx', 'My', 'Mz']}
-RESPONSES = {'2D':['Nx', 'Qy', 'Mz'], '3D':['Nx', 'Qy', 'Qz', 'Mx', 'My', 'Mz']}
+FORCES = {   '2D':['Fz', 'Fx', 'My'], '3D':['Fx', 'Fy', 'Fz', 'Mx', 'My', 'Mz']}
+RESPONSES = {'2D':['Nz', 'Qx', 'My'], '3D':['Nx', 'Qy', 'Qz', 'Mx', 'My', 'Mz']}
 
 GRAVITY = 9.81 
 
@@ -11,13 +11,13 @@ RHO_AIR = 1.225
 
 DOFS_PER_NODE = {'2D':3, '3D':6}
 
-RESPONSE_DOF_MAP = {'Nx':'x', 'Qy':'y', 'Qz':'z', 'Mx':'a', 'My':'b', 'Mz':'g'}
+RESPONSE_DOF_MAP = {'Nz':'x', 'Qx':'y', 'Qy':'z', 'Mx':'b', 'My':'g', 'Mz':'a'}
 
-DOF_RESPONSE_MAP = {'x':'Nx', 'y':'Qy', 'z':'Qz', 'a':'Mx', 'b':'My', 'g':'Mz'}
+DOF_RESPONSE_MAP = {'x':'Nz', 'y':'Qx', 'z':'Qy', 'a':'Mz', 'b':'Mx', 'g':'My'}
 
-DOF_LOAD_MAP = {'x':'Fx', 'y':'Fy', 'z':'Fz', 'a':'Mx', 'b':'My', 'g':'Mz'}
+DOF_LOAD_MAP = {'x':'Fz', 'y':'Fx', 'z':'Fy', 'a':'Mz', 'b':'Mx', 'g':'My'}
 
-LOAD_DOF_MAP = {'Fx':'x', 'Fy':'y', 'Fz':'z', 'Mx':'a', 'My':'b', 'Mz':'g'}
+LOAD_DOF_MAP = {'Fz':'x', 'Fx':'y', 'Fy':'z', 'Mz':'a', 'Mx':'b', 'My':'g'}
 
 FAST_DOF_MAP = {'YawBrFxp_[kN]':'y', 'YawBrFyp_[kN]':'z','YawBrFzp_[kN]':'x', 
                 'YawBrMxp_[kN-m]':'b', 'YawBrMyp_[kN-m]':'g', 'YawBrMzp_[kN-m]':'a'}
@@ -41,6 +41,7 @@ FORCE_CATEGORY = {  'Fx':'Kraft', 'Fy':'Kraft', 'Fz':'Kraft', 'Mx':'Moment', 'My
 
 UNIT_SCALE = {'N':1.0,'kN':1e-3,'MN':1e-6, 'm':1, 'cm':100, 'mm':1000, 'N/mm²':1/1E+06}
 
+# cosy nicht geändert ab hier
 MODE_CATEGORIZATION_REVERSE = {'3D':{'x':'longitudinal',
                                       'a':'torsional',
                                       'z':'sway_y',

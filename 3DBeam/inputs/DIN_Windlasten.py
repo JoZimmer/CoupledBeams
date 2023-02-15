@@ -11,7 +11,7 @@ def wind_kraft(vb, category, height, cd, Aref):
     '''
     v_z, Iv_z, qp_z, z = DIN_potenz_profil(vb, category, height)
     we = qp_z * cd
-    Fw_i = {'Fy': we * Aref}
+    Fw_i = {'Fx': we * Aref}
 
     return Fw_i, z
 

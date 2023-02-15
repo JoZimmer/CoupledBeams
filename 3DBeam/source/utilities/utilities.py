@@ -57,7 +57,7 @@ def check_and_flip_sign_array(mode_shape_array):
         return mode_shape_array
 
 def analytic_function_static_disp(parameters, x, load_type = 'single'):
-    l = parameters['lx_total_beam']
+    l = parameters['lz_total_beam']
     EI = parameters['E_Modul'] * parameters['Iz']
     magnitude = parameters['static_load_magnitude']
     if load_type == 'single':
@@ -70,8 +70,8 @@ def analytic_function_static_disp(parameters, x, load_type = 'single'):
 def analytic_eigenfrequencies(beam_model):
     # von https://me-lrt.de/eigenfrequenzen-eigenformen-beim-balken 
     parameters = beam_model.parameters
-    l = parameters['lx_total_beam']
-    EI = parameters['E_Modul'] * parameters['z']
+    l = parameters['lz_total_beam']
+    EI = parameters['E_Modul'] * parameters['Iz']
     A = parameters['cross_section_area']
     rho = parameters['material_density']
     lambdas = [1.875, 4.694, 7.855]
@@ -84,7 +84,7 @@ def analytic_eigenfrequencies(beam_model):
 def analytic_eigenmode_shapes(beam_model):
     # von https://me-lrt.de/eigenfrequenzen-eigenformen-beim-balken 
     #parameters = beam_model.parameters
-    l = beam_model.parameters['lx_total_beam']
+    l = beam_model.parameters['lz_total_beam']
     x = beam_model.nodal_coordinates['x0']
     lambdas = [1.875, 4.694, 7.855] # could also be computed as seen in the link
 
@@ -265,16 +265,16 @@ def generate_kopflasten_file(number_of_nodes, loads_dict, file_base_name = 'kopf
 
 def horizontale_ersatzlast(vertikale_lasten:list, theta_x):
     '''
-    Bisher annahme das Fx Lasten immer nach unten wirken stimmt in allen bisherigen Fällen aber ist ansich nciht richtig für schiefstellung
-    vertikale_lasten: lsite an dict die unter 'Fx' die vertiakeln Lasten enthalten die einen Effekt bei der Scheifstellung haben
+    Bisher annahme das Fz Lasten immer nach unten wirken stimmt in allen bisherigen Fällen aber ist ansich nciht richtig für schiefstellung
+    vertikale_lasten: lsite an dict die unter 'Fz' die vertiakeln Lasten enthalten die einen Effekt bei der Scheifstellung haben
     theta_x: schiefstellung in m/m 
     '''
 
-    F_h_ers = {'Fy':np.zeros(vertikale_lasten[0]['Fx'].shape)}
+    F_h_ers = {'Fx':np.zeros(vertikale_lasten[0]['Fz'].shape)}
 
     for last in vertikale_lasten:
 
-        F_h_ers['Fy'] += last['Fx'] * theta_x * -1
+        F_h_ers['Fx'] += last['Fz'] * theta_x * -1
 
     return F_h_ers
 
@@ -312,7 +312,7 @@ def lasten_dict_bauzustand(lasten_dict_base, knoten_wind_kraft_z, gewichtskraft_
     lasten_bauzustand = {}
 
     # Das Eigengewicht wird nur am unteren Knoten aufgebracht und nicht oben schon 
-    knoten_komponente = {'Fx':0, 'Fy':1, 'Fz':1, 'Mx':1,'My':1, 'Mz':1}
+    knoten_komponente = {'Fz':0, 'Fx':1, 'Fy':1, 'Mx':1,'My':1, 'Mz':1}
     for segment in range(1,QS_obj.n_ebenen):
         seg = 'seg_0-' + str(segment)
         h_ebene = QS_obj.section_absolute_heights['Ebenen'][segment]
@@ -324,7 +324,7 @@ def lasten_dict_bauzustand(lasten_dict_base, knoten_wind_kraft_z, gewichtskraft_
             lasten_bauzustand[seg][komponente] = lasten_dict_end[komponente] * modfier
 
         # SCHIEFSTELLUNG -> hierfür wird die Gewichtskraft wieder mit Sicherheitsbeiwert berücksichtigt
-        lasten_bauzustand[seg]['Fy'] += lasten_bauzustand[seg]['Fx'] * parameter['imperfektion'] * sicherheitsbeiwerte['g']
+        lasten_bauzustand[seg]['Fx'] += lasten_bauzustand[seg]['Fz'] * parameter['imperfektion'] * sicherheitsbeiwerte['g']
 
     return lasten_bauzustand
 
@@ -344,7 +344,7 @@ def generate_lasten_file(number_of_nodes, lasten_dict, file_base_name, dimension
 
     force_data = np.zeros(GD.DOFS_PER_NODE[dimension]*number_of_nodes)
     for load_direction, magnitude in lasten_dict.items():
-        if dimension == '2D' and load_direction == 'Mx':
+        if dimension == '2D' and load_direction == 'Mz':
             continue
         force_direction = GD.LOAD_DOF_MAP[load_direction]
         start = GD.DOF_LABELS[dimension].index(force_direction)
@@ -418,12 +418,12 @@ def kragarm_einflusslinien(nodal_coordinates, load_direction, node_id, response,
     if shear response -> return 1
     if base moment -> return level* 1
     '''
-    moment_load = {'y':'Mz', 'z':'My', 'a':'Mx','b':'My', 'g':'Mz'}
+    moment_load = {'x':'My', 'y':'Mx', 'g':'Mz','a':'Mx', 'b':'My'}
     shear_load = {'y':'Qy', 'z':'Qz'}
 
     #nodal_coordinates = structure_model.nodal_coordinates['x0']
 
-    if load_direction == 'y':
+    if load_direction == 'x':
         if moment_load[load_direction] == response:
             # positive
             if node_id - response_node_id <= 0:
@@ -439,7 +439,7 @@ def kragarm_einflusslinien(nodal_coordinates, load_direction, node_id, response,
         else:
             return 0.0
 
-    elif load_direction == 'z':
+    elif load_direction == 'y':
         if moment_load[load_direction] == response:
             # negative
             if node_id - response_node_id <= 0:
@@ -455,7 +455,7 @@ def kragarm_einflusslinien(nodal_coordinates, load_direction, node_id, response,
         else:
             return 0.0
 
-    elif load_direction == 'x':
+    elif load_direction == 'z':
         return 0.0
 
     elif load_direction in ['a','b','g']:
@@ -528,7 +528,7 @@ def add_defaults(params_dict:dict):
     Im run sind nur die tatsächlich relevanten werte zu definieren. Weitere Werte die aufgrund von älteren Versionen gebruacht werden werden dann hier ergäntz
     '''
     parameters = {
-                'lx_total_beam': 130, # wird mit der Querschnitts definition ergänzt
+                'lz_total_beam': 130, # wird mit der Querschnitts definition ergänzt
                 'material_density': 904,# für dynamische Berechnung äquivalenter Wert - nicht relevant
                 'total_mass_tower': 668390,# aus RFEM - nicht relevant
                 'E_Modul': 12000E+06,# N/m²
@@ -570,21 +570,22 @@ def add_model_data_from_dict(section_dict, model_parameters):
     
     model_parameters_updated['intervals'] = []
 
-    model_parameters_updated['lx_total_beam'] = section_dict['section_absolute_heights'][-1]
+    model_parameters_updated['lz_total_beam'] = section_dict['section_absolute_heights'][-1]
 
     # TODO von section auf ebenen umstellen deutsch
     for section in range(section_dict['n_sections']):
 
+        # 2D
         section_werte = {
             'bounds':[section_dict['section_absolute_heights'][section], section_dict['section_absolute_heights'][section+1]],
             'area': [section_dict['A'][section], section_dict['A'][section+1]],
-            'Iz':[section_dict['Iz'][section], section_dict['Iz'][section+1]], # anpassen der Koordianten Richtung
+            'Iy':[section_dict['Iy'][section], section_dict['Iy'][section+1]], 
             'D':[section_dict['d_achse'][section], section_dict['d_achse'][section+1]]
             }
 
         if model_parameters['dimension'] == '3D':
             # Aufgrund der Symmetrie eh das selbe
-            section_werte['Iy'] = [section_dict['Iz'][section], section_dict['Iz'][section+1]]
+            section_werte['Iz'] = [section_dict['Iz'][section], section_dict['Iz'][section+1]]
                 
         model_parameters_updated['intervals'].append(section_werte)
 
@@ -648,34 +649,34 @@ def convert_coordinate_system_and_consider_einwirkungsdauer(loads:dict, n_nodes,
     kopf_masse: design gewichtskraft der Analgen masse wird für aufteilung in ständig und kurz rausgerechnet 
     TODO manueller Vorzeichen Wechsel des Moments ist in der Theorie falsch -> Achtung Lasten sind SGR also passt das alles?
     '''
-    einwirkungsdauer = {'ständig':{'Fy':0, 'Fx':1, 'Fz':0, 'Mx':0, 'My':0, 'Mz':0}, 
-                        'kurz':{'Fy':1, 'Fx':1, 'Fz':1, 'Mx':1, 'My':1, 'Mz':1}, 
-                        'egal':{'Fy':1, 'Fx':1, 'Fz':1, 'Mx':1, 'My':1, 'Mz':1},
-                        'spannkraft':{'Fy':1, 'Fx':1, 'Fz':1, 'Mx':1, 'My':1, 'Mz':1}}
+    einwirkungsdauer = {'ständig':{'Fx':0, 'Fz':1, 'Fy':0, 'Mx':0, 'My':0, 'Mz':0}, 
+                        'kurz':{'Fx':1, 'Fz':1, 'Fy':1, 'Mx':1, 'My':1, 'Mz':1}, 
+                        'egal':{'Fx':1, 'Fz':1, 'Fy':1, 'Mx':1, 'My':1, 'Mz':1},
+                        'spannkraft':{'Fx':1, 'Fy':1, 'Fz':1, 'Mx':1, 'My':1, 'Mz':1}}
 
     loads_beam = {'ständig':{}, 'kurz':{}, 'egal':{},'spannkraft':{}}
 
     converter_beam_fast = {'Fy':'Fx','Fx':'Fz', 'Fz':'Fy', 'Mx':'Mz', 'My':'Mx', 'Mz':'My'}
 
     # TODO rein theoretisch ist dieser Vorzeichen wechsel hier falsch -> Lasten sind SGR ?! 
-    sign_beam_fast = {'Fy':1,'Fx':1, 'Fz':1, 'Mx':1 ,'My': 1, 'Mz':-1}
+    sign_beam_fast = {'Fx':1,'Fz':1, 'Fy':1, 'Mz':1 ,'Mx': 1, 'My':-1}
     for dauer in einwirkungsdauer:
         for direction in GD.FORCES[dimension]:
             loads_beam[dauer][direction] = np.zeros(n_nodes)
             factor = einwirkungsdauer[dauer][direction]
-            kopflast_IEA = loads[converter_beam_fast[direction]] # Last IEA im beam cosy
+            kopflast_IEA = loads[direction] # Last IEA im beam cosyconverter_beam_fast[direction]
 
-            if direction == 'Fx' and (dauer == 'ständig' or dauer == 'spannkraft'):
+            if direction == 'Fz' and (dauer == 'ständig' or dauer == 'spannkraft'):
                 # die ständige Last in Turm richtung ist nur die Kopfmasse
                 kopflast_IEA = kopf_masse
-            if direction == 'Fx' and dauer == 'kurz':
+            if direction == 'Fz' and dauer == 'kurz':
                 # Die kurzzeitig wirkende Kraft in Turmrichtung ist die differenz der gemessenen zur kopfmasse
                 kopflast_IEA -= kopf_masse
 
             loads_beam[dauer][direction][-1] += kopflast_IEA * factor * sign_beam_fast[direction] 
 
     # Für die Berechnung der Spannkraft -> Eigengewicht ohne sicherheitsbeiwert
-    loads_beam['spannkraft']['Fx'] /= gamma_g #ohne sicherheitsbeiwert
+    loads_beam['spannkraft']['Fz'] /= gamma_g #ohne sicherheitsbeiwert
 
     return loads_beam
 

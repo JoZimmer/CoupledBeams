@@ -214,8 +214,6 @@ class Querschnitt(object):
             self.d_außen[knoten] = self.d_achse[knoten] + self.wand_stärke
             self.d_innen[knoten] = self.d_achse[knoten] - self.wand_stärke
 
-
-
 # _________ EFFEKTIVE Steifigkeitswerte PLATTENBEANSPRUCHUNG _________________________ 
 
     def compute_effektive_moment_of_inertia_platte_y(self):
@@ -228,7 +226,7 @@ class Querschnitt(object):
                 t_laengslagen+= lage['ti']
                 eigenanteil += (lage['ti']**3)*width*(1/12)
                 steineranteil += lage['ti']*width*(lage['a']**2)
-        self.Iz_eff_platte= eigenanteil+steineranteil
+        self.Iy_eff_platte= eigenanteil+steineranteil
         
     def compute_effektive_moment_of_inertia_platte_z(self):
         t_laengslagen= 0
@@ -240,15 +238,8 @@ class Querschnitt(object):
                 t_laengslagen+= lage['ti']
                 eigenanteil += (lage['ti']**3)*width*(1/12)
                 steineranteil += lage['ti']*width*lage['a']**2
-        self.Iz_eff_platte= eigenanteil+steineranteil
+        self.Iy_eff_platte= eigenanteil+steineranteil
 
-    def compute_effektive_moment_of_inertia_platte_Sxz(self):
-        pass
-
-    def compute_effektive_moment_of_inertia_platte_Syz(self):
-        pass
-
- 
 # ________ FESTIGKEITEN/ WIDERTÄNDE ____________________________
 
     def compute_effektive_festigkeiten_charakteristisch(self):
@@ -374,20 +365,20 @@ class Querschnitt(object):
             for dauer in SGR_design_current:
                 # Wirkungsrichtung von M neutralisieren um es dann als Druck und zug aufbringen zu können
 
-                SGR_design_current[dauer]['Mz'] = abs(SGR_design_current[dauer]['Mz'])
+                SGR_design_current[dauer]['My'] = abs(SGR_design_current[dauer]['My'])
 
-                self.sigma_druck[knoten][dauer] = -(SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e + SGR_design_current[dauer]['Nx'] / self.A[knoten]
-                self.sigma_zug[knoten][dauer] = (SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e + SGR_design_current[dauer]['Nx'] / self.A[knoten]
+                self.sigma_druck[knoten][dauer] = -(SGR_design_current[dauer]['My'])/self.Iy[knoten] * e + SGR_design_current[dauer]['Nz'] / self.A[knoten]
+                self.sigma_zug[knoten][dauer] = (SGR_design_current[dauer]['My'])/self.Iy[knoten] * e + SGR_design_current[dauer]['Nz'] / self.A[knoten]
 
-                self.sigma_druck_ohne_vorsp[knoten][dauer] = -(SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e + SGR_design_current[dauer]['Nx'] / self.A[knoten]
-                self.sigma_druck_innen[knoten][dauer] = -(SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e_innen + SGR_design_current[dauer]['Nx'] / self.A[knoten]
-                self.sigma_zug_innen[knoten][dauer] = (SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e_innen + SGR_design_current[dauer]['Nx'] / self.A[knoten]
+                self.sigma_druck_ohne_vorsp[knoten][dauer] = -(SGR_design_current[dauer]['My'])/self.Iy[knoten] * e + SGR_design_current[dauer]['Nz'] / self.A[knoten]
+                self.sigma_druck_innen[knoten][dauer] = -(SGR_design_current[dauer]['My'])/self.Iy[knoten] * e_innen + SGR_design_current[dauer]['Nz'] / self.A[knoten]
+                self.sigma_zug_innen[knoten][dauer] = (SGR_design_current[dauer]['My'])/self.Iy[knoten] * e_innen + SGR_design_current[dauer]['Nz'] / self.A[knoten]
 
 
-                self.sigma_N[knoten][dauer] = SGR_design_current[dauer]['Nx'] / self.A[knoten]
-                self.sigma_M[knoten][dauer] = (SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e 
-                self.sigma_M_neg[knoten][dauer] = -(SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e 
-                self.sigma_M_innen[knoten][dauer] = (SGR_design_current[dauer]['Mz'])/self.Iz[knoten] * e_innen 
+                self.sigma_N[knoten][dauer] = SGR_design_current[dauer]['Nz'] / self.A[knoten]
+                self.sigma_M[knoten][dauer] = (SGR_design_current[dauer]['My'])/self.Iy[knoten] * e 
+                self.sigma_M_neg[knoten][dauer] = -(SGR_design_current[dauer]['My'])/self.Iy[knoten] * e 
+                self.sigma_M_innen[knoten][dauer] = (SGR_design_current[dauer]['My'])/self.Iy[knoten] * e_innen 
 
                 if ist_bauzustand:
                     self.nz_min[knoten][dauer] = self.sigma_druck[knoten][dauer] * self.wand_stärke
@@ -406,7 +397,7 @@ class Querschnitt(object):
             # TODO oder input an welchem Knoten und auslagern in postprocess mit eingang Spannung und knoten 
             knoten = [0, list(abs(self.sigma_druck[knoten_typ]['egal'])).index(max(abs(self.sigma_druck[knoten_typ]['egal']))),-1]
 
-            fig, ax = plt.subplots(ncols=len(knoten), figsize= (15, 4), sharey=True)
+            fig, ax = plt.subplots(ncols=len(knoten), figsiye= (15, 4), sharey=True)
             ef = utils.unit_conversion('N/m²', 'N/mm²')
             fig.suptitle('Normalspannung im Schnitt '  + self.name)
             import matplotlib.patches as patch
@@ -544,8 +535,8 @@ class Querschnitt(object):
             belastungs_niveau = 30 # TODO Funktion die diese bestimmt und 30 , 15 oder 'sonst' zurückgibt
             k_def = self.nachweis_parameter['k_def']['NKL1'][belastungs_niveau]
             A_netto = self.A_längslagen[knoten]
-            # Kraft in Richtung der Spannkraft (bisher ist Mz ständig nur aus Imperfektion)
-            F_quasi_ständig = abs(SGR_design[knoten][self.name][self.nabenhöhe]['ständig']['Nx']) + abs(SGR_design[knoten][self.name][self.nabenhöhe]['ständig']['Mz']/self.d_achse[knoten])
+            # Kraft in Richtung der Spannkraft (bisher ist My ständig nur aus Imperfektion)
+            F_quasi_ständig = abs(SGR_design[knoten][self.name][self.nabenhöhe]['ständig']['Nz']) + abs(SGR_design[knoten][self.name][self.nabenhöhe]['ständig']['My']/self.d_achse[knoten])
             d_epsilon_kr = (self.P_erf + F_quasi_ständig) /(self.holz_parameter['E0mean'] * A_netto) * k_def
 
             self.spannkraft_verluste['kriechen'] = n_drähte * spannglied_parameter['Ap'] * spannglied_parameter['Ep'] * d_epsilon_kr
@@ -654,81 +645,6 @@ class Querschnitt(object):
 
         return n_ext_erf_list, list(reversed(n_int_pro_segment)), list(reversed(n_int_summe)), self.P_ist_fuge
 
-# _________ Schalenbeanspruchung NORMALSPANNUNGEN ny__________________________________
-
-    def calculate_normalspannung_y(self, windbelastung):
-
-        t_querlagen= 0.08
-        radius= self.d_achse/2
-
-        n_y= radius* windbelastung['Fy']
-
-        self.sigma_y= n_y/t_querlagen 
-
-    def nachweis_normalspannung_y(self, windbelastung):
-        self.calculate_normalspannung_y(windbelastung)
-
-        einwirkung= self.sigma_y
-
-        einheiten_faktor = self.einheiten_umrechnung['Schubspannung']
-        
-        self.ausnutzung_sigma_ny = self.sigma_y* einheiten_faktor/self.fc0d_eff_quer
-
-# _________ PLATTENBEANSPRUCHUNG BIEGUNG ny__________________________________
-
-
-    def calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max, segmentbreite): 
-        '''Längsspannungen bei Plattenbeanspruchung aus Windsog und -Druck ohne Berücksichtigung von Schalentragwirkung!'''
-        
-        
-        self.compute_effektive_moment_of_inertia_platte_z()
-        M0_k= (wind_max['Fy']*segmentbreite**2)/8
-        self.sigma_ny_biegung= M0_k/self.Iz_eff_platte * self.wand_stärke/2
-
-    def ausnutzung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max, segmentbreite):
-        
-        self.calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(wind_max, segmentbreite)
-
-        einwirkung= self.sigma_ny_biegung
-
-        einheiten_faktor = self.einheiten_umrechnung['Normalspannung']
-        
-        self.ausnutzung_sigma_ny_biegung= self.sigma_y* einheiten_faktor/self.fc0d_eff_quer
-
-        return self.ausnutzung_sigma_ny_biegung
-
-    def calculate_normalspannung_Plattenbeanspruchung_Haupttragrichtung():
-        return 0
-
-    def calculate_schub_plattenbeanspruchung(self, wind_max):
-
-        '''
-        nach neuer Norm muss für die schubfestigkeit bei Biegung ein Krack Faktor mit berücksichtigt werden
-        '''
-        width_segment= 3
-        #in kN/m
-        self.Q_platte= 1/2*wind_max*width_segment
-        self.tau_platte= self.Q_platte/self.wand_stärke
-        return 0
-
-    def calculate_schub_knick(self):
-        d_unten=12
-        d_knick=5.5
-        d_oben=3.4
-        h_turm=110
-        h_knick=50
-        winkel= np.arctan((d_unten-d_knick)/h_knick)-np.arctan(d_knick-d_oben/h_turm-h_knick)
-
-    def calculate_schub_plattenbeanspruchung_rollschub(self):
-        '''Rollschubfestigkeit der schwerpunktnächsten Querlage maßgebend'''
-        A_t_net=0 
-        I0_net=0
-        S0R_net=0
-
-    def compute_drillsteifigkeit(self):
-        self.K_xy= np.sqrt(self.Iz_eff_platte*self.holz_parameter['E0_mean']*self.Iz_eff_platte*self.holz_parameter['E90_mean'])
-
-    
 # _________ SCHUBSPANNUNGEN SCHEIBENBEANSPRUCHUNG nxy__________________________________
 
     def calculate_schubspannung_scheibe(self, SGR_design, lamellenbreite=0.13):
@@ -747,8 +663,8 @@ class Querschnitt(object):
                 Anzahl der Kreuzungsfelder -->Hersteller  
                 Anzahl der Klebefugen 
         '''
-        self.tau_Qy, self.tau_Mx, self.tau_xy, self.tau_vtor, self.tau_Fe, self.tau_längs = {},{},{}, {},{}, {}
-        self.tau_Qy_design, self.tau_Mx_design, self.tau_xy_design,  self.tau_vtor_design, self.tau_Fe_design, self.tau_längs_design = {},{},{},{},{},{}
+        self.tau_Qx, self.tau_Mz, self.tau_xy, self.tau_vtor, self.tau_Fe, self.tau_längs = {},{},{}, {},{}, {}
+        self.tau_Qx_design, self.tau_Mz_design, self.tau_xy_design,  self.tau_vtor_design, self.tau_Fe_design, self.tau_längs_design = {},{},{},{},{},{}
 
         if self.holz_parameter['Furnierebene']:
             self.berechnungs_hinweise.append('   - Verwende Furnierebenen Ansatz für die Schubspannungsberechnung')
@@ -757,14 +673,14 @@ class Querschnitt(object):
 
             SGR_design_current = SGR_design[knoten][self.name][self.nabenhöhe]
 
-            self.tau_Qy[knoten], self.tau_Mx[knoten], self.tau_xy[knoten], self.tau_vtor[knoten], self.tau_Fe[knoten], self.tau_längs[knoten] = {},{},{}, {},{}, {}
+            self.tau_Qx[knoten], self.tau_Mz[knoten], self.tau_xy[knoten], self.tau_vtor[knoten], self.tau_Fe[knoten], self.tau_längs[knoten] = {},{},{}, {},{}, {}
             
             for dauer in SGR_design_current:
                 # ________ mit Frunierebene
                 if self.holz_parameter['Furnierebene']:
                     self.Sy_max_lagen = self.compute_static_moment(d_achse = self.d_achse[knoten], mit_furnier = self.holz_parameter['Furnierebene'])
                     self.Wx_lagen = self.compute_Wx(d_achse = self.d_achse[knoten], mit_furnier = self.holz_parameter['Furnierebene'])
-                    self.Iz_lagen = self.compute_flächenträgheitsmoment(d_achse = self.d_achse[knoten], mit_furnier= True)
+                    self.Iy_lagen = self.compute_flächenträgheitsmoment(d_achse = self.d_achse[knoten], mit_furnier= True)
 
                     n = self.holz_parameter['G4545']/self.holz_parameter['G0mean']
                     for lage in self.Sy_max_lagen:
@@ -772,30 +688,30 @@ class Querschnitt(object):
                             t = self.t_querlagen 
                             kraft_aufteilung = n * t / (self.t_laengslagen + n*t)
 
-                            Qy = SGR_design_current[dauer]['Qy'] * kraft_aufteilung
-                            Mx = SGR_design_current[dauer]['Mx'] * kraft_aufteilung
-                            tau_Qy = (Qy * self.Sy_max_lagen[lage]) / (self.Iz_lagen[lage] * t) * self.einheiten_umrechnung['Schubspannung']
-                            tau_Mx  = Mx /self.Wx_lagen[lage]  * self.einheiten_umrechnung['Schubspannung']
+                            Qx = SGR_design_current[dauer]['Qx'] * kraft_aufteilung
+                            Mz = SGR_design_current[dauer]['Mz'] * kraft_aufteilung
+                            tau_Qx = (Qx * self.Sy_max_lagen[lage]) / (self.Iy_lagen[lage] * t) * self.einheiten_umrechnung['Schubspannung']
+                            tau_Mz  = Mz /self.Wx_lagen[lage]  * self.einheiten_umrechnung['Schubspannung']
 
-                            self.tau_Fe[knoten][dauer] = tau_Mx + tau_Qy
+                            self.tau_Fe[knoten][dauer] = tau_Mz + tau_Qx
 
                         if lage=='längslagen':
                             t = self.t_laengslagen 
                             kraft_aufteilung = self.t_laengslagen / (self.t_laengslagen + n*self.t_querlagen)
-                            Qy = SGR_design_current[dauer]['Qy'] * kraft_aufteilung
-                            Mx = SGR_design_current[dauer]['Mx'] * kraft_aufteilung
-                            tau_Qy = (Qy * self.Sy_max_lagen[lage]) / (self.Iz_lagen[lage] * t) * self.einheiten_umrechnung['Schubspannung']
-                            tau_Mx  = Mx /self.Wx_lagen[lage]  * self.einheiten_umrechnung['Schubspannung']
+                            Qx = SGR_design_current[dauer]['Qx'] * kraft_aufteilung
+                            Mz = SGR_design_current[dauer]['Mz'] * kraft_aufteilung
+                            tau_Qx = (Qx * self.Sy_max_lagen[lage]) / (self.Iy_lagen[lage] * t) * self.einheiten_umrechnung['Schubspannung']
+                            tau_Mz  = Mz /self.Wx_lagen[lage]  * self.einheiten_umrechnung['Schubspannung']
 
-                            self.tau_längs[knoten][dauer] = tau_Mx + tau_Qy
+                            self.tau_längs[knoten][dauer] = tau_Mz + tau_Qx
 
                 # _____ NORMALES BSP    
                 else:
                     # TODO mit wand_stärke richtig? oder sollte das nur mit querlagen sein? -> das wird wieder auf widerstandsseite berücksichtigt?!
-                    self.tau_Qy[knoten][dauer] = (SGR_design_current[dauer]['Qy'] * self.Sy_max[knoten]) / (self.Iz[knoten] * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
-                    self.tau_Mx[knoten][dauer]  = SGR_design_current[dauer]['Mx'] /self.Wx[knoten]  * self.einheiten_umrechnung['Schubspannung']
+                    self.tau_Qx[knoten][dauer] = (SGR_design_current[dauer]['Qx'] * self.Sy_max[knoten]) / (self.Iy[knoten] * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
+                    self.tau_Mz[knoten][dauer]  = SGR_design_current[dauer]['Mz'] /self.Wx[knoten]  * self.einheiten_umrechnung['Schubspannung']
 
-                    self.tau_xy[knoten][dauer] = self.tau_Mx[knoten][dauer] + self.tau_Qy[knoten][dauer]
+                    self.tau_xy[knoten][dauer] = self.tau_Mz[knoten][dauer] + self.tau_Qx[knoten][dauer]
                     
                     # TODO tl in abhänigkeit bestimmen was dei maßgebende Schicht ist? also wenn Axy,net = Ay,net ist dann nur die querlagen betrachten? 
                     # Maximale Lamellen dicke 6 cm -> 12 cm Lagendicke setzt sich demnach aus 6+6 zusammen
@@ -805,8 +721,8 @@ class Querschnitt(object):
                     self.berechnungs_hinweise.append('   - Torsion im Kreuzungspunkt der Lammellen in Folge Scheibenschub mit Lamellendicke ' + str(tl) + ' und Lamellenbreite ' + str(lamellenbreite) + ' berechnet')
 
             if not self.holz_parameter['Furnierebene']:
-                self.tau_Qy_design[knoten] = self.tau_Qy[knoten]['egal']
-                self.tau_Mx_design[knoten] = self.tau_Mx[knoten]['egal']
+                self.tau_Qx_design[knoten] = self.tau_Qx[knoten]['egal']
+                self.tau_Mz_design[knoten] = self.tau_Mz[knoten]['egal']
                 self.tau_xy_design[knoten] = self.tau_xy[knoten]['egal']
                 self.tau_vtor_design[knoten] = self.tau_vtor[knoten]['egal']
             else:
@@ -868,6 +784,57 @@ class Querschnitt(object):
 
     #def calculate_rollschubnachweis(self):
 
+# _________ PLATTENBEANSPRUCHUNG BIEGUNG ny NOTE check COSY falls verwendet__________________________________
+
+    def calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max, segmentbreite): 
+        '''Längsspannungen bei Plattenbeanspruchung aus Windsog und -Druck ohne Berücksichtigung von Schalentragwirkung!'''
+        
+        self.compute_effektive_moment_of_inertia_platte_z()
+        M0_k= (wind_max['Fy']*segmentbreite**2)/8
+        self.sigma_ny_biegung= M0_k/self.Iy_eff_platte * self.wand_stärke/2
+
+    def ausnutzung_Plattenbeanspruchung_Nebentragrichtung(self, wind_max, segmentbreite):
+        
+        self.calculate_normalspannung_Plattenbeanspruchung_Nebentragrichtung(wind_max, segmentbreite)
+
+        einwirkung= self.sigma_ny_biegung
+
+        einheiten_faktor = self.einheiten_umrechnung['Normalspannung']
+        
+        self.ausnutzung_sigma_ny_biegung= self.sigma_y* einheiten_faktor/self.fc0d_eff_quer
+
+        return self.ausnutzung_sigma_ny_biegung
+
+    def calculate_normalspannung_Plattenbeanspruchung_Haupttragrichtung():
+        return 0
+
+    def calculate_schub_plattenbeanspruchung(self, wind_max):
+
+        '''
+        nach neuer Norm muss für die schubfestigkeit bei Biegung ein Krack Faktor mit berücksichtigt werden
+        '''
+        width_segment= 3
+        #in kN/m
+        self.Q_platte= 1/2*wind_max*width_segment
+        self.tau_platte= self.Q_platte/self.wand_stärke
+        return 0
+
+    def calculate_schub_knick(self):
+        d_unten=12
+        d_knick=5.5
+        d_oben=3.4
+        h_turm=110
+        h_knick=50
+        winkel= np.arctan((d_unten-d_knick)/h_knick)-np.arctan(d_knick-d_oben/h_turm-h_knick)
+
+    def calculate_schub_plattenbeanspruchung_rollschub(self):
+        '''Rollschubfestigkeit der schwerpunktnächsten Querlage maßgebend'''
+        A_t_net=0 
+        I0_net=0
+        S0R_net=0
+
+    def compute_drillsteifigkeit(self):
+        self.K_xy= np.sqrt(self.Iy_eff_platte*self.holz_parameter['E0_mean']*self.Iy_eff_platte*self.holz_parameter['E90_mean'])
 
 # _________ REIBUNG __________________________________
 
@@ -881,7 +848,7 @@ class Querschnitt(object):
         '''
         # Vorzeichen werden hier vernachlässigt, da Pm0 ansich negative wirkt aber als absoluter wert gespeichert ist
 
-        self.n_Rd, self.nxy_Qy, self.nxy_Mx, self.ausnutzung_reibung = {},{},{},{}
+        self.n_Rd, self.nxy_Qx, self.nxy_Mz, self.ausnutzung_reibung = {},{},{},{}
         for knoten in self.d_achse:
             try:
                 if not P:
@@ -897,10 +864,10 @@ class Querschnitt(object):
 
             self.n_Rd[knoten] = mu * Pd / (np.pi * self.d_achse[knoten])
 
-            self.nxy_Qy[knoten] = SGR_design[knoten][self.name][self.nabenhöhe]['egal']['Qy'] / (self.d_achse[knoten]/2)
-            self.nxy_Mx[knoten] = SGR_design[knoten][self.name][self.nabenhöhe]['egal']['Mx'] / (2*np.pi*(self.d_achse[knoten]/2)**2)
+            self.nxy_Qx[knoten] = SGR_design[knoten][self.name][self.nabenhöhe]['egal']['Qx'] / (self.d_achse[knoten]/2)
+            self.nxy_Mz[knoten] = SGR_design[knoten][self.name][self.nabenhöhe]['egal']['Mz'] / (2*np.pi*(self.d_achse[knoten]/2)**2)
 
-            self.ausnutzung_reibung[knoten] = (self.nxy_Qy[knoten] + self.nxy_Mx[knoten]) / self.n_Rd[knoten]
+            self.ausnutzung_reibung[knoten] = (self.nxy_Qx[knoten] + self.nxy_Mz[knoten]) / self.n_Rd[knoten]
 
 # _________ KOMBINIERTE AUSNUTZUNG __________________________________
 
@@ -933,13 +900,13 @@ class Querschnitt(object):
         gewünschte parameter als strings in einer liste geben
         knoten_typ: 'FE' oder 'Ebenen' an welchen der knoten das alles gemacht werden soll
         E_modul = optional wenn EI berechnet werden soll
-        'Iz','EIz', 'd_achse', 'a_außen', 'a_innen', 'd_außen','M'
+        'Iy','EIy', 'd_achse', 'a_außen', 'a_innen', 'd_außen','M'
         '''
-        prop_values = {'Iz':self.Iz[knoten_typ],'EIz':self.Iz[knoten_typ] * E_modul, 'd_achse':self.d_achse[knoten_typ], 'd_außen':self.d_außen[knoten_typ],
+        prop_values = {'Iy':self.Iy[knoten_typ],'EIy':self.Iy[knoten_typ] * E_modul, 'd_achse':self.d_achse[knoten_typ], 'd_außen':self.d_außen[knoten_typ],
                         }
-        prop_units_default = {'Iz':'m^4', 'EIz':'Nm²', 'd_achse':'m', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
+        prop_units_default = {'Iy':'m^4', 'EIy':'Nm²', 'd_achse':'m', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
 
-        fg, ax = plt.subplots(ncols = len(properties), figsize=(2,5))
+        fg, ax = plt.subplots(ncols = len(properties), figsiye=(2,5))
         if len(properties) == 1:
             ax = [ax]
 
@@ -963,9 +930,9 @@ class Querschnitt(object):
     def save_section_parameters(self):
 
         # self.section_parameters_mean = {
-        #     'n_sections':len(self.Iz) - 1,
-        #     'n_ebenen':len(self.Iz),
-        #     'Iz': self.compute_sectional_mean(self.Iz),
+        #     'n_sections':len(self.Iy) - 1,
+        #     'n_ebenen':len(self.Iy),
+        #     'Iy': self.compute_sectional_mean(self.Iy),
         #     'd_achse':self.compute_sectional_mean(self.d_achse),
         #     'A':self.compute_sectional_mean(self.A),
         #     'section_absolute_heights':self.section_absolute_heights,
@@ -976,9 +943,9 @@ class Querschnitt(object):
 
         for knoten in self.d_achse:
             self.section_parameters[knoten] = {
-                'n_sections':len(self.Iz[knoten]) - 1,
-                'n_ebenen':len(self.Iz[knoten]),
-                'Iz': self.Iz[knoten],
+                'n_sections':len(self.Iy[knoten]) - 1,
+                'n_ebenen':len(self.Iy[knoten]),
+                'Iy': self.Iy[knoten],
                 'd_achse':self.d_achse[knoten],
                 'A':self.A[knoten],
                 'section_absolute_heights':self.section_absolute_heights[knoten],
@@ -1013,24 +980,24 @@ class Querschnitt(object):
         for knoten in self.d_achse:
             V_sections = np.append(self.V[knoten], 0)
             if self.holz_parameter['Furnierebene']:
-                Iz_lagen = self.compute_flächenträgheitsmoment(self.d_achse[knoten], mit_furnier = True)
-                Iz_eff = np.add(Iz_lagen['längslagen'], Iz_lagen['furnier'])
+                Iy_lagen = self.compute_flächenträgheitsmoment(self.d_achse[knoten], mit_furnier = True)
+                Iy_eff = np.add(Iy_lagen['längslagen'], Iy_lagen['furnier'])
             else:
-                Iz_lagen = self.compute_flächenträgheitsmoment(self.d_achse[knoten], mit_furnier = False, nur_längs = True)
-                Iz_eff = Iz_lagen['längslagen']
+                Iy_lagen = self.compute_flächenträgheitsmoment(self.d_achse[knoten], mit_furnier = False, nur_längs = True)
+                Iy_eff = Iy_lagen['längslagen']
             self.querschnitts_werte[knoten] = {
                 'Höhe [m]':self.section_absolute_heights[knoten],
                 'Hfract':self.hfract[knoten],
                 'd_achse [m]':self.d_achse[knoten],
                 'd_außen [m]':self.d_außen[knoten],
-                'Iz [m^4]': self.Iz[knoten],
+                'Iy [m^4]': self.Iy[knoten],
                 'A [m²]':self.A[knoten],
                 'U_achse [m]':self.U[knoten],
                 'U_außen [m]':self.U_außen[knoten],
                 't [m]':np.asarray([self.wand_stärke]*len(self.d_achse[knoten])),
                 'V_sections [m³]':V_sections,
                 'MassDen [kg/m]':self.mass_density[knoten],
-                'EIz,eff [Nm^2]': self.holz_parameter['E0mean'] * Iz_eff,
+                'EIy,eff [Nm^2]': self.holz_parameter['E0mean'] * Iy_eff,
             }
 
             self.querschnitts_werte_all[knoten] = {
@@ -1038,7 +1005,7 @@ class Querschnitt(object):
                 'Hfract':self.hfract[knoten],
                 'd_achse [m]':self.d_achse[knoten],
                 'd_außen [m]':self.d_außen[knoten],
-                'Iz [m^4]': self.Iz[knoten],
+                'Iy [m^4]': self.Iy[knoten],
                 'A [m²]':self.A[knoten],
                 'U_achse [m]':self.U[knoten],
                 'U_außen [m]':self.U_außen[knoten],
@@ -1047,7 +1014,7 @@ class Querschnitt(object):
                 'MassDen [kg/m]':self.mass_density[knoten],
                 'Eigengewicht [kg]':self.eigengewicht[knoten],
                 'Gewichtskraft [N]':self.gewichtskraft[knoten],
-                'EIz,eff [Nm^2]': self.holz_parameter['E0mean'] * Iz_eff,
+                'EIy,eff [Nm^2]': self.holz_parameter['E0mean'] * Iy_eff,
                 'Sy_max [m^3]': self.Sy_max[knoten],
                 'cd': np.asarray([self.cd]*len(self.d_achse[knoten]))
             }
@@ -1071,7 +1038,7 @@ class Querschnitt(object):
         '''
         HIER: SGR sind Zeitreihen 
 
-        ergibt normalspannung an einem Bestimmten knoten i für SGR = {'Mz':float, 'Nx':float}
+        ergibt normalspannung an einem Bestimmten knoten i für SGR = {'My':float, 'Nz':float}
         return: sigma_druck, sigma_zug (ansich min und max beide druck da N immer größer)
         knoten_typ: Ebenen oder FE
         '''
@@ -1081,14 +1048,14 @@ class Querschnitt(object):
 
         # Wirkungsrichtung von M neutralisieren um es dann als Druck und zug aufbringen zu können
 
-        SGR['Mz'] = abs(SGR['Mz'])
+        SGR['My'] = abs(SGR['My'])
 
-        sigma_druck = -(SGR['Mz'])/self.Iz[knoten_typ][knoten] * e + SGR['Nx'] / self.A[knoten_typ][knoten]
-        sigma_Mz = -(SGR['Mz'])/self.Iz[knoten_typ][knoten] * e 
-        sigma_Nx = SGR['Nx'] / self.A[knoten_typ][knoten]
-        sigma_zug = (SGR['Mz'])/self.Iz[knoten_typ][knoten] * e + SGR['Nx'] / self.A[knoten_typ][knoten]
+        sigma_druck = -(SGR['My'])/self.Iy[knoten_typ][knoten] * e + SGR['Nz'] / self.A[knoten_typ][knoten]
+        sigma_Mz = -(SGR['My'])/self.Iy[knoten_typ][knoten] * e 
+        sigma_Nz = SGR['Nz'] / self.A[knoten_typ][knoten]
+        sigma_zug = (SGR['My'])/self.Iy[knoten_typ][knoten] * e + SGR['Nz'] / self.A[knoten_typ][knoten]
 
-        return sigma_druck, sigma_Mz, sigma_Nx#, sigma_zug
+        return sigma_druck, sigma_Mz, sigma_Nz#, sigma_zug
         
     def calculate_schubspannung_scheibe_at_knoten(self, SGR, knoten, lamellenbreite=0.13, knoten_typ='Ebenen'):
         '''
@@ -1108,8 +1075,8 @@ class Querschnitt(object):
                 Anzahl der Kreuzungsfelder -->Hersteller  
                 Anzahl der Klebefugen 
         '''
-        self.tau_Qy, self.tau_Mx, self.tau_xy, self.tau_vtor, self.tau_Fe, self.tau_längs = {},{},{}, {},{}, {}
-        self.tau_Qy_design, self.tau_Mx_design, self.tau_xy_design,  self.tau_vtor_design, self.tau_Fe_design, self.tau_längs_design = {},{},{},{},{},{}
+        self.tau_Qx, self.tau_Mz, self.tau_xy, self.tau_vtor, self.tau_Fe, self.tau_längs = {},{},{}, {},{}, {}
+        self.tau_Qx_design, self.tau_Mz_design, self.tau_xy_design,  self.tau_vtor_design, self.tau_Fe_design, self.tau_längs_design = {},{},{},{},{},{}
 
         if self.holz_parameter['Furnierebene']:
             self.berechnungs_hinweise.append('   - Verwende Furnierebenen Ansatz für die Schubspannungsberechnung')
@@ -1117,13 +1084,13 @@ class Querschnitt(object):
         #for knoten in self.d_achse:
         SGR_design_current = SGR
 
-        self.tau_Qy[knoten_typ], self.tau_Mx[knoten_typ], self.tau_xy[knoten_typ], self.tau_vtor[knoten_typ], self.tau_Fe[knoten_typ], self.tau_längs[knoten_typ] = {},{},{}, {},{}, {}
+        self.tau_Qx[knoten_typ], self.tau_Mz[knoten_typ], self.tau_xy[knoten_typ], self.tau_vtor[knoten_typ], self.tau_Fe[knoten_typ], self.tau_längs[knoten_typ] = {},{},{}, {},{}, {}
         
         #for dauer in SGR_design_current:
         if self.holz_parameter['Furnierebene']:
             self.Sy_max = self.compute_static_moment(d_achse = self.d_achse[knoten_typ], mit_furnier = self.holz_parameter['Furnierebene'])
             self.Wx = self.compute_Wx(d_achse = self.d_achse[knoten_typ], mit_furnier = self.holz_parameter['Furnierebene'])
-            self.Iz = self.compute_flächenträgheitsmoment(d_achse = self.d_achse[knoten_typ], mit_furnier= True)
+            self.Iy = self.compute_flächenträgheitsmoment(d_achse = self.d_achse[knoten_typ], mit_furnier= True)
 
             n = self.holz_parameter['G4545']/self.holz_parameter['G0mean']
             for lage in self.Sy_max:
@@ -1131,29 +1098,29 @@ class Querschnitt(object):
                     t = self.t_querlagen 
                     kraft_aufteilung = n * t / (self.t_laengslagen + n*t)
 
-                    Qy = SGR_design_current['Qy'] * kraft_aufteilung
-                    Mx = SGR_design_current['Mx'] * kraft_aufteilung
-                    tau_Qy = (Qy * self.Sy_max[lage][knoten]) / (self.Iz[lage][knoten] * t) #* self.einheiten_umrechnung['Schubspannung']
-                    tau_Mx  = Mx /self.Wx[lage][knoten]  #* self.einheiten_umrechnung['Schubspannung']
+                    Qx = SGR_design_current['Qx'] * kraft_aufteilung
+                    Mz = SGR_design_current['Mz'] * kraft_aufteilung
+                    tau_Qx = (Qx * self.Sy_max[lage][knoten]) / (self.Iy[lage][knoten] * t) #* self.einheiten_umrechnung['Schubspannung']
+                    tau_Mz  = Mz /self.Wx[lage][knoten]  #* self.einheiten_umrechnung['Schubspannung']
 
-                    self.tau_Fe[knoten_typ] = tau_Mx + tau_Qy
+                    self.tau_Fe[knoten_typ] = tau_Mz + tau_Qx
 
                 if lage=='längslagen':
                     t = self.t_laengslagen #sum([lage['ti'] for lage in self.lagen_aufbau if lage['ortho'] == 'Y']) # ist schon in self.t_querlagen
                     kraft_aufteilung = self.t_laengslagen / (self.t_laengslagen + n*self.t_querlagen)
-                    Qy = SGR_design_current['Qy'] * kraft_aufteilung
-                    Mx = SGR_design_current['Mx'] * kraft_aufteilung
-                    tau_Qy = (Qy * self.Sy_max[lage][knoten]) / (self.Iz[lage][knoten] * t) #* self.einheiten_umrechnung['Schubspannung']
-                    tau_Mx  = Mx /self.Wx[lage][knoten]  #* self.einheiten_umrechnung['Schubspannung']
+                    Qx = SGR_design_current['Qx'] * kraft_aufteilung
+                    Mz = SGR_design_current['Mz'] * kraft_aufteilung
+                    tau_Qx = (Qx * self.Sy_max[lage][knoten]) / (self.Iy[lage][knoten] * t) #* self.einheiten_umrechnung['Schubspannung']
+                    tau_Mz  = Mz /self.Wx[lage][knoten]  #* self.einheiten_umrechnung['Schubspannung']
 
-                    self.tau_längs[knoten_typ] = tau_Mx + tau_Qy
+                    self.tau_längs[knoten_typ] = tau_Mz + tau_Qx
 
         # _____ NORMALES BSP    
         else:
-            self.tau_Qy[knoten_typ] = (SGR_design_current['Qy'] * self.Sy_max[knoten_typ][knoten]) / (self.Iz[knoten_typ][knoten] * self.wand_stärke) #* self.einheiten_umrechnung['Schubspannung']
-            self.tau_Mx[knoten_typ]  = SGR_design_current['Mx'] /self.Wx[knoten_typ][knoten]  #* self.einheiten_umrechnung['Schubspannung']
+            self.tau_Qx[knoten_typ] = (SGR_design_current['Qx'] * self.Sy_max[knoten_typ][knoten]) / (self.Iy[knoten_typ][knoten] * self.wand_stärke) #* self.einheiten_umrechnung['Schubspannung']
+            self.tau_Mz[knoten_typ]  = SGR_design_current['Mz'] /self.Wx[knoten_typ][knoten]  #* self.einheiten_umrechnung['Schubspannung']
 
-            self.tau_xy[knoten_typ] = self.tau_Mx[knoten_typ] + self.tau_Qy[knoten_typ]
+            self.tau_xy[knoten_typ] = self.tau_Mz[knoten_typ] + self.tau_Qx[knoten_typ]
             
             # TODO tl in abhänigkeit bestimmen was dei maßgebende Schicht ist? also wenn Axy,net = Ay,net ist dann nur die querlagen betrachten? 
             # Maximale Lamellen dicke 6 cm -> 12 cm Lagendicke setzt sich demnach aus 6+6 zusammen
@@ -1163,8 +1130,8 @@ class Querschnitt(object):
             self.berechnungs_hinweise.append('   - Torsion im Kreuzungspunkt der Lammellen in Folge Scheibenschub mit Lamellendicke ' + str(tl) + ' und Lamellenbreite ' + str(lamellenbreite) + ' berechnet')
 
         if not self.holz_parameter['Furnierebene']:
-            self.tau_Qy_design[knoten_typ] = self.tau_Qy[knoten_typ]
-            self.tau_Mx_design[knoten_typ] = self.tau_Mx[knoten_typ]
+            self.tau_Qx_design[knoten_typ] = self.tau_Qx[knoten_typ]
+            self.tau_Mz_design[knoten_typ] = self.tau_Mz[knoten_typ]
             self.tau_xy_design[knoten_typ] = self.tau_xy[knoten_typ]
             self.tau_vtor_design[knoten_typ] = self.tau_vtor[knoten_typ]
         else:
@@ -1182,7 +1149,7 @@ class KreisRing(Querschnitt):
         self.name = 'Ring'
         self.nachweis_parameter= nachweis_parameter
 
-        self.A, self.U,self.U_außen, self.V, self.Iz, self.Sy_max, self.Wx, self.mass_density, self.eigengewicht, self.gewichtskraft = {},{},{},{},{},{},{},{},{},{}
+        self.A, self.U,self.U_außen, self.V, self.Iy, self.Sy_max, self.Wx, self.mass_density, self.eigengewicht, self.gewichtskraft = {},{},{},{},{},{},{},{},{},{}
         for knoten in self.d_achse:
 
             self.A[knoten] = self.compute_area(self.d_außen[knoten]/2)-self.compute_area(self.d_innen[knoten]/2)
@@ -1190,7 +1157,7 @@ class KreisRing(Querschnitt):
             self.U_außen[knoten] = self.d_außen[knoten] * np.pi
 
             self.V[knoten] = self.compute_sectional_mean(self.A[knoten]) * self.section_heights[knoten]
-            self.Iz[knoten] = self.compute_flächenträgheitsmoment(self.d_achse[knoten])
+            self.Iy[knoten] = self.compute_flächenträgheitsmoment(self.d_achse[knoten])
             self.Sy_max[knoten] = self.compute_static_moment(self.d_achse[knoten])
             self.Wx[knoten] = self.compute_Wx(self.d_achse[knoten])
 
@@ -1202,9 +1169,9 @@ class KreisRing(Querschnitt):
                 self.compute_geometrie_werte_Furnier()
                 gewichtskraft -= self.V_Fe[knoten] * (self.holz_parameter['rhok_Fe'] - self.wichte) * GD.GRAVITY
 
-            self.gewichtskraft[knoten] = {'Fx':np.append(gewichtskraft, 0)} # gewichtskraft wird immer unten am Element/Ebene angegeben
+            self.gewichtskraft[knoten] = {'Fz':np.append(gewichtskraft, 0)} # gewichtskraft wird immer unten am Element/Ebene angegeben
 
-        #self.initalize_geometrie_parameter_FE()
+        #self.initaliye_geometrie_parameter_FE()
         self.compute_netto_flächen()
         self.cd = cd
         self.cp_max = cp_max
@@ -1223,34 +1190,34 @@ class KreisRing(Querschnitt):
         if mit_furnier:
             #if 'di' not in self.lagen_aufbau[0]:
             utils.get_d_achse_lagen(d_achse, self.lagen_aufbau)
-            Iz = {'furnier':0, 'längslagen':0}
+            Iy = {'furnier':0, 'längslagen':0}
             for i, lage in enumerate(self.lagen_aufbau):
                 d_außen = lage['di'] + lage['ti']/2
                 d_innen = lage['di'] - lage['ti']/2
                 if lage['ortho'] == 'X':
-                    Iz['längslagen'] += np.pi / 64 * (d_außen**4 - d_innen**4)
+                    Iy['längslagen'] += np.pi / 64 * (d_außen**4 - d_innen**4)
                 if lage['ortho'] == 'Y':
-                    Iz['furnier'] += np.pi / 64 * (d_außen**4 - d_innen**4)
-            return Iz
+                    Iy['furnier'] += np.pi / 64 * (d_außen**4 - d_innen**4)
+            return Iy
         
         elif nur_längs:
             #if 'di' not in self.lagen_aufbau[0]:
             utils.get_d_achse_lagen(d_achse, self.lagen_aufbau)
-            Iz = {'quer':0, 'längslagen':0}
+            Iy = {'quer':0, 'längslagen':0}
             for i, lage in enumerate(self.lagen_aufbau):
                 d_außen = lage['di'] + lage['ti']/2
                 d_innen = lage['di'] - lage['ti']/2
                 if lage['ortho'] == 'X':
-                    Iz['längslagen'] += np.pi / 64 * (d_außen**4 - d_innen**4)
+                    Iy['längslagen'] += np.pi / 64 * (d_außen**4 - d_innen**4)
                 if lage['ortho'] == 'Y':
-                    Iz['quer'] += 0 / 64 * (d_außen**4 - d_innen**4)
-            return Iz
+                    Iy['quer'] += 0 / 64 * (d_außen**4 - d_innen**4)
+            return Iy
         
         else:
             d_außen = d_achse + self.wand_stärke
             d_innen = d_achse - self.wand_stärke
-            Iz = np.pi / 64 * (d_außen**4 - d_innen**4)
-            return Iz
+            Iy = np.pi / 64 * (d_außen**4 - d_innen**4)
+            return Iy
 
     def compute_area(self, r):
         area= np.pi * r**2
@@ -1342,7 +1309,7 @@ class KreisRing(Querschnitt):
 
         self.V_FE = self.compute_sectional_mean(self.A_FE) * self.section_heights_FE
         self.eigengewicht_FE = - np.append(self.V_FE *  self.wichte, 0)
-        self.gewichtskraft_FE = {'Fx': - np.append(self.V_FE *  self.wichte * GD.GRAVITY, 0)}
+        self.gewichtskraft_FE = {'Fz': - np.append(self.V_FE *  self.wichte * GD.GRAVITY, 0)}
 
         if self.holz_parameter['Furnierebene']:
             utils.get_d_achse_lagen(np.asarray(self.d_achse_FE), self.lagen_aufbau)
@@ -1354,7 +1321,7 @@ class KreisRing(Querschnitt):
                     self.A_Fe_FE += self.compute_area(d_a/2) - self.compute_area(d_i/2)
 
             self.V_Fe_FE = self.compute_sectional_mean(self.A_Fe_FE) * self.section_heights_FE
-            self.gewichtskraft_FE['Fx'][:-1] -= self.V_Fe_FE * (self.holz_parameter['rhok_Fe'] - self.wichte) * GD.GRAVITY
+            self.gewichtskraft_FE['Fz'][:-1] -= self.V_Fe_FE * (self.holz_parameter['rhok_Fe'] - self.wichte) * GD.GRAVITY
 
     def compute_geometrie_werte_Furnier(self):
         '''
@@ -1391,10 +1358,10 @@ class nEck(Querschnitt):
 
         self.compute_winkel_term()
 
-        Iz_außen = self.compute_flächenträgheitsmoment_neck(self.a_außen)
-        Iz_innen = self.compute_flächenträgheitsmoment_neck(self.a_innen)
+        Iy_außen = self.compute_flächenträgheitsmoment_neck(self.a_außen)
+        Iy_innen = self.compute_flächenträgheitsmoment_neck(self.a_innen)
         
-        self.Iz = Iz_außen - Iz_innen
+        self.Iy = Iy_außen - Iy_innen
 
         # if self.lagen_aufbau:
         #     self.compute_effective_moment_of_inertia()
@@ -1426,8 +1393,8 @@ class nEck(Querschnitt):
 
     def compute_flächenträgheitsmoment_neck(self, a):
 
-        self.Iz = self.n_ecken/96 * a**4 * self.winkel_term
-        return self.Iz
+        self.Iy = self.n_ecken/96 * a**4 * self.winkel_term
+        return self.Iy
 
     def compute_sectional_properties(self):
 
@@ -1444,12 +1411,12 @@ class nEck(Querschnitt):
         for i, lage in enumerate(self.lagen_aufbau):
             nEck_section = nEck(self.n_ecken, lage['di'], lage['ti'], holz_parameter= self.holz_parameter, hoehen_parameter=self.hoehen_parameter,
                                 einheiten =self.einheiten)
-            lage['Iz'] = nEck_section.Iz
+            lage['Iy'] = nEck_section.Iy
 
-        self.Iz_eff = 0
+        self.Iy_eff = 0
         for lage in self.lagen_aufbau:
             if lage['ortho'] == 'X':
-                self.Iz_eff += lage['Iz']
+                self.Iy_eff += lage['Iy']
 
     def compute_static_moment(self):
         e=self.n_ecken/4   # da maximales statisches moment bei einem viertel des querschnitts
@@ -1481,17 +1448,17 @@ def plot_properties_along_height_list(geometric_objects:list, properties:list, u
 
     legend = ['gesamt QS', 'Längslagen']
 
-    factors = [geometric_objects[-1].Iz_eff/geometric_objects[0].Iz_eff, geometric_objects[-1].Iz_eff/geometric_objects[1].Iz_eff, geometric_objects[1].Iz_eff/geometric_objects[0].Iz_eff]
+    factors = [geometric_objects[-1].Iy_eff/geometric_objects[0].Iy_eff, geometric_objects[-1].Iy_eff/geometric_objects[1].Iy_eff, geometric_objects[1].Iy_eff/geometric_objects[0].Iy_eff]
     factors_label = ['EI12/EI8','EI12/EI10','EI10/EI8']
 
     for f_i , factor in enumerate(factors):
         print (factors_label[f_i] + ':', round(factor[0],2))
 
     for e_i, cross_section in enumerate(geometric_objects):
-        prop_values = {'Iz':cross_section.Iz,'EIz':cross_section.Iz * E_modul, 'Iz_eff':cross_section.Iz_eff,'EIz_eff':cross_section.Iz_eff * E_modul,
+        prop_values = {'Iy':cross_section.Iy,'EIy':cross_section.Iy * E_modul, 'Iy_eff':cross_section.Iy_eff,'EIy_eff':cross_section.Iy_eff * E_modul,
                        'a_außen':cross_section.a_außen, 'a_innen':cross_section.a_innen, 'd_außen':cross_section.d_außen,
                         }
-        prop_units_default = {'Iz':'m^4', 'EIz':'Nm²', 'Iz_eff':'m^4', 'EIz_eff':'Nm²', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
+        prop_units_default = {'Iy':'m^4', 'EIy':'Nm²', 'Iy_eff':'m^4', 'EIy_eff':'Nm²', 'a_außen':'m', 'a_innen':'m', 'd_außen':'m', 'M':'kg'}
 
         for p_i, prop in enumerate(properties):
             if isinstance(cross_section, nEck):
@@ -1509,7 +1476,7 @@ def plot_properties_along_height_list(geometric_objects:list, properties:list, u
         ax[0].set_ylabel('Hfract [-]')
         ax[0].grid()
     
-    #f = round(geometric_objects[1].Iz[0]/geometric_objects[0].Iz[0],2)
+    #f = round(geometric_objects[1].Iy[0]/geometric_objects[0].Iy[0],2)
     #ax[0].plot(0,0, label = 'factor '+ str(f))
 
     plt.grid()

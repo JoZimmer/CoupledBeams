@@ -205,7 +205,7 @@ for segment in range(1,qs.n_ebenen):
     seg = 'seg_0-' + str(segment)
     df_bauzustand_header_list[2].append(seg)
 if include_bauzustand_sgr:
-    df_bauzustand_header_list[3].extend(['Mz [MNm]', 'N [MN]', 'Q [MN]','Mx [MNm]', 'Reibung [MN]', 'Ausn. reibung'])
+    df_bauzustand_header_list[3].extend(['My [MNm]', 'N [MN]', 'Q [MN]','Mz [MNm]', 'Reibung [MN]', 'Ausn. reibung'])
 if include_bauzustand_spannung:
     df_bauzustand_header_list[3].append(GD.GREEK_UNICODE['sigma'] + '_max [' + qs.einheiten['Normalspannung'] + ']') 
     df_bauzustand_header_list[3].append(GD.GREEK_UNICODE['sigma'] + '_min [' + qs.einheiten['Normalspannung'] + ']') 
@@ -242,8 +242,8 @@ kopf_lasten_IEA = { '@max_Fxy':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx
                     '@max_Mz':{'Fx':419925,'Fy':-24468, 'Fz':-3650438, 'Mx':6294993, 'My':-3439939, 'Mz':10811885}, # Fx = Fxy, My = Mxy
                     '@max_all':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':5.98E+06, 'My':6.81E+06, 'Mz':10811885}} # bisher max Fx und max Mz 
 
-qs.berechnungs_hinweise.append('   - Kopflast Fy (beam cosy) entspricht der resultierenden Fxy aus den IEA Lasten')
-qs.berechnungs_hinweise.append('   - Kopflast Mz (beam cosy) entspricht der resultierenden Mxy aus den IEA Lasten')
+qs.berechnungs_hinweise.append('   - Kopflast Fx (beam cosy neu) entspricht der resultierenden Fxy aus den IEA Lasten')
+qs.berechnungs_hinweise.append('   - Kopflast My (beam cosy neu) entspricht der resultierenden Mxy aus den IEA Lasten')
 
 skalierung_IEA_kleinwind = 707 / 13273 *2# Rotorflächen x2
 kopf_lasten_IEA = utils.scale_dict_of_dicts(kopf_lasten_IEA, skalierung_IEA_kleinwind)
@@ -282,7 +282,7 @@ for lastfall in lastfälle:
 
     querschnitte[0].berechnungs_hinweise.append('   - Last am Kopf aus IEA ' + last_at)
     einwirkungs_parameter = {'vb':round(basis_windgeschwindigkeit,2),'Terrain Kategorie':terrain_kategorie, 'cd': cd_zylinder, 
-                            'Kopflast':last_at, 'DLC':'1.3_seed2_9ms', 'Kosy.':'Balken'}
+                            'Kopflast':last_at, 'DLC':'1.3_seed2_9ms', 'Kosy.':'Balken neu'}
 
     einwirkungs_parameter.update(sicherheitsbeiwerte)
 
@@ -333,7 +333,7 @@ for lastfall in lastfälle:
         lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']  = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], F_h_imp_ers, 
                                                                                                          gewichtskraft_design['FE'], kopf_lasten_beam['egal']]) 
         lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz'] = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], kopf_lasten_beam['kurz']])
-        # TODO Ein Teil es Kopfmoments Mz (beam) ist auch ständig!
+        # TODO Ein Teil es Kopfmoments My (beam neu) ist auch ständig!
         lasten_dicts_dauer[QS_label][qs.nabenhöhe]['ständig']  = utils.update_lasten_dict(lasten_dict_base, [gewichtskraft_design['FE'], F_h_imp_ers, kopf_lasten_beam['ständig']])
         # das ist der Lastfall spannkraft -> ist für die Spannkraftberechnung (gamma_m Eigengewicht = 1,0)
         lasten_dicts_dauer[QS_label][qs.nabenhöhe]['spannkraft']  = utils.update_lasten_dict(lasten_dict_base, [knoten_wind_kraft_z['FE'], qs.gewichtskraft['FE'], F_h_imp_ers, kopf_lasten_beam['spannkraft']])
@@ -347,9 +347,9 @@ for lastfall in lastfälle:
         # Händische Konstante Torsion dazu wird auch bei den schnittgrößen seperat betrachtet
         if parameters_init['dimension'] == '2D':
             qs.berechnungs_hinweise.append('   - Torsion konstant über die Höhe nur aus Kopflast')
-            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
-            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz']['Mx']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
-            lasten_dicts_typ[QS_label][qs.nabenhöhe]['kopflast']['Mx'] = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
+            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']['Mz']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
+            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz']['Mz']  = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
+            lasten_dicts_typ[QS_label][qs.nabenhöhe]['kopflast']['Mz'] = np.append(np.zeros(parameters_init['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
 
         # LASTEN NACH DAUER SORTIERT
         for dauer in einwirkungsdauer:
@@ -500,6 +500,7 @@ for lastfall in lastfälle:
         sigma_bauzustand = {'sigma_max':querschnitt.sigma_zug,'sigma_min':querschnitt.sigma_zug,
                             'nz_max':querschnitt.nz_max, 'nz_min':querschnitt.nz_min}
 
+        # berechnung der Vporspannung nim Lastfall max_druck (sollte gleich max zug sein)
         if lastfall == 'max_druck':
             querschnitt.spannkraft_berechnung(schnittgrößen, Spannglieder.suspa_draht_ex['Stahlparameter'], verluste_pauschal = spannkraft_verlust_pauschal,  unit = 'MN') # NOTE muss bisher vor ausnutzung bestimmt werden 
             n_ext_erf, n_int_pro_segment, n_summe_int, P_ist_fuge = querschnitt.get_spannglied_staffelung(n_oberste_segmente= vorpsannungs_params['n_segmente_ext'], 
@@ -528,11 +529,11 @@ for lastfall in lastfälle:
         results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'Höhe [' + querschnitt.einheiten['Länge'] + ']')] = np.around(querschnitt.section_absolute_heights[ausgabe_an_knoten],r_2)
         results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'd_achse [' + querschnitt.einheiten['Länge'] + ']')] = np.around(querschnitt.d_achse[ausgabe_an_knoten],r_2)
         if include_sgr:
-            results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'Mz [MNm]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['g']* utils.unit_conversion('Nm', 'MNm') ,r_2)
+            results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'My [MNm]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['g']* utils.unit_conversion('Nm', 'MNm') ,r_2)
             results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'N [MN]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['x']* utils.unit_conversion('N', 'MN') ,r_2)
             results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'G [MN]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['G']* utils.unit_conversion('N', 'MN') ,r_2)
             results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'Q [MN]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['y']* utils.unit_conversion('N', 'MN') ,r_2)
-            results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'Mx [MNm]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['a']* utils.unit_conversion('Nm', 'MNm') ,r_2)
+            results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'Mz [MNm]')] = np.around(schnittgrößen_design[ausgabe_an_knoten][QS_label][nabenhöhe]['egal']['a']* utils.unit_conversion('Nm', 'MNm') ,r_2)
 
             results_df[lastfall].loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_max [' + querschnitt.einheiten['Normalspannung'] + ']')] = np.around(querschnitt.sigma_zug_design[ausgabe_an_knoten],r_2)
             results_df[lastfall].loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['sigma'] + '_min [' + querschnitt.einheiten['Normalspannung'] + ']')] = np.around(querschnitt.sigma_druck_design[ausgabe_an_knoten],r_2)
@@ -554,8 +555,8 @@ for lastfall in lastfälle:
                 results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'fvd_Fe')] = np.around(querschnitt.fvFed,r_3)
                 results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'fvd_längs')] = np.around(querschnitt.fvd_brutto,r_3)
             else:
-                results_df[lastfall].loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Qy' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Qy_design[ausgabe_an_knoten],r_2)
-                results_df[lastfall].loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Mx' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Mx_design[ausgabe_an_knoten],r_2)
+                results_df[lastfall].loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Qx' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Qx_design[ausgabe_an_knoten],r_2)
+                results_df[lastfall].loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_Mz' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_Mz_design[ausgabe_an_knoten],r_2)
                 results_df[lastfall].loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_xy' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_xy_design[ausgabe_an_knoten],r_2)    
                 results_df[lastfall].loc[:,(nabenhöhe, QS_label, GD.GREEK_UNICODE['tau'] + '_tor' + ' [' + qs.einheiten['Schubspannung'] + ']')] = np.around(querschnitt.tau_vtor_design[ausgabe_an_knoten],r_2)
                     
@@ -568,8 +569,8 @@ for lastfall in lastfälle:
                 results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'fvd_tor')] = np.around(querschnitt.fvtord,r_3)
 
         if include_reibung:
-            results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'nxy_Qy' + ' [kN/m]')] = np.around(querschnitt.nxy_Qy[ausgabe_an_knoten] * utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_f'], 'kN/m'),r_2)
-            results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'nxy_Mx' + ' [kNm/m]')] = np.around(querschnitt.nxy_Mx[ausgabe_an_knoten]* utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_m'], 'kNm/m'),r_2)
+            results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'nxy_Qx' + ' [kN/m]')] = np.around(querschnitt.nxy_Qx[ausgabe_an_knoten] * utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_f'], 'kN/m'),r_2)
+            results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'nxy_Mz' + ' [kNm/m]')] = np.around(querschnitt.nxy_Mz[ausgabe_an_knoten]* utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_m'], 'kNm/m'),r_2)
             results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'nxy_P,Rd' + ' [kN/m]')] = np.around(querschnitt.n_Rd[ausgabe_an_knoten]* utils.unit_conversion(querschnitt.einheiten['Grundschnittgrößen_f'], 'kN/m'),r_2)
             results_df[lastfall].loc[:,(nabenhöhe, QS_label, 'Ausn. reibung')] = np.around(querschnitt.ausnutzung_reibung[ausgabe_an_knoten],r_3)
 
@@ -592,10 +593,10 @@ for lastfall in lastfälle:
 # TODO der hier müsste mal dahingehend gechekct werden welche einfluss die Kopflast hat
 for segment in schnittgrößen_design['bauzustand'][QS_label][nabenhöhe]:
     if include_bauzustand_sgr:
-        bauzustands_df.loc[:,(nabenhöhe, QS_label, segment, 'Mz [MNm]')] = np.around(schnittgrößen_design['bauzustand'][QS_label][nabenhöhe][segment]['g']* utils.unit_conversion('Nm', 'MNm') ,r_2)
+        bauzustands_df.loc[:,(nabenhöhe, QS_label, segment, 'My [MNm]')] = np.around(schnittgrößen_design['bauzustand'][QS_label][nabenhöhe][segment]['g']* utils.unit_conversion('Nm', 'MNm') ,r_2)
         bauzustands_df.loc[:,(nabenhöhe, QS_label, segment, 'N [MN]')] = np.around(schnittgrößen_design['bauzustand'][QS_label][nabenhöhe][segment]['x']* utils.unit_conversion('N', 'MN') ,r_2)
         bauzustands_df.loc[:,(nabenhöhe, QS_label, segment, 'Q [MN]')] = np.around(schnittgrößen_design['bauzustand'][QS_label][nabenhöhe][segment]['y']* utils.unit_conversion('N', 'MN') ,r_2)
-        bauzustands_df.loc[:,(nabenhöhe, QS_label, segment, 'Mx [MNm]')] = np.around(schnittgrößen_design['bauzustand'][QS_label][nabenhöhe][segment]['y']* utils.unit_conversion('Nm', 'MNm') ,r_2)
+        bauzustands_df.loc[:,(nabenhöhe, QS_label, segment, 'Mz [MNm]')] = np.around(schnittgrößen_design['bauzustand'][QS_label][nabenhöhe][segment]['a']* utils.unit_conversion('Nm', 'MNm') ,r_2)
         bauzustands_df.loc[:,(nabenhöhe, QS_label, segment, 'Reibung [MN]')] = np.around(bauzustands_kram[QS_label][nabenhöhe][segment]['Reibung'] * utils.unit_conversion('N', 'MN') ,r_2)
         bauzustands_df.loc[:,(nabenhöhe, QS_label, segment, 'Ausn. reibung')] = np.around(bauzustands_kram[QS_label][nabenhöhe][segment]['Reibung Ausn.'],r_2)
     if include_bauzustand_spannung:
