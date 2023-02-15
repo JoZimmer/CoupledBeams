@@ -23,12 +23,12 @@ from inputs.spannglieder import Spannglieder
 
 
 parameters_init = {
-                'dimension': '3D',
+                'dimension': '2D', # '3D' auch möglich hat aber auf die statische analyse keinen einfluss
                 'n_elements': 10, #
                 'nacelle_mass': 14400, # kg Kleinwind,# IEA37:267910,#  Gondel Masse in kg # aus optimierung 287920.5 
                 'imperfektion':0.008, # m/m Schiefstellung + Fundament schief
                 'E_Modul': 12000E+06,# N/m²
-                'type_of_bc':'Eingespannt',#'Feder', #'clamped',# TODO Feder evlt falsch gemacht
+                'type_of_bc':'Eingespannt',#'Feder'# TODO Feder evlt Falsch gemacht
                 'spring_stiffness':[1E+13,2E+13], # Federsteifigkeit am Boden in u und gamma richtung Bögl 40 GNm/rad
             }
 
@@ -54,6 +54,8 @@ nachweis_parameter = holz.HOLZBAU
 spannkraft_verlust_pauschal = 20 # % 
 
 results_excel = os_join(*['output','Berechnungs_Ergebnisse.xlsx'])
+
+lastfälle = {'max_druck': '@max_Fxy','max_all':'@max_all'}#'max_schub':'@max_Mz' # die @... sind keys im Kopflast dictonary
 
 '''
 QUERSCHNITTS DEFINITION
@@ -83,10 +85,9 @@ if not querschnitts_dateien_laden:
                                     'd_unten_angepasst':knick[1], # damit ein Übergangsknick entseht muss dieser hier kleiner als 'd_unten' sein
                                     'd_knick_übergang':'automatisch',#7.5,# # bei automatisch nimmt es den schon vorhandenen an dieser Stelle
                                     'n_sektionen_übergang':1,
-                                    #'transportbreite_max':3, # past nicht so ganz zur höhe aber mus irgendwo hin
+                                    'transportbreite_max':3, # past nicht so ganz zur höhe aber mus irgendwo hin
                                     } 
 
-                    #lagen_aufbau = holz.lagenaufbauten[furnier_dict[mit_furnier]][t]
                     lagenaufbauten = holz.Lagenaufbauten(furnier_dict[mit_furnier], t)
                     lagen_aufbau = lagenaufbauten.get()
                     t_ges = sum([lage['ti'] for lage in lagen_aufbau])
@@ -219,10 +220,10 @@ df_einwirkungs_header = pd.MultiIndex.from_product(df_einwirkung_header_list, na
 df_einwirkungs_header_typ = pd.MultiIndex.from_product(df_einwirkung_typ_header_list, names=['Nabenhöhe', 'Querschnitt', 'Lasttyp','Komponente', ])
 df_vorspannung_header = pd.MultiIndex.from_product(df_vorspannung_header_list, names=['Nabenhöhe', 'Querschnitt', 'Segment'])
 # Dataframes leer 
-results_df = {'max_druck':pd.DataFrame(columns=df_results_header),'max_schub':pd.DataFrame(columns=df_results_header)}#pd.DataFrame(columns=df_results_header)#
+results_df = {last:pd.DataFrame(columns=df_results_header) for last in lastfälle}#pd.DataFrame(columns=df_results_header)#
 einwirkungs_parameter_df = {}
-einwirkungs_df = {'max_druck':pd.DataFrame(columns=df_einwirkungs_header),'max_schub':pd.DataFrame(columns=df_einwirkungs_header)}
-einwirkungs_df_typ = {'max_druck':pd.DataFrame(columns=df_einwirkungs_header_typ), 'max_schub':pd.DataFrame(columns=df_einwirkungs_header_typ)}
+einwirkungs_df = {last:pd.DataFrame(columns=df_einwirkungs_header) for last in lastfälle}
+einwirkungs_df_typ = {last:pd.DataFrame(columns=df_einwirkungs_header_typ) for last in lastfälle}
 
 # Unabhängig von der Belastung
 if include_bauzustand_sgr:
@@ -235,9 +236,6 @@ vorpsannungs_df = pd.DataFrame(columns=df_vorspannung_header)
 
 einwirkungsdauer = ['ständig', 'kurz', 'egal','spannkraft']
 sicherheitsbeiwerte = {'dlc':1.35, 'wind':1.35, 'g':1.35, 'vorspannung':1.0, 'günstig':1.0} # dlc entsprechend der Kopflasten q diesem entsprechend und g TODO ansich komplexer im IEC
-
-# TODO lastfall anzahl variabel halten siehe schon bei der erstellung der dfs sehr händisch und abhängig von key wörtern verschiedene!!
-lastfälle = {'max_druck': '@max_Fxy','max_schub':'@max_all'}#'@max_Mz', 'max_all':} 
 
 # sind schon designlasten Cosy noch IEA
 kopf_lasten_IEA = { '@max_Fxy':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':5.98E+06, 'My':6.81E+06, 'Mz':2.31E+06},# NOTE My = Mxy #Masse charakt. 2.62E+06, Fx = Fxy 

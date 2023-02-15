@@ -5,6 +5,7 @@ from RFEM.BasicObjects.line import Line
 from RFEM.BasicObjects.thickness import Thickness
 from RFEM.BasicObjects.surface import Surface
 from RFEM.BasicObjects.material import Material
+from RFEM.TypesForSurfaces.surfaceMeshRefinements import SurfaceMeshRefinement
 from math import  *
 
 
@@ -30,6 +31,8 @@ Längslage = [0,1,0.04]
 Querlage = [0,1,0.02]
 Lagenaufbau = [Längslage,Querlage,Längslage,Querlage,Längslage]
 Lagenwinkel =0
+
+SurfaceMeshRefinement(1, )
 
 # Knoten aud der Vorderseite
 

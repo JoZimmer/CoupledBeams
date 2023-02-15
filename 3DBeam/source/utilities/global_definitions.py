@@ -19,6 +19,9 @@ DOF_LOAD_MAP = {'x':'Fx', 'y':'Fy', 'z':'Fz', 'a':'Mx', 'b':'My', 'g':'Mz'}
 
 LOAD_DOF_MAP = {'Fx':'x', 'Fy':'y', 'Fz':'z', 'Mx':'a', 'My':'b', 'Mz':'g'}
 
+FAST_DOF_MAP = {'YawBrFxp_[kN]':'y', 'YawBrFyp_[kN]':'z','YawBrFzp_[kN]':'x', 
+                'YawBrMxp_[kN-m]':'b', 'YawBrMyp_[kN-m]':'g', 'YawBrMzp_[kN-m]':'a'}
+
 GREEK = {'y':'y','z':'z', 'x':'x','a':r'\alpha', 'b':r'\beta', 'g':r'\gamma'}
 
 # https://pythonforundergradengineers.com/unicode-characters-in-python.html 

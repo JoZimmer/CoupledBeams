@@ -1001,11 +1001,11 @@ class Querschnitt(object):
             n_größer = np.floor(n_ist)
 
 
-            n_segment_info = {'b_max [m]':bogen_max,
-                              's <' + str(self.hoehen_parameter['transportbreite_max']) : s_kleiner,
-                              'n Seg. max':n_kleiner,
-                              's >' + str(self.hoehen_parameter['transportbreite_max']) : s_größer,
-                              'n Seg. min':n_größer
+            n_segment_info = {'b_max [m]':np.nan_to_num(bogen_max,nan=self.hoehen_parameter['transportbreite_max']),
+                              's <' + str(self.hoehen_parameter['transportbreite_max']) :np.nan_to_num( s_kleiner,nan=self.hoehen_parameter['transportbreite_max']),
+                              'n Seg. max':np.nan_to_num(n_kleiner,nan=1.0),
+                              's >' + str(self.hoehen_parameter['transportbreite_max']) :np.nan_to_num( s_größer,nan=self.hoehen_parameter['transportbreite_max']),
+                              'n Seg. min':np.nan_to_num(n_größer,nan=1.0)
                              }
 
         self.querschnitts_werte = {}
