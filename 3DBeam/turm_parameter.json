@@ -1,0 +1,91 @@
+
+{
+    "model_parameter":{
+        "Inhalt":"alles was zum beam gehoert",
+        "dimension": "2D", 
+        "n_elements": 10, 
+        "nacelle_mass": 14400, 
+        "imperfektion":0.008, 
+        "type_of_bc":"Eingespannt",
+        "spring_stiffness":[1E+13,2E+13]
+        },
+
+    "einheiten_input":{
+        "Inhalt":"die einheiten die Eingabe Werte haben",
+        "Kraft":"N", "Moment":"Nm", "Festigkeit":"N/mm²", "Laenge":"m", "Masse":"kg","Dicke":"cm"
+    }, 
+
+    "material":{
+        "Inhalt":"parameter die dann die holz Werte aus holz.charakteristische Werte holen",
+        "holzguete":"C30"
+    },
+
+    "vorspannung":{
+        "Inhalt":"Parameter der Spannglieder und alles was dazu gehoert.",
+        "n_segmente_extern":1,
+        "masse_spannkanal":[0.06,0.04],
+        "n_draehte_suspa_ex":20,
+        "stahl_suspa_ex":"St_1570/1770",
+        "n_monolitzen":3,
+        "stahl_monolitzen":"St_1860",
+        "spannkraft_verluste_pauschal":20
+    },
+
+    "nachweise":{
+        "Inhalt":"sicherheiten, dauern, holzbau aus GD",
+        "einwirkungsdauer":["staendig", "kurz", "egal","spannkraft"],
+        "sicherheitsbeiwerte": {"dlc":1.35, "wind":1.35, "g":1.35, "vorspannung":1.0, "guenstig":1.0},
+        "gamma_M":1.25,
+        "NKL":2,
+        "k_mod":{"kurz": 0.9, "mittel":0.8, "lang": 0.7, "staendig":0.6},
+        "k_def":"z.B. fuer die Detaillierten Spannkraftverluste -> siehe hier MGR: kdef abhaengig von NKL und Belastungsgrad",
+        "k_sys":1.0
+    },
+
+    "lagenaufbau":{
+        "Inhalt":"Der Input fuer die Lagenaufbau Klasse aus holz.py (dicken ist in cm alles andere m)",
+        "mit_furnier":true,
+        "dicken":[20],
+        "t_querlagen":0.04,
+        "t_furnier":0.009
+    },
+    
+    "turm_geometrie":{
+        "Inhalt":"Hoehe etc. Durchmesser ueber die Hoehe. Hoehe sektionen: wenn 2 werte dann range sodass es auf die nabenhoehe kommt. Die meisten parameter beziehen sich auf definition mit knick.",
+        "nabenhoehe" :35,
+        "d_unten_oben" :[3.0, 1.8],
+        "hoehe_sektionen" :[11.67],
+        "transportbreite_max":3,
+        "d_knick" :null,
+        "h_knick_von_oben" :70,
+        "d_unten_angepasst":null, 
+        "d_knick_uebergang":"automatisch",
+        "n_sektionen_uebergang":1
+    },
+    
+    "lasten":{
+        "kopflasten":{
+            "Inhalt":"Rotorflaechen [0 / 1] dividiert und ggf mit Faktor [3] multipliziert. Zu rechnende Lastfaelle",
+            "skalierungs_rotor_flaechen":[707, 13273, 2],
+            "lastfaelle":{"max_druck": "@max_Fxy","max_all":"@max_all"}
+        },
+        "turmlasten":{
+            "Inhalt":"paramter fuer die DIN Windlasten auf den Turm. wind_nabenhoehe: anhand dessen die vb in 10 m bestimmt wird",
+            "terrain_kategorie":"II",
+            "windzone":2,
+            "wind_nabenhoehe":25
+        }},
+    
+    "output":{
+        "Excel_Datei":["output","Berechnungs_Ergebnisse.xlsx"],
+        "einheiten":{"Kraft":"kN","Moment":"kNm","Spannung":"N/mm²","Vorspannung":"MN"},
+        "Nachkommastellen":{
+            "default":2,
+            "QS_werte":2,
+            "Ausnutzung":3,
+            "Masse":1,
+            "Vorspannung":2
+        },
+        "on_off":[]}
+}
+

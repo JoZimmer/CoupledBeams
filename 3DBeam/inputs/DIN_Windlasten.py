@@ -24,13 +24,12 @@ def flaechen_windkraft(vb, category, height, cp_max):
 def DIN_potenz_profil (vb, category, height, return_at = None):
     '''
     height: entweder absoluten wert geben oder diskrete Höhen Punkte als vektor oder liste
-    dann ist z in 0.5 er schritten
+    dann ist z in 0.1 er schritten
     '''
 
-    # profile functions
-    #categories = ['I','II','III','IV']
     if isinstance(height, int) or isinstance(height, float):
-        z = np.arange(0,height,0.5)
+        z = np.arange(0,height,0.1)
+        #z = [height]
     else:
         z = height
 
@@ -63,26 +62,31 @@ def DIN_potenz_profil (vb, category, height, return_at = None):
         aI, bI = 0.128, -0.05
     
     #if z[1] < zmin:
-    
-    vm_z0 = np.array([vmin*vb for i in z if i < zmin])
-    Iv_z0 = np.array([Imin for i in z if i < zmin])
-    qb_z0 = np.array([qbmin*qb for i in z if i < zmin])
-    z1 = z[len(vm_z0):]
-    vm_z = np.concatenate((vm_z0, a*vb*(z1/10)**b), axis = 0)
-    Iv_z = np.concatenate((Iv_z0, aI*(z1/10)**bI), axis = 0)
-    if category == 'dibt':
-        Iv_z[Iv_z == np.inf] = 0
-        qp_z = (1+7*Iv_z) * 0.5 * vm_z**2
-    else:
-        qp_z = np.concatenate((qb_z0, qb*aq*(z1/10)**bq), axis = 0)
-
-    if return_at:
-        v_at = vm_z[list(z).index(return_at)]
-        I_at = Iv_z[list(z).index(return_at)]
-        print ('Windgeschwindigkeit auf Höhe', return_at, 'm beträgt', round(v_at,2), 'm/s')
-        return v_at, I_at, vm_z, Iv_z, qp_z, z
-    else:
+    if not return_at:
+        vm_z0 = np.array([vmin*vb for i in z if i < zmin])
+        Iv_z0 = np.array([Imin for i in z if i < zmin])
+        qb_z0 = np.array([qbmin*qb for i in z if i < zmin])
+        z1 = z[len(vm_z0):]
+        vm_z = np.concatenate((vm_z0, a*vb*(z1/10)**b), axis = 0)
+        Iv_z = np.concatenate((Iv_z0, aI*(z1/10)**bI), axis = 0)
+        if category == 'dibt':
+            Iv_z[Iv_z == np.inf] = 0
+            qp_z = (1+7*Iv_z) * 0.5 * RHO * vm_z**2
+        else:
+            qp_z = np.concatenate((qb_z0, qb*aq*(z1/10)**bq), axis = 0)
         return vm_z, Iv_z, qp_z, z
+
+    else:
+        v_at = vmin*vb if height < zmin else a*vb*(z1/10)**b
+        I_at = Imin if height < zmin else aI*(z1/10)**bI
+        qb_at = qbmin*qb if height < zmin else qb*aq*(z1/10)**bq
+        print ('Windgeschwindigkeit auf Höhe', return_at, 'm beträgt', round(v_at,2), 'm/s')
+        return v_at, I_at, qb_at
+ 
+def winddruck(v, cd, Aref):
+
+    fw = 0.5 * RHO *cd * Aref * v**2
+    return fw
 
 def vb_von_v_nabenhöhe (vh, category, nabenhöhe):
     '''

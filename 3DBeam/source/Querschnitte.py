@@ -116,21 +116,23 @@ class Querschnitt(object):
             'd_unten_angepasst': im Fall des 2. Knicks kann der untere Radius angepasst werden 
         NOTE: das ganze ist nicht sooo super variable -> Bisher her nur für den fall gedacht mit den 2 kicken, einer in die iene Richtung einer in die andere
         '''
-        from scipy.optimize import minimize_scalar
-        from functools import partial
+        self.section_heights = {}     
+        if len(self.hoehen_parameter['höhe_sektionen']) > 1:
+            from scipy.optimize import minimize_scalar
+            from functools import partial
 
-        def func_hi(h, hi):
-            return h/hi - int(h/hi)
+            def func_hi(h, hi):
+                return h/hi - int(h/hi)
 
-        opt_func = partial(func_hi, self.nabenhöhe)
-        bounds_sektionen_höhen = tuple(self.hoehen_parameter['höhe_sektionen'])
-        minimization_result = minimize_scalar(opt_func,
-                                            method='Bounded',
-                                            bounds=bounds_sektionen_höhen)
+            opt_func = partial(func_hi, self.nabenhöhe)
+            bounds_sektionen_höhen = tuple(self.hoehen_parameter['höhe_sektionen'])
+            minimization_result = minimize_scalar(opt_func,
+                                                method='Bounded',
+                                                bounds=bounds_sektionen_höhen)
+            self.section_heights['Ebenen'] = minimization_result.x
+        else:
+            self.section_heights['Ebenen'] = self.hoehen_parameter['höhe_sektionen'][0]
 
-        self.section_heights = {}                                   
-
-        self.section_heights['Ebenen'] = minimization_result.x
         self.n_sections = int(self.nabenhöhe/self.section_heights['Ebenen'])
         self.n_ebenen = self.n_sections + 1
         self.section_absolute_heights = {'Ebenen':np.round(np.arange(0, self.nabenhöhe, self.section_heights['Ebenen']),2)}
@@ -294,7 +296,7 @@ class Querschnitt(object):
         
         self.compute_effektive_festigkeiten_charakteristisch()
 
-        sicherheits_faktor = self.nachweis_parameter['k_mod'][einwirkungsdauer]/self.nachweis_parameter['gamma_m']* self.nachweis_parameter['k_sys']
+        sicherheits_faktor = self.nachweis_parameter['k_mod'][einwirkungsdauer]/self.nachweis_parameter['gamma_M']* self.nachweis_parameter['k_sys']
 
         #effektive Festigkeite laengs
         self.fmd_eff_laengs = self.fmk_eff_laengs * sicherheits_faktor
@@ -330,6 +332,31 @@ class Querschnitt(object):
         '''
         pass
 
+    def flächenträgheitsmoment_spannkanäle(self, maße_kanal:list, n_kanäle_summe:list):
+        '''
+        Flächenträgheitsmoment eines Rechtecks mit Steineranteil aus dz zur Achse y
+        maße: b x h (h in wand stärkenrichutng)
+        '''
+        def flächenträgheitsmoment_rechteck(bi,hi,dzi):
+            Iy = bi*hi**3/12 + dzi**2 * bi*hi
+            return Iy 
+
+        Iy_spannkanal = []
+        for ebene, n in enumerate(n_kanäle_summe):
+            if n != 0:
+                r = self.d_achse['Ebenen'][ebene]/2
+                alpha_i =360/n
+                d_alpha = np.array([i*alpha_i for i in range(n)])
+                dx_i = r * np.sin(np.radians(d_alpha))
+                dy_i = r * np.cos(np.radians(d_alpha))
+            
+                Iy_kanäle = [flächenträgheitsmoment_rechteck(maße_kanal[0], maße_kanal[1], dx) for dx in np.abs(dx_i)]
+                Iy_spannkanal.append(sum(Iy_kanäle))
+
+            else:
+                Iy_spannkanal.append(0)
+        return np.array(Iy_spannkanal)
+                
 # _________ NORMALSPANNUNGEN nx - im Balken cosy nz__________________________________
     
     def calculate_normalspannung(self, SGR_design, add_vorspannkraft_grob = False, plot = False, ist_bauzustand = False):
@@ -479,7 +506,7 @@ class Querschnitt(object):
                 self.ausnutzung_N[knoten] += abs(self.sigma_N[knoten][dauer]* einheiten_faktor)/self.fc0d_eff_laengs # Annahme nur Normalkraft
                 self.ausnutzung_M[knoten] += abs(self.sigma_M[knoten][dauer]* einheiten_faktor)/self.fc0d_eff_laengs         
 
-    def spannkraft_berechnung(self, SGR_design, spannglied_parameter, n_drähte = 60, n_jahre=20, feuchteänderung = 0, dT = 0, verluste_pauschal = 0, unit = 'MN'):
+    def spannkraft_berechnung(self, SGR_design, spannglied_parameter:dict= None, params:dict=None, n_drähte = 60, n_jahre=20, feuchteänderung = 0, dT = 0, verluste_pauschal = 0):
         '''
         fester_wert = Verluste in %
 
@@ -512,6 +539,7 @@ class Querschnitt(object):
             return 0
          
         self.calculate_normalspannung(SGR_design)
+        verluste_pauschal = params['spannkraft_verluste_pauschal']
 
 
         # NOTE das hier ist nur auf Knoten_typ Ebene zu machen. Zwischen den Ebenen ist die Kraft aus Vorspannung konstant
@@ -533,6 +561,7 @@ class Querschnitt(object):
             '''
             # _____KRIECHEN
             belastungs_niveau = 30 # TODO Funktion die diese bestimmt und 30 , 15 oder 'sonst' zurückgibt
+            print ('WARUNG!!!!!!! belastungsniveau ist pauschal mit 30 angeben. Berechnung fehlt')
             k_def = self.nachweis_parameter['k_def']['NKL1'][belastungs_niveau]
             A_netto = self.A_längslagen[knoten]
             # Kraft in Richtung der Spannkraft (bisher ist My ständig nur aus Imperfektion)
@@ -588,7 +617,7 @@ class Querschnitt(object):
                 if x >= self.section_absolute_heights['Ebenen'][j-1] and x <= x_ebene:
                     self.P_m0['FE'][i] += self.P_m0['Ebenen'][j-1]
         
-    def get_spannglied_staffelung(self, n_oberste_segmente:int, Pd_ext, Pd_int,last):
+    def get_spannglied_staffelung(self, n_oberste_segmente:int, Pd_ext, Pd_int, spannkanal:list, return_result = False):
         '''
         n_oberste_segmente: Anzahl der oberen Segmente die durch die externe Vorspannung abgedeckt werden sollen 
         Pd: werte des gewählten spannsystems   
@@ -599,11 +628,10 @@ class Querschnitt(object):
         from math import ceil
 
         P_oben = self.P_m0['Ebenen'][-n_oberste_segmente]
-        n_ext_erf = ceil(P_oben/Pd_ext)
+        n_ext_erf = ceil(P_oben/Pd_ext) # anzahl extern
         P_ist = n_ext_erf * Pd_ext
-        n_int_pro_segment = [0] * n_oberste_segmente
+        n_int_pro_segment = [0] * n_oberste_segmente # anzahl intern pro segment
         P_ist_fuge = {'Ebenen':[P_ist]*n_oberste_segmente}
-        self.P_ist_fuge = {'Ebenen':{}}
 
         for P_erf in self.P_m0['Ebenen'][-n_oberste_segmente-1::-1]:
             n_int_erf = ceil((P_erf-P_ist)/Pd_int)
@@ -612,38 +640,44 @@ class Querschnitt(object):
             n_int_pro_segment.append(n_int_erf)
             P_ist += n_int_erf * Pd_int
             P_ist_fuge['Ebenen'].append(P_ist)
+        
+        self.n_int_pro_segment = list(reversed(n_int_pro_segment))
 
-        n_int_summe = []
+        n_int_summe = [] # anzahl intern gesamt pro segment (mit kanälen aus oberen segmenten)
         n_sum_ist = 0
         for n in n_int_pro_segment:
             n_sum_ist += n
             n_int_summe.append(n_sum_ist)
 
-        self.P_ist_fuge['Ebenen'] = np.asarray(list(reversed(P_ist_fuge['Ebenen'])))
-
-        n_ext_erf_list = [0]*self.n_sections
-        n_ext_erf_list.append(n_ext_erf)
+        self.n_int_summe = list(reversed(n_int_summe)) # von unten nach oben 
+        self.P_ist_fuge = {'Ebenen':np.asarray(list(reversed(P_ist_fuge['Ebenen'])))}
+        
+        self.Iy_spannkanal = {'Ebenen':
+                self.flächenträgheitsmoment_spannkanäle(spannkanal, self.n_int_summe)}
+        
+        self.n_ext_erf_list = [0]*self.n_sections
+        self.n_ext_erf_list.append(n_ext_erf)
 
         # die differenzen zu Pm0 jetzt noch auf sigma_druck_P drauf rechene -> das passiert jetzt wieder knotentyp weiße
 
         P_diff = self.P_ist_fuge['Ebenen'] - self.P_m0['Ebenen']
 
-        # TODO ist control gleich dem was es soll
-        # self.sigma_druck_P['FE'] checken das das richtig gemacht wird
-        # += P_diff / self.wand_stärke / self.U_außen['Ebenen']
         self.sigma_druck_P= {'Ebenen':self.P_ist_fuge['Ebenen']/ self.wand_stärke / self.U_außen['Ebenen']}
 
         self.P_ist_fuge['FE'] = np.zeros(self.FE_nodes)
+        self.Iy_spannkanal['FE'] = np.zeros(self.FE_nodes)
 
         for i, x in enumerate(self.section_absolute_heights['FE']):
             for j, x_ebene in enumerate(self.section_absolute_heights['Ebenen'][1:]):
                 j += 1
                 if x >= self.section_absolute_heights['Ebenen'][j-1] and x <= x_ebene:
                     self.P_ist_fuge['FE'][i] += self.P_ist_fuge['Ebenen'][j-1]
+                    self.Iy_spannkanal['FE'][i] += self.Iy_spannkanal['Ebenen'][j-1]
 
         self.sigma_druck_P['FE'] = self.P_ist_fuge['FE'] / self.wand_stärke / self.U_außen['FE']
 
-        return n_ext_erf_list, list(reversed(n_int_pro_segment)), list(reversed(n_int_summe)), self.P_ist_fuge
+        if return_result:
+            return self.n_ext_erf_list, list(reversed(n_int_pro_segment)), n_int_summe, self.P_ist_fuge
 
 # _________ SCHUBSPANNUNGEN SCHEIBENBEANSPRUCHUNG nxy__________________________________
 
@@ -707,7 +741,6 @@ class Querschnitt(object):
 
                 # _____ NORMALES BSP    
                 else:
-                    # TODO mit wand_stärke richtig? oder sollte das nur mit querlagen sein? -> das wird wieder auf widerstandsseite berücksichtigt?!
                     self.tau_Qx[knoten][dauer] = (SGR_design_current[dauer]['Qx'] * self.Sy_max[knoten]) / (self.Iy[knoten] * self.wand_stärke) * self.einheiten_umrechnung['Schubspannung']
                     self.tau_Mz[knoten][dauer]  = SGR_design_current[dauer]['Mz'] /self.Wx[knoten]  * self.einheiten_umrechnung['Schubspannung']
 

@@ -15,6 +15,7 @@ Berechnung und outputs:
     - Teilschädigung für jeden Eintrag aus der Markov Matrix mit kfat nach DIN oder Züblin (Eingabe)
     - Für jede Ebene werden die Zwischen ergebnisse für jeden Eintrag in ein dictionary geschrieben und dieses mittels dataframe in eine Excel
 
+TODO Bezeichnungen der Kräfte anpassen siehe run model und bem ppt
 '''
 import numpy as np
 from os.path import join as os_join

@@ -923,6 +923,32 @@ class Postprocess(object):
 
 # ohne Klasse mit weniger formatierung 
 
+def plot_spannkanäle_rund(n_int_summe, d_achse, spannkanal_d):
+
+    from matplotlib.patches import Circle
+
+    y_spannkanal = {'Ebenen':[]}
+    for ebene, n in enumerate(n_int_summe):
+        fig, ax = plt.subplots(figsize=(6.4,6.4))
+        if n != 0:
+            r = d_achse['Ebenen'][ebene]/2
+            alpha_i =360/n
+            d_alpha = np.array([i*alpha_i for i in range(n)])
+            dx_i = r * np.sin(np.radians(d_alpha))
+            dy_i = r * np.cos(np.radians(d_alpha))
+            circle_out = Circle((0,0), d_achse['Ebenen'][ebene]/2 + 0.1, color = 'grey', alpha=0.5) 
+            circle_in = Circle((0,0), d_achse['Ebenen'][ebene]/2 - 0.1, color = 'w') 
+            ax.add_patch(circle_out)
+            ax.add_patch(circle_in)
+            for x, y in zip(dx_i,dy_i):
+                loch = Circle((x,y), spannkanal_d[0], color = 'tab:red') 
+                ax.add_patch(loch)
+
+            o = 0.5
+            ax.set(xlim=(-r-o,r+o),ylim=(-r-o,r+o))
+            
+    plt.show()
+
 def plot_static_result(beam_model:BeamModel, result_type:str, dofs_to_plot:list, rad_scale = True, unit = 'm', rfem_result = None, title_suffix = ''):
     '''
     statische deformation ploten entlang der höhe 

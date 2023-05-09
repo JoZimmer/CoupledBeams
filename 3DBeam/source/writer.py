@@ -5,7 +5,8 @@ import source.utilities.utilities as utils
 
 def df_from_nested_dict(dictonary:dict, append_short_cols:bool = True) -> pd.DataFrame:
     '''
-    soll aus mehrstufigem Dictonary ein multiindex dataframe erstellen -> muss rekursiv sein
+    soll aus mehrstufigem Dictonary ein multiindex dataframe erstellen -> müsste rekursiv sein
+    wird jetzt erst mal durch einige händische schleifen gelöst
     append_short_cols: in dem dictionary werden alle spalten auf die gleich länge gebracht mit None werden
     '''
 

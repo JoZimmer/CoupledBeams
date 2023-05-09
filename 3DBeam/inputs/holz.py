@@ -71,9 +71,9 @@ charakteristische_werte = {
         'rhok_Fe':735, # aus Lechner Baubuche Furnier
         'G0mean':500, # zwischen Lechner BSH 586 und ETA Radiusholz 690
         'G4545':4227,# Aus Dissertation ermittelte Schubsteifigkeit der Furnierebene
+        'mu':0.5, #Reibuungskoeffizient
         'alpha':0.02, # schwindmaß je % Holzfuechteänderung
-        'alphaT':4E-06, # K^-1 Temperaturausdehnungskoeffizeint
-       
+        'alphaT':4E-06, # K^-1 Temperaturausdehnungskoeffizeint       
     }
 }
 
@@ -81,12 +81,25 @@ charakteristische_werte = {
 # 'a': ist hier nicht aktuell 
 class Lagenaufbauten():
 
-    def __init__(self, typ:str, gesamtstärke:int):
-        self.typ = typ # ob BSP_furnier oder BSP_normal
-        self.tges = gesamtstärke
-        self.t_querlagen = 0.04
+    def __init__(self, params:dict=None, typ:str='', gesamtstärke:int=20, t_querlagen:float = 0.04, t_furnier:float=0.009):
+        '''
+        typ: 'BSP_furnier' oder 'BSP_normal'
+        nur 5 schichtige bisher
+        gesamtstärke: hier sind ein paar hinterlegt bisher. einzelne Lagenstärken sind eher zufällig gesetzt
+        t_querlagen: wenn mit querlagen dann 2 einheitliche Querlagen
+        t_furnier: stärker der furnier ebene auch wenn diese aus mehreren furnieren zusammengesetzt ist
+        '''
+        if params:
+            self.typ = params['typ']
+            self.tges = params['dicken'][0]
+            self.t_querlagen = params['t_querlagen']
+            self.t_furnier = params['t_furnier']
+        else:
+            self.typ = typ # ob 
+            self.tges = gesamtstärke
+            self.t_querlagen = t_querlagen
+            self.t_furnier = t_furnier # 2 Furnierlagen a 4.5 mm -> eine Furnierebene also 9 mm
 
-        self.t_furnier = 0.009 # 2 Furnierlagen a 4.5 mm -> eine Furnierebene nur 9
         self.lagenaufbauten = {
             'BSP_furnier':{
                 13:[{'ortho':'X','ti':0.04,},

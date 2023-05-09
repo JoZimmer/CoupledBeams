@@ -60,7 +60,7 @@ class Spannglieder(object):
                 monolitzen[stahl]['Pm0_n'][n] = round(0.85 * monolitzen[stahl]['Fp01k'] * n)
                 monolitzen[stahl]['Pmax_n'][n] = round(0.9 * monolitzen[stahl]['Fp01k'] * n)
 
-    def parameter_dict(n_ext, n_int, stahl_ext, stahl_int):
+    def parameter_dict(params):
         '''
         sehr schlecht in einer form gebracht die in einen df überführt werden kann um das alles in Excel zu schrieben 
         '''
@@ -68,16 +68,21 @@ class Spannglieder(object):
         params_dict = {
             'int/ext':['extern', 'intern'],
             'Typ':['Suspa-Ex','Monolitzen'],
-            'n Drähte/Litzen':[n_ext,n_int],
-            'Pm_0/Pd [MN]':[round(Spannglieder.suspa_draht_ex[stahl_ext]['Pm0_n'][n_ext] * utils.unit_conversion('N','MN'),4), 
-                            round(Spannglieder.monolitzen[stahl_int]['Pm0_n'][n_int]* utils.unit_conversion('N','MN'),4)],
-            'Stahl':[stahl_ext, stahl_int],
-            'fp01k [N/mm²]':[Spannglieder.suspa_draht_ex[stahl_ext]['fp01k'], Spannglieder.monolitzen[stahl_int]['fp01k']],
+            'n Drähte/Litzen':[params['n_draehte_suspa_ex'],params['n_monolitzen']],
+            'Pm_0/Pd [MN]':[round(Spannglieder.suspa_draht_ex[params['stahl_suspa_ex']]['Pm0_n'][params['n_draehte_suspa_ex']] * utils.unit_conversion('N','MN'),4), 
+                            round(Spannglieder.monolitzen[params['stahl_monolitzen']]['Pm0_n'][params['n_monolitzen']]* utils.unit_conversion('N','MN'),4)],
+            'Stahl':[params['stahl_suspa_ex'], params['stahl_monolitzen']],
+            'fp01k [N/mm²]':[Spannglieder.suspa_draht_ex[params['stahl_suspa_ex']]['fp01k'], Spannglieder.monolitzen[params['stahl_monolitzen']]['fp01k']],
             'E-Modul [N/mm²]':[Spannglieder.suspa_draht_ex['Stahlparameter']['Ep'], Spannglieder.monolitzen['Stahlparameter']['Ep']],
             'alphaT [K^-1]':[Spannglieder.suspa_draht_ex['Stahlparameter']['alphaT'], Spannglieder.monolitzen['Stahlparameter']['alphaT']],
             'schlupf [mm]':[Spannglieder.suspa_draht_ex['Stahlparameter']['schlupf'], Spannglieder.monolitzen['Stahlparameter']['schlupf']],
             'rho1000':[Spannglieder.suspa_draht_ex['Stahlparameter']['rho1000'], Spannglieder.monolitzen['Stahlparameter']['rho1000']]
         }
+
+        #if verlust_pauschal:
+        params_dict['Verluste pauschal [%]'] = [params['spannkraft_verluste_pauschal']]*2
+        params_dict['maße Spannkanal [m]'] = ["'-" , params['masse_spannkanal']]
+
         return params_dict
 
     

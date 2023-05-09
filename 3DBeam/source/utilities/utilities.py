@@ -177,6 +177,23 @@ def parse_load_signal_backwards(signal, domain_size):
     #TODO: must this be transposed?!
     return signal_raw
 
+def parse_fast_labels(lasten_dict):
+    '''
+    aus den FAST lasten_dict soll die Kraftrichtung ohne die ganzen FAST sachen rauskommen
+    ändert die keys in einem dict
+    und gibt die einheiten zurück
+    '''
+    if isinstance(lasten_dict, dict):
+        k_new, units =[],[]
+        for k_fast in lasten_dict.keys():
+            k_new.append(k_fast.split('p')[0][5:])
+            unit = k_fast.split('_')[-1]
+            units.append(''.join(e for e in unit if e.isalnum()))
+
+        lasten_dict = dict(zip(k_new, list(lasten_dict.values())))
+        
+    return lasten_dict, list(set(units))
+
 def generate_static_load_vector_file(load_vector):
     '''
     return a npy file and saves it for a given load.
@@ -328,21 +345,28 @@ def lasten_dict_bauzustand(lasten_dict_base, knoten_wind_kraft_z, gewichtskraft_
 
     return lasten_bauzustand
 
-def generate_lasten_file(number_of_nodes, lasten_dict, file_base_name, dimension:str = '2D'):
+def generate_lasten_file(number_of_nodes, lasten_dict, file_base_name, dimension:str = '2D', lasten_typ:str='static'):
     '''
-    lasten kommen als dictionary mit den Richtungen als keys (siehe GD.LOAD_DOF_MAP)
-    und werden in einen 1D vektor umgewandelt 
+    lasten kommen als dictionary mit den Kraft Richtungen als keys (Fx, Fz...) (siehe GD.LOAD_DOF_MAP)
+    alle kraft richtungen die nicht enthalten sind bleiben 0
+    Kräfte als arrays über die höhe: shape(n_nodes, time)
+    und werden in einen 2D vektor umgewandelt (Reihe = Knoten, Spalte = time step (static: nur eine Spalte))
     return: datei name da last als npy datei gespeichert wird
     dimension 2D o. 3D
     '''
 
-    src_path = os_join(*['inputs','loads','static'])
+    src_path = os_join(*['inputs','loads',lasten_typ])
     if not os.path.isdir(src_path):
         os.makedirs(src_path)
 
     force_file_name = os_join(src_path, file_base_name + '.npy')
 
-    force_data = np.zeros(GD.DOFS_PER_NODE[dimension]*number_of_nodes)
+    if lasten_typ == 'static':
+        force_data = np.zeros(GD.DOFS_PER_NODE[dimension]*number_of_nodes)
+    elif lasten_typ == 'dynamic':
+        time_steps = lasten_dict[list(lasten_dict.keys())[0]].shape[1]
+        force_data = np.zeros((GD.DOFS_PER_NODE[dimension]*number_of_nodes, time_steps))
+
     for load_direction, magnitude in lasten_dict.items():
         if dimension == '2D' and load_direction == 'Mz':
             continue
@@ -352,13 +376,14 @@ def generate_lasten_file(number_of_nodes, lasten_dict, file_base_name, dimension
 
         force_data[start::step] += magnitude
 
-    force_data = force_data.reshape(GD.DOFS_PER_NODE[dimension]*number_of_nodes,1)
+    if lasten_typ == 'static':
+        force_data = force_data.reshape(GD.DOFS_PER_NODE[dimension]*number_of_nodes,1)
 
     np.save(force_file_name, force_data)
 
     return force_file_name
 
-def linien_last_to_knoten_last(last_vektor, knoten_z, gamma_q=1.5):
+def linien_last_to_knoten_last_design(last_vektor, knoten_z, gamma_q=1.5):
 
     '''
     vekotr der eine Last pro meter darstellt in knotenlasten vektor überführen 
@@ -525,7 +550,9 @@ def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of
 
 def add_defaults(params_dict:dict):
     '''
-    Im run sind nur die tatsächlich relevanten werte zu definieren. Weitere Werte die aufgrund von älteren Versionen gebruacht werden werden dann hier ergäntz
+    Im run sind nur die tatsächlich relevanten werte zu definieren. 
+    Weitere Werte die aufgrund von älteren Versionen gebruacht werden werden dann hier ergäntz
+    NOTE Nur ergänzung keine überschreibung
     '''
     parameters = {
                 'lz_total_beam': 130, # wird mit der Querschnitts definition ergänzt
@@ -541,7 +568,9 @@ def add_defaults(params_dict:dict):
                 'time_step_dynamic_load':0.01, # Time step der simulation
                 'eigen_freqs_target':[0.133,0.79,3.0], 
             }
-    params_dict.update(parameters)
+    for k in parameters:
+        if k not in params_dict:
+            params_dict[k] = parameters[k]
 
     einspannung = {'2D':[0,1,2], '3D':[0,1,2,3,4,5]}
     params_dict['dofs_of_bc'] = einspannung[params_dict['dimension']]
