@@ -11,7 +11,6 @@ import numpy as np
 import os
 from os.path import join as os_join
 import pandas as pd
-import json
 
 from source.model import BeamModel
 import source.postprocess as postprocess
@@ -20,14 +19,15 @@ from source.Querschnitte import KreisRing
 import source.utilities.global_definitions as GD
 from inputs import holz
 from inputs.spannglieder import Spannglieder
-import inputs.parameter_H130 as parameter_input
+
+import inputs.parameter_H35 as parameter_input
 
 # with open('turm_parameter.json', 'r') as parameter_file:
 #     parameters = json.loads(parameter_file.read())
 # json Format unpraktisch weil man keine Kommentare hinzufügen kann
 parameters = parameter_input.params_dict
 
-params_beam = utils.add_defaults(parameters["model_parameter"])
+params_beam = utils.validate_and_add_defaults(parameters)
 params_material = holz.charakteristische_werte[parameters["material"]["holzguete"]]
 params_lagen = parameters['lagenaufbau']
 params_geometrie = parameters['turm_geometrie']
@@ -48,9 +48,7 @@ params_vorspannung.update({
 lastfälle = params_lasten["kopflasten"]['lastfälle']
 
 # sind schon designlasten Cosy noch IEA
-kopf_lasten_IEA = { '@max_Fxy':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':5.98E+06, 'My':6.81E+06, 'Mz':2.31E+06},# NOTE My = Mxy #Masse charakt. 2.62E+06, Fx = Fxy 
-                    '@max_Mz':{'Fx':419925,'Fy':-24468, 'Fz':-3650438, 'Mx':6294993, 'My':-3439939, 'Mz':10811885}, # Fx = Fxy, My = Mxy
-                    '@max_all':{'Fx':1.17E+06,'Fy':4.80E+04, 'Fz':-3.64E+06, 'Mx':5.98E+06, 'My':6.81E+06, 'Mz':10811885}} # bisher max Fx und max Mz 
+kopf_lasten = params_lasten['kopflasten']['lastwerte']
 
 params_beam['material_density'] = params_material['rhok']
 params_beam['E_Modul'] = params_material['E0mean']
@@ -72,8 +70,9 @@ if not querschnitts_dateien_laden:
 
         lagenaufbauten = holz.Lagenaufbauten(params_lagen)
         lagen_aufbau = lagenaufbauten.get()
+        params_material['Furnierebene'] = params_lagen['mit_furnier'] # umständlich weil doppelt
         
-        kreis_ring = KreisRing(cd = params_lasten['turmlasten']['cd_zylinder'], cp_max=1.8, lagen_aufbau=lagen_aufbau,
+        kreis_ring = KreisRing(cd = params_lasten['turmlasten']['cd_zylinder'], lagen_aufbau=lagen_aufbau,
                                 holz_parameter = params_material, 
                                 nachweis_parameter = params_nachweise,
                                 hoehen_parameter= params_geometrie, einheiten=parameters['einheiten_input'],
@@ -165,8 +164,8 @@ if include_tau:
         df_results_header_list[2].append('Ausn. schub Furnier') 
         df_results_header_list[2].append('Ausn. schub längs')  
     else:
-        df_results_header_list[2].append(GD.GREEK_UNICODE['tau'] + '_Qy' + ' [' + qs.einheiten['Schubspannung'] + ']') 
-        df_results_header_list[2].append(GD.GREEK_UNICODE['tau'] + '_Mx' + ' [' + qs.einheiten['Schubspannung'] + ']') 
+        df_results_header_list[2].append(GD.GREEK_UNICODE['tau'] + '_Qx' + ' [' + qs.einheiten['Schubspannung'] + ']') 
+        df_results_header_list[2].append(GD.GREEK_UNICODE['tau'] + '_Mz' + ' [' + qs.einheiten['Schubspannung'] + ']') 
         df_results_header_list[2].append(GD.GREEK_UNICODE['tau'] + '_xy' + ' [' + qs.einheiten['Schubspannung'] + ']') 
         df_results_header_list[2].append(GD.GREEK_UNICODE['tau'] + '_tor' + ' [' + qs.einheiten['Schubspannung'] + ']') 
         df_results_header_list[2].append('Ausn. schub brutto') 
@@ -222,10 +221,10 @@ qs.berechnungs_hinweise.append('   - Kopflast My (beam cosy neu) entspricht der 
 sk = params_lasten['kopflasten']['skalierungs_rotor_flaechen']
 skalierung = sk[0] / sk[1] * sk[2]
 if skalierung != 1.0:
-    kopf_lasten_IEA = utils.scale_dict_of_dicts(kopf_lasten_IEA, skalierung)
+    kopf_lasten = utils.scale_dict_of_dicts(kopf_lasten, skalierung)
     qs.berechnungs_hinweise.append('   - Kopflasten IEA skaliert anhand der Rotorflächen mit  (und dann x 2)' + str(round(skalierung,5)))
 
-kopf_masse_design = - params_beam['nacelle_mass'] * GD.GRAVITY * params_nachweise['sicherheitsbeiwerte']['g'] # -2628197
+kopf_masse_design = - params_beam['nacelle_mass'] * GD.GRAVITY * params_nachweise['sicherheitsbeiwerte']['g']
 
 import inputs.DIN_Windlasten as wind_DIN
 terrain_kategorie = params_lasten['turmlasten']['terrain_kategorie']
@@ -261,7 +260,7 @@ for last_i, lastfall in enumerate(lastfälle):
 
     einwirkungs_parameter_df[lastfall] = pd.DataFrame(einwirkungs_parameter, index=[0])
 
-    kopf_lasten_beam = utils.convert_coordinate_system_and_consider_einwirkungsdauer(kopf_lasten_IEA[last_at], n_nodes, params_nachweise['sicherheitsbeiwerte']['g'], 
+    kopf_lasten_beam = utils.convert_coordinate_system_and_consider_einwirkungsdauer(kopf_lasten[last_at], n_nodes, params_nachweise['sicherheitsbeiwerte']['g'], 
                                                                                     kopf_masse = kopf_masse_design, dimension=params_beam['dimension']) 
 
     wind_kraft_z = {}
@@ -320,9 +319,9 @@ for last_i, lastfall in enumerate(lastfälle):
         # Händische Konstante Torsion dazu wird auch bei den schnittgrößen seperat betrachtet
         if params_beam['dimension'] == '2D':
             qs.berechnungs_hinweise.append('   - Torsion konstant über die Höhe nur aus Kopflast')
-            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']['Mz']  = np.append(np.zeros(params_beam['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
-            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz']['Mz']  = np.append(np.zeros(params_beam['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
-            lasten_dicts_typ[QS_label][qs.nabenhöhe]['kopflast']['Mz'] = np.append(np.zeros(params_beam['n_elements']), kopf_lasten_IEA[last_at]['Mz'])
+            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal']['Mz']  = np.append(np.zeros(params_beam['n_elements']), kopf_lasten[last_at]['Mz'])
+            lasten_dicts_dauer[QS_label][qs.nabenhöhe]['kurz']['Mz']  = np.append(np.zeros(params_beam['n_elements']), kopf_lasten[last_at]['Mz'])
+            lasten_dicts_typ[QS_label][qs.nabenhöhe]['kopflast']['Mz'] = np.append(np.zeros(params_beam['n_elements']), kopf_lasten[last_at]['Mz'])
 
         einheiten_out = params_output['einheiten']['lasten']
         # LASTEN NACH DAUER SORTIERT
@@ -358,14 +357,14 @@ for last_i, lastfall in enumerate(lastfälle):
                         np.around(lasten_dicts_typ[QS_label][qs.nabenhöhe][typ][komponente] *\
                             utils.unit_conversion(qs.einheiten[kategorie],einheiten_out[kategorie]),2)
 
-        if qs.nabenhöhe == 30:
-            postprocess.plot_dict_subplots(lasten_dicts_typ[QS_label][qs.nabenhöhe]['windkraft'], qs.x_FE, title='Windkraft ' + QS_label, unit='kN')
-            postprocess.plot_dict_subplots(lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal'], qs.x_FE, title='Windkraft + Kopflasten gesamt ' + QS_label, unit = 'kN')
+        if qs.nabenhöhe == 10:
+            postprocess.plot_dict_subplots(lasten_dicts_typ[QS_label][qs.nabenhöhe]['windkraft'], qs.section_absolute_heights['FE'], title='Windkraft ' + QS_label, unit='kN')
+            postprocess.plot_dict_subplots(lasten_dicts_dauer[QS_label][qs.nabenhöhe]['egal'], qs.section_absolute_heights['FE'], title='Windkraft + Kopflasten gesamt ' + QS_label, unit = 'kN')
 
         plot_nach_dauer = False
         if plot_nach_dauer:
             for dauer in params_nachweise['einwirkungsdauer']:
-                postprocess.plot_dict_subplots(lasten_dicts_dauer[QS_label][qs.nabenhöhe][dauer], qs.x_FE, title='Last ' + dauer +' ' + QS_label, unit = 'kN')
+                postprocess.plot_dict_subplots(lasten_dicts_dauer[QS_label][qs.nabenhöhe][dauer], qs.section_absolute_heights['FE'], title='Last ' + dauer +' ' + QS_label, unit = 'kN')
 
 
     '''
@@ -406,6 +405,8 @@ for last_i, lastfall in enumerate(lastfälle):
         beam_ebenen = BeamModel(parameters['Ebenen'], adjust_mass_density_for_total = False, optimize_frequencies_init=False , apply_k_geo=False)
         
         if last_i == 0:
+            qs_sum_df = pd.DataFrame({'V_ges [m³]':np.array([round(beam.volume,2)]), 'G_ges [MN]':[round(sum(beam.eigengewicht * GD.UNIT_SCALE['MN']),2)],
+                                      'n1 [Hz]':[round(beam.eigenfrequencies[0],3)], 'n2 [Hz]':[round(beam.eigenfrequencies[1],3)]})
             print ('\nN_nodes', querschnitt.n_ebenen)
             print (QS_label, nabenhöhe, 'm')
             print ('     Gesamt Volumen des Querschnitts [m³]:', round(beam.volume,2))
@@ -413,9 +414,9 @@ for last_i, lastfall in enumerate(lastfälle):
             print ('     Frequenzen [Hz]:', [round(beam.eigenfrequencies[i],3) for i in range(3)])
 
         lasten_nach_dauer = {'ständig':{'torsion':False},
-                             'egal':{'torsion':kopf_lasten_IEA[last_at]['Mz']},
-                             'kurz':{'torsion':kopf_lasten_IEA[last_at]['Mz']},
-                             'spannkraft':{'torsion':kopf_lasten_IEA[last_at]['Mz']}}
+                             'egal':{'torsion':kopf_lasten[last_at]['Mz']},
+                             'kurz':{'torsion':kopf_lasten[last_at]['Mz']},
+                             'spannkraft':{'torsion':kopf_lasten[last_at]['Mz']}}
 
         for dauer in params_nachweise['einwirkungsdauer']:
             # NOTE Torsion ist nicht in der Steifigkeitsmatrix, deswegen kann diese brechnung nur händisch ergänzt werden
@@ -435,7 +436,7 @@ for last_i, lastfall in enumerate(lastfälle):
             lasten_label = os.path.splitext(os.path.basename(lasten_files[QS_label][nabenhöhe][dauer]))[0]                                                                                        
         if last_i == 0:          
             print ('     Maximales Moment [MNm]:', round(max(abs(SGR_design['Ebenen'][QS_label][nabenhöhe]['egal']['g'])) * utils.unit_conversion('Nm', 'MNm'),2))   
-            print ('     Maximales Moment ohne Kopflast [MNm] ~=', round((max(abs(SGR_design['Ebenen'][QS_label][nabenhöhe]['egal']['g'])) - kopf_lasten_IEA[last_at]['Fx']*nabenhöhe) * utils.unit_conversion('Nm', 'MNm'),2))   
+            print ('     Maximales Moment ohne Kopflast [MNm] ~=', round((max(abs(SGR_design['Ebenen'][QS_label][nabenhöhe]['egal']['g'])) - kopf_lasten[last_at]['Fx']*nabenhöhe) * utils.unit_conversion('Nm', 'MNm'),2))   
 
         # BAUZUSTAND 
         if include_bauzustand_sgr:
@@ -483,17 +484,14 @@ for last_i, lastfall in enumerate(lastfälle):
 
         # berechnung der Vporspannung nim Lastfall max_druck (sollte gleich max zug sein)
         if next(iter(lastfälle)) != 'max_druck':
-            raise ('Achtung im Lastfall dict muss der erste Lastfall der max_druck Fall sein um die Spannkraft zu berechnen')
+            raise Exception('Achtung im Lastfall dict muss der erste Lastfall der max_druck Fall sein um die Spannkraft zu berechnen')
 
         if lastfall == 'max_druck':
             qs.spannkraft_berechnung(schnittgrößen, params = params_vorspannung) # NOTE muss vor der staffelung aufgerufen werden
-            qs.get_spannglied_staffelung(  n_oberste_segmente= params_vorspannung['n_segmente_extern'], 
-                                                    Pd_ext = params_vorspannung['Pd_ext'], 
-                                                    Pd_int = params_vorspannung['Pd_int'],
-                                                    spannkanal = params_vorspannung['masse_spannkanal'])
+            qs.get_spannglied_staffelung(  params = params_vorspannung)
+            
             for knoten_typ in knoten_typen:
                 qs.Iy[knoten_typ] -= qs.Iy_spannkanal[knoten_typ]
-
 
             #TODO das ist nur ein sehr hässlicher weg das schnell zu  machen -> für schub den ruck aus max druck ansetzen
             P_ist_fuge_max_druck = qs.P_ist_fuge
@@ -618,6 +616,7 @@ with pd.ExcelWriter(results_excel, mode= 'w', engine="openpyxl") as writer:# -->
 
     holz_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=0, startcol=0, index=False)#
     holz_units_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=3, startcol=0, index=False)#
+    qs_sum_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=3, startcol=holz_units_df.shape[1] + 1, index=False)#
     qs_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=7, startcol=0)
     lagen_df.to_excel(writer, sheet_name= 'QS_Werte', startrow=qs_df.shape[0] + 13, startcol=0)
 

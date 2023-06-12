@@ -3,13 +3,13 @@ params_dict = {
     "model_parameter":{
         "Inhalt":"alles was zum beam gehoert",
         'dimension': '2D', # '3D' auch möglich hat aber auf die statische analyse keinen einfluss
-        'n_elements': 10, #
-        'nacelle_mass': 14400, # kg Kleinwind,# IEA37:267910,#  Gondel Masse in kg # aus optimierung 287920.5 
+        'n_elements': 12, # FE Elemente
+        'nacelle_mass': 267910, # IEA37 #14400, # kg Kleinwind,, #  Gondel Masse in kg # aus optimierung 287920.5 
         'imperfektion':0.008, # m/m Schiefstellung + Fundament schief
         'E_Modul': 12000E+06,# N/m²
         'type_of_bc':'Eingespannt',#'Feder'# TODO Feder evlt Falsch gemacht
         'spring_stiffness':[1E+13,2E+13], # Federsteifigkeit am Boden in u und gamma richtung Bögl 40 GNm/rad TimberTower 10 GNm/rad
-        'damping_coeff': 0.01, # D = Prozent of the critical (siehe Bemssungskonzept Kleinwind für werte und Beschreibung)
+        'damping_coeff': 0.01, # D = Prozent of the critical (siehe Bemssungskonzept Kleinwind für verschiedene werte und Beschreibung)
         },
 
     "einheiten_input":{
@@ -18,14 +18,14 @@ params_dict = {
     }, 
 
     "material":{
-        "Inhalt":"parameter die dann die holz Werte aus holz.charakteristische Werte holen",
+        "Inhalt":"parameter die dann die holz Werte aus holz.charakteristische Werte holen", # TODO das mal mit "lagenaufbau" verbinden
         "holzguete":"C30"
     },
 
     "lagenaufbau":{
         "Inhalt":"Der Input fuer die Lagenaufbau Klasse aus holz.py (dicken ist in cm alles andere m)",
-        "mit_furnier":False, # wenn typ angegeben dann fällt das hier weg
-        "typ":"BSP_furnier", # "BSP_normal" #
+        "mit_furnier":True, # wenn typ angegeben dann fällt das hier weg
+        # Wird nicht mehr gebraucht "typ":"BSP_furnier", # "BSP_normal" #
         "dicken":[44], # Muss im holz.py file drinnen sein
         "t_querlagen":0.04,
         "t_furnier":0.009
@@ -33,7 +33,7 @@ params_dict = {
     
     "turm_geometrie":{
         "Inhalt":"Hoehe etc. Durchmesser ueber die Hoehe. Hoehe sektionen: wenn 2 werte dann range sodass es auf die nabenhoehe kommt. Die meisten parameter beziehen sich auf definition mit knick.",
-        "nabenhöhe" :130,
+        "nabenhöhe" :140,
         "d_unten_oben" :[11, 3.4],
         "höhe_sektionen" :[11,12],# wenn 2 dann ist es eine range 
         "transportbreite_max":3,

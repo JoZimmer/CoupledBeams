@@ -1071,7 +1071,7 @@ def plot_static_result_forces(beam_model:BeamModel, result_type:str, dofs_to_plo
         ax[d_i].set_ylim(bottom=0)
 
     ax[0].set_ylabel(r'height [$m$]')
-    plt.tight_layout()
+    #plt.tight_layout()
     plt.show()
 
 def plot_eigenmodes_3D(beam_model:BeamModel, eigenfrequencies, eigenmodes, number_of_modes = 3, dofs_to_plot = ['y','z','a'],

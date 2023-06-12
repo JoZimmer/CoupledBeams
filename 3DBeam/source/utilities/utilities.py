@@ -548,11 +548,12 @@ def extreme_value_analysis_nist(given_series, dt, response_label = None, type_of
 
 #______________________SONSTIGES_____________________________________
 
-def add_defaults(params_dict:dict):
+def validate_and_add_defaults(params_dict:dict):
     '''
     Im run sind nur die tatsächlich relevanten werte zu definieren. 
     Weitere Werte die aufgrund von älteren Versionen gebruacht werden werden dann hier ergäntz
     NOTE Nur ergänzung keine überschreibung
+    Validations auch für andere als die beam model parameter
     '''
     parameters = {
                 'lz_total_beam': 130, # wird mit der Querschnitts definition ergänzt
@@ -569,13 +570,16 @@ def add_defaults(params_dict:dict):
                 'eigen_freqs_target':[0.133,0.79,3.0], 
             }
     for k in parameters:
-        if k not in params_dict:
-            params_dict[k] = parameters[k]
+        if k not in params_dict['model_parameter']:
+            params_dict['model_parameter'][k] = parameters[k]
 
     einspannung = {'2D':[0,1,2], '3D':[0,1,2,3,4,5]}
-    params_dict['dofs_of_bc'] = einspannung[params_dict['dimension']]
+    params_dict['model_parameter']['dofs_of_bc'] = einspannung[params_dict['model_parameter']['dimension']]
 
-    return params_dict
+    if next(iter(params_dict['lasten']["kopflasten"]['lastfälle'])) != 'max_druck':
+        raise Exception('In den input parametern muss der erste Lastfall Max Druck sein damit dei Spannkraft richtig berechnet wird')
+
+    return params_dict['model_parameter']
 
 def load_object_from_pkl(pkl_file):
     '''full path mit datei name zum jobejt file'''

@@ -508,6 +508,7 @@ class Querschnitt(object):
 
     def spannkraft_berechnung(self, SGR_design, spannglied_parameter:dict= None, params:dict=None, n_drähte = 60, n_jahre=20, feuchteänderung = 0, dT = 0, verluste_pauschal = 0):
         '''
+        TODO die werte für die detaillierten Spannkraft verluste auch ins params dict packen irgendwann
         fester_wert = Verluste in %
 
         Zusammenfassung:
@@ -553,7 +554,7 @@ class Querschnitt(object):
 
         self.spannkraft_verluste = {}
 
-        self.P_m0 = {'Ebenen':copy(self.P_erf)}
+        self.P_m0 = {'Ebenen':copy(self.P_erf)} # 0. ter eintrag ist gleich unten 
 
         if not verluste_pauschal:
             '''
@@ -609,15 +610,20 @@ class Querschnitt(object):
         # die absoluten Verluste werden auf die gesamt Kraft aufaddiert
         self.P_m0['Ebenen'] += self.spannkraft_verluste['gesamt']
 
-        self.P_m0['FE'] = np.zeros(self.FE_nodes)
-
-        for i, x in enumerate(self.section_absolute_heights['FE']):
-            for j, x_ebene in enumerate(self.section_absolute_heights['Ebenen'][1:]):
-                j += 1
-                if x >= self.section_absolute_heights['Ebenen'][j-1] and x <= x_ebene:
-                    self.P_m0['FE'][i] += self.P_m0['Ebenen'][j-1]
+        # TODO weiß nicht warum es Probleme gibt wenn ebenen = FE ist -> daher auch nicht sicher ob die zuweisung bei ungleichheit richtig?!
+        if self.FE_nodes == self.n_ebenen:
+            self.P_m0['FE'] = self.P_m0['Ebenen']
         
-    def get_spannglied_staffelung(self, n_oberste_segmente:int, Pd_ext, Pd_int, spannkanal:list, return_result = False):
+        else:
+            self.P_m0['FE'] = np.zeros(self.FE_nodes)
+
+            for i, x in enumerate(self.section_absolute_heights['FE']):
+                for j, x_ebene in enumerate(self.section_absolute_heights['Ebenen'][1:]):
+                    j += 1
+                    if x >= self.section_absolute_heights['Ebenen'][j-1] and x <= x_ebene:
+                        self.P_m0['FE'][i] += self.P_m0['Ebenen'][j-1]
+        
+    def get_spannglied_staffelung(self, params:dict, return_result = False):
         '''
         n_oberste_segmente: Anzahl der oberen Segmente die durch die externe Vorspannung abgedeckt werden sollen 
         Pd: werte des gewählten spannsystems   
@@ -626,6 +632,15 @@ class Querschnitt(object):
         return: Werte über Spanngliedanzahlen werden nur an den Ebenen Knoten zurück gegebn. Spannkraft werte an beiden Knotenebenen 
         '''
         from math import ceil
+
+        add_fuß_ebene = 0
+        if params['inkl_fuß_ext']:
+            add_fuß_ebene = 1
+
+        n_oberste_segmente= params['n_segmente_extern'] + add_fuß_ebene
+        Pd_ext = params['Pd_ext']
+        Pd_int = params['Pd_int']
+        spannkanal = params['masse_spannkanal']
 
         P_oben = self.P_m0['Ebenen'][-n_oberste_segmente]
         n_ext_erf = ceil(P_oben/Pd_ext) # anzahl extern
@@ -652,8 +667,7 @@ class Querschnitt(object):
         self.n_int_summe = list(reversed(n_int_summe)) # von unten nach oben 
         self.P_ist_fuge = {'Ebenen':np.asarray(list(reversed(P_ist_fuge['Ebenen'])))}
         
-        self.Iy_spannkanal = {'Ebenen':
-                self.flächenträgheitsmoment_spannkanäle(spannkanal, self.n_int_summe)}
+        self.Iy_spannkanal = {'Ebenen': self.flächenträgheitsmoment_spannkanäle(spannkanal, self.n_int_summe)}
         
         self.n_ext_erf_list = [0]*self.n_sections
         self.n_ext_erf_list.append(n_ext_erf)
@@ -664,15 +678,20 @@ class Querschnitt(object):
 
         self.sigma_druck_P= {'Ebenen':self.P_ist_fuge['Ebenen']/ self.wand_stärke / self.U_außen['Ebenen']}
 
-        self.P_ist_fuge['FE'] = np.zeros(self.FE_nodes)
-        self.Iy_spannkanal['FE'] = np.zeros(self.FE_nodes)
+        # TODO weiß nicht warum es Probleme gibt wenn ebenen = FE ist -> daher auch nicht sicher ob die zuweisung bei ungleichheit richtig?!
+        if self.FE_nodes == self.n_ebenen:
+            self.P_ist_fuge['FE'] = self.P_ist_fuge['Ebenen']
+            self.Iy_spannkanal['FE'] = self.Iy_spannkanal['Ebenen'] 
+        else:
+            self.P_ist_fuge['FE'] = np.zeros(self.FE_nodes)
+            self.Iy_spannkanal['FE'] = np.zeros(self.FE_nodes)
 
-        for i, x in enumerate(self.section_absolute_heights['FE']):
-            for j, x_ebene in enumerate(self.section_absolute_heights['Ebenen'][1:]):
-                j += 1
-                if x >= self.section_absolute_heights['Ebenen'][j-1] and x <= x_ebene:
-                    self.P_ist_fuge['FE'][i] += self.P_ist_fuge['Ebenen'][j-1]
-                    self.Iy_spannkanal['FE'][i] += self.Iy_spannkanal['Ebenen'][j-1]
+            for i, x in enumerate(self.section_absolute_heights['FE']):
+                for j, x_ebene in enumerate(self.section_absolute_heights['Ebenen'][1:]):
+                    j += 1
+                    if x >= self.section_absolute_heights['Ebenen'][j-1] and x <= x_ebene:
+                        self.P_ist_fuge['FE'][i] += self.P_ist_fuge['Ebenen'][j-1]
+                        self.Iy_spannkanal['FE'][i] += self.Iy_spannkanal['Ebenen'][j-1]
 
         self.sigma_druck_P['FE'] = self.P_ist_fuge['FE'] / self.wand_stärke / self.U_außen['FE']
 
@@ -753,14 +772,15 @@ class Querschnitt(object):
                     self.tau_vtor[knoten][dauer] = 1.5 * self.tau_xy[knoten][dauer] * (tl/lamellenbreite)
                     self.berechnungs_hinweise.append('   - Torsion im Kreuzungspunkt der Lammellen in Folge Scheibenschub mit Lamellendicke ' + str(tl) + ' und Lamellenbreite ' + str(lamellenbreite) + ' berechnet')
 
-            if not self.holz_parameter['Furnierebene']:
+            if self.holz_parameter['Furnierebene']:
+                self.tau_Fe_design[knoten] = self.tau_Fe[knoten]['egal']
+                self.tau_längs_design[knoten] = self.tau_längs[knoten]['egal']                
+            else:
                 self.tau_Qx_design[knoten] = self.tau_Qx[knoten]['egal']
                 self.tau_Mz_design[knoten] = self.tau_Mz[knoten]['egal']
                 self.tau_xy_design[knoten] = self.tau_xy[knoten]['egal']
                 self.tau_vtor_design[knoten] = self.tau_vtor[knoten]['egal']
-            else:
-                self.tau_Fe_design[knoten] = self.tau_Fe[knoten]['egal']
-                self.tau_längs_design[knoten] = self.tau_längs[knoten]['egal']
+                
     
     def calculate_ausnutzung_scheibenschub(self, SGR_design, lamellenbreite=0.08):
         '''
@@ -799,7 +819,7 @@ class Querschnitt(object):
 
                 else:
                     self.ausnutzung_schub_brutto[knoten] += self.tau_xy[knoten][dauer] / self.fvd_brutto
-                    self.ausnutzung_schub_netto[knoten] += self.tau_xy[knoten][dauer] / self.fvxyd_netto
+                    self.ausnutzung_schub_netto[knoten] += self.tau_xy[knoten][dauer] / self.fvxyd_netto # TODO nach neuer norm mit dem Gesamt querschnitt?!
                     self.ausnutzung_schub_torsion[knoten] += self.tau_vtor[knoten][dauer] / self.fvtord
 
                     self.berechnungs_hinweise.append('   - Schub Brutto Nachweis nur mit Schmalseitenverklebten Aufbauten (laut VO7)')
@@ -1173,7 +1193,7 @@ class Querschnitt(object):
 
 class KreisRing(Querschnitt):
 
-    def __init__(self, cd = 1.0, cp_max =1.8 , lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, 
+    def __init__(self, cd = 1.0, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, 
                 hoehen_parameter ={}, einheiten = {}, FE_elements=10) -> None:
         
         super().__init__(lagen_aufbau, holz_parameter, nachweis_parameter, hoehen_parameter, einheiten,FE_elements)
@@ -1207,7 +1227,6 @@ class KreisRing(Querschnitt):
         #self.initaliye_geometrie_parameter_FE()
         self.compute_netto_flächen()
         self.cd = cd
-        self.cp_max = cp_max
         
         self.save_section_parameters()
         self.save_QS_parameters_charakteristisch()
@@ -1374,7 +1393,7 @@ class KreisRing(Querschnitt):
 
 class nEck(Querschnitt):
 
-    def __init__(self, n_ecken, cd = 1.5, cp_max= 2.1, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):
+    def __init__(self, n_ecken, cd = 1.5, lagen_aufbau = None, holz_parameter = {}, nachweis_parameter= {}, hoehen_parameter ={}, einheiten = {}):
         '''
         werte können für einzelne sections oder als arrays gegeben werden
         Geometrie: https://de.wikipedia.org/wiki/Regelm%C3%A4%C3%9Figes_Polygon  
@@ -1406,7 +1425,6 @@ class nEck(Querschnitt):
         self.A = self.A_außen-self.A_innen
 
         self.cd = cd
-        self.cp_max=cp_max
         self.save_section_parameters()
         self.save_QS_parameters_charakteristisch()
 
